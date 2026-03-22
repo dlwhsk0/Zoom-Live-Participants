@@ -22,6 +22,7 @@
 
 - webhook 이벤트 구독 자체와 REST API scope는 별개로 봐야 한다.
 - 현재 기준 우선 구독 대상은 `meeting.started`, `meeting.ended`, `meeting.participant_joined`, `meeting.participant_left` 이다.
+- 현재 미수신 상태는 로컬 서버보다 Zoom 앱 활성화/계정 범위/회의 소유 계정 조건 쪽이 더 의심된다.
 
 ## 목적
 
