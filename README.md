@@ -54,6 +54,18 @@ node scripts/getPastParticipants.mjs "<meeting-uuid>"
 npm run zoom:webhook
 ```
 
+Cloudflare Quick Tunnel로 공개 URL 생성:
+
+```bash
+cloudflared tunnel --url http://127.0.0.1:3000
+```
+
+발급된 URL 예시:
+
+```text
+https://example-subdomain.trycloudflare.com
+```
+
 서명된 로컬 테스트 이벤트 전송:
 
 ```bash
@@ -64,11 +76,19 @@ npm run zoom:webhook:test -- meeting.ended
 npm run zoom:webhook:test -- endpoint.url_validation
 ```
 
+발급된 공개 URL 경유로 테스트 이벤트를 보내고 싶으면:
+
+```bash
+ZOOM_WEBHOOK_LOCAL_URL=https://example-subdomain.trycloudflare.com/webhook \
+npm run zoom:webhook:test -- endpoint.url_validation
+```
+
 ## 판정 포인트
 
 - `zoom:meeting`이 현재 회의를 live로 찾는가
 - `zoom:participants`가 현재 참가자 배열을 반환하는가
 - `zoom:past-instances`가 종료된 회의 UUID를 반환하는가
 - `zoom:webhook`이 Zoom 서명 검증과 endpoint validation에 응답하는가
+- `cloudflared` 공개 URL이 `/health`, `/webhook` 요청을 정상 전달하는가
 - 참가자 입장/퇴장 후 재호출 결과가 실제 Zoom UI와 일치하는가
 - 웹훅 이벤트와 participants snapshot이 서로 맞는가

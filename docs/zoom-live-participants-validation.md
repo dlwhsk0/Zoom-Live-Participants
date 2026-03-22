@@ -10,11 +10,13 @@
 - `GET /past_meetings/{meetingId}/instances` 성공
 - `GET /past_meetings/{meetingUUID}/participants` 실패
 - webhook 서버의 로컬 서명 검증, 일반 이벤트 수신, `endpoint.url_validation` 응답은 성공
+- `cloudflared` Quick Tunnel 공개 URL 발급 성공
+- 공개 URL 경유 `/health`, `endpoint.url_validation` 응답 성공
 
 현재 판정:
 
 - REST API 기준으로는 live participants, past participants 모두 사용할 수 없다.
-- webhook 경로는 로컬 준비가 끝났고, 다음 검증은 `실제 Zoom -> 공개 endpoint` 실측이다.
+- webhook 경로는 공개 URL 준비까지 끝났고, 다음 검증은 `Zoom Event Subscriptions 실제 연결`이다.
 
 ## 목적
 
