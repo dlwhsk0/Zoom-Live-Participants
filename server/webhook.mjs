@@ -64,6 +64,11 @@ function verifySignature(headers, rawBody) {
 }
 
 const server = http.createServer((request, response) => {
+  if (request.method === "GET" && request.url === "/health") {
+    sendJson(response, 200, { ok: true });
+    return;
+  }
+
   if (request.method !== "POST" || request.url !== "/webhook") {
     sendJson(response, 404, { ok: false, message: "Not found" });
     return;
@@ -93,6 +98,14 @@ const server = http.createServer((request, response) => {
     }
 
     if (body.event === "endpoint.url_validation") {
+      if (!secretToken) {
+        sendJson(response, 500, {
+          ok: false,
+          message: "ZOOM_WEBHOOK_SECRET_TOKEN is required for endpoint validation"
+        });
+        return;
+      }
+
       const plainToken = body.payload?.plainToken;
       const encryptedToken = createHmac("sha256", secretToken).update(plainToken).digest("hex");
 

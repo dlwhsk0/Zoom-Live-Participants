@@ -1,5 +1,21 @@
 # Zoom 실시간 참가자 목록 검증 메모
 
+## 현재 상태 요약
+
+2026-03-22 기준 확정:
+
+- `zoom:token` 성공
+- `GET /metrics/meetings/{meetingId}?type=live` 실패
+- `GET /metrics/meetings/{meetingId}/participants?type=live` 실패
+- `GET /past_meetings/{meetingId}/instances` 성공
+- `GET /past_meetings/{meetingUUID}/participants` 실패
+- webhook 서버의 로컬 서명 검증, 일반 이벤트 수신, `endpoint.url_validation` 응답은 성공
+
+현재 판정:
+
+- REST API 기준으로는 live participants, past participants 모두 사용할 수 없다.
+- webhook 경로는 로컬 준비가 끝났고, 다음 검증은 `실제 Zoom -> 공개 endpoint` 실측이다.
+
 ## 목적
 
 이번 단계의 목적은 Zoom에서 `회의 진행 중 현재 참가자 전체 목록`을 서버에서 읽을 수 있는지 검증하는 것이다.

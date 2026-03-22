@@ -30,6 +30,12 @@ npm run zoom:meeting
 npm run zoom:participants
 ```
 
+종료된 회의 instance 목록 조회:
+
+```bash
+npm run zoom:past-instances
+```
+
 특정 meeting ID를 직접 넘기고 싶으면:
 
 ```bash
@@ -48,9 +54,21 @@ node scripts/getPastParticipants.mjs "<meeting-uuid>"
 npm run zoom:webhook
 ```
 
+서명된 로컬 테스트 이벤트 전송:
+
+```bash
+npm run zoom:webhook:test -- meeting.started
+npm run zoom:webhook:test -- meeting.participant_joined
+npm run zoom:webhook:test -- meeting.participant_left
+npm run zoom:webhook:test -- meeting.ended
+npm run zoom:webhook:test -- endpoint.url_validation
+```
+
 ## 판정 포인트
 
 - `zoom:meeting`이 현재 회의를 live로 찾는가
 - `zoom:participants`가 현재 참가자 배열을 반환하는가
+- `zoom:past-instances`가 종료된 회의 UUID를 반환하는가
+- `zoom:webhook`이 Zoom 서명 검증과 endpoint validation에 응답하는가
 - 참가자 입장/퇴장 후 재호출 결과가 실제 Zoom UI와 일치하는가
 - 웹훅 이벤트와 participants snapshot이 서로 맞는가

@@ -7,8 +7,10 @@
     "zoom:token": "node scripts/getAccessToken.mjs",
     "zoom:meeting": "node scripts/getLiveMeeting.mjs",
     "zoom:participants": "node scripts/getLiveParticipants.mjs",
+    "zoom:past-instances": "node scripts/getPastMeetingInstances.mjs",
     "zoom:past-participants": "node scripts/getPastParticipants.mjs",
-    "zoom:webhook": "node server/webhook.mjs"
+    "zoom:webhook": "node server/webhook.mjs",
+    "zoom:webhook:test": "node scripts/sendTestWebhook.mjs"
   },
   "engines": {
     "node": ">=20"
