@@ -43,9 +43,116 @@ function sendJson(response, statusCode, body) {
   response.end(JSON.stringify(body, null, 2));
 }
 
+function sendHtml(response, statusCode, body) {
+  response.writeHead(statusCode, { "content-type": "text/html; charset=utf-8" });
+  response.end(body);
+}
+
 function appendWebhookLog(entry) {
   mkdirSync(dirname(webhookLogPath), { recursive: true });
   appendFileSync(webhookLogPath, `${JSON.stringify(entry)}\n`);
+}
+
+function readRecentWebhookEvents(limit = 30) {
+  if (!existsSync(webhookLogPath)) {
+    return [];
+  }
+
+  const lines = readFileSync(webhookLogPath, "utf8")
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .slice(-limit);
+
+  return lines
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch {
+        return null;
+      }
+    })
+    .filter(Boolean)
+    .reverse();
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+
+function renderEventsPage(events) {
+  const items = events.length
+    ? events.map((entry) => {
+        const participantName = entry.participant?.user_name ?? "-";
+        const participantId = entry.participant?.user_id ?? entry.participant?.id ?? "-";
+
+        return `
+          <article class="event">
+            <div class="meta">
+              <strong>${escapeHtml(entry.event ?? "-")}</strong>
+              <span>${escapeHtml(entry.received_at ?? "-")}</span>
+            </div>
+            <div>meeting_id: ${escapeHtml(entry.meeting_id ?? "-")}</div>
+            <div>meeting_uuid: ${escapeHtml(entry.meeting_uuid ?? "-")}</div>
+            <div>participant_name: ${escapeHtml(participantName)}</div>
+            <div>participant_id: ${escapeHtml(participantId)}</div>
+            <details>
+              <summary>raw payload</summary>
+              <pre>${escapeHtml(JSON.stringify(entry.raw, null, 2))}</pre>
+            </details>
+          </article>
+        `;
+      }).join("")
+    : "<p>아직 수신된 이벤트가 없습니다.</p>";
+
+  return `<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="refresh" content="3" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Zoom Webhook Events</title>
+    <style>
+      :root { color-scheme: light; }
+      body {
+        margin: 0;
+        padding: 24px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: #f4f1ea;
+        color: #1e1b16;
+      }
+      h1 { margin: 0 0 8px; font-size: 24px; }
+      p { margin: 0 0 16px; }
+      .event {
+        background: #fffdf8;
+        border: 1px solid #d8d1c3;
+        border-radius: 10px;
+        padding: 14px;
+        margin: 0 0 12px;
+      }
+      .meta {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+      pre {
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #f7f3ea;
+        padding: 10px;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Zoom Webhook Events</h1>
+    <p>최근 ${events.length}개 이벤트를 표시합니다. 3초마다 새로고침됩니다.</p>
+    ${items}
+  </body>
+</html>`;
 }
 
 function verifySignature(headers, rawBody) {
@@ -72,6 +179,18 @@ function verifySignature(headers, rawBody) {
 const server = http.createServer((request, response) => {
   if (request.method === "GET" && request.url === "/health") {
     sendJson(response, 200, { ok: true });
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/events") {
+    const events = readRecentWebhookEvents();
+    sendHtml(response, 200, renderEventsPage(events));
+    return;
+  }
+
+  if (request.method === "GET" && request.url === "/events.json") {
+    const events = readRecentWebhookEvents();
+    sendJson(response, 200, { ok: true, events });
     return;
   }
 
