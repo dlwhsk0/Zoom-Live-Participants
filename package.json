@@ -1,0 +1,16 @@
+{
+  "name": "zoom-live-participants",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "zoom:token": "node scripts/getAccessToken.mjs",
+    "zoom:meeting": "node scripts/getLiveMeeting.mjs",
+    "zoom:participants": "node scripts/getLiveParticipants.mjs",
+    "zoom:past-participants": "node scripts/getPastParticipants.mjs",
+    "zoom:webhook": "node server/webhook.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
