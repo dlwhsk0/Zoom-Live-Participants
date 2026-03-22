@@ -1,9 +1,10 @@
 import { createHmac } from "node:crypto";
 import http from "node:http";
-import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { appendFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 const ENV_PATH = resolve(process.cwd(), ".env");
+const webhookLogPath = resolve(process.cwd(), process.env.WEBHOOK_LOG_PATH ?? "logs/webhook-events.ndjson");
 
 function loadDotEnv() {
   if (!existsSync(ENV_PATH)) {
@@ -40,6 +41,11 @@ const port = Number(process.env.PORT ?? "3000");
 function sendJson(response, statusCode, body) {
   response.writeHead(statusCode, { "content-type": "application/json" });
   response.end(JSON.stringify(body, null, 2));
+}
+
+function appendWebhookLog(entry) {
+  mkdirSync(dirname(webhookLogPath), { recursive: true });
+  appendFileSync(webhookLogPath, `${JSON.stringify(entry)}\n`);
 }
 
 function verifySignature(headers, rawBody) {
@@ -116,15 +122,19 @@ const server = http.createServer((request, response) => {
       return;
     }
 
-    console.log("\n[webhook event]");
-    console.log(JSON.stringify({
+    const entry = {
       received_at: new Date().toISOString(),
       event: body.event,
       meeting_id: body.payload?.object?.id,
       meeting_uuid: body.payload?.object?.uuid,
       participant: body.payload?.object?.participant,
       raw: body
-    }, null, 2));
+    };
+
+    appendWebhookLog(entry);
+
+    console.log("\n[webhook event]");
+    console.log(JSON.stringify(entry, null, 2));
 
     sendJson(response, 200, { ok: true });
   });
