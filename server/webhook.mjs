@@ -53,15 +53,18 @@ function appendWebhookLog(entry) {
   appendFileSync(webhookLogPath, `${JSON.stringify(entry)}\n`);
 }
 
-function readRecentWebhookEvents(limit = 30) {
+function readWebhookEvents(limit = null) {
   if (!existsSync(webhookLogPath)) {
     return [];
   }
 
-  const lines = readFileSync(webhookLogPath, "utf8")
+  let lines = readFileSync(webhookLogPath, "utf8")
     .split(/\r?\n/)
-    .filter(Boolean)
-    .slice(-limit);
+    .filter(Boolean);
+
+  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+    lines = lines.slice(-limit);
+  }
 
   return lines
     .map((line) => {
@@ -82,7 +85,7 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;");
 }
 
-function renderEventsPage(events) {
+function renderEventsPage(events, totalCount) {
   const items = events.length
     ? events.map((entry) => {
         const participantName = entry.participant?.user_name ?? "-";
@@ -149,7 +152,7 @@ function renderEventsPage(events) {
   </head>
   <body>
     <h1>Zoom Webhook Events</h1>
-    <p>최근 ${events.length}개 이벤트를 표시합니다. 3초마다 새로고침됩니다.</p>
+    <p>저장된 전체 이벤트 ${totalCount}건 중 현재 ${events.length}건을 표시합니다. 3초마다 새로고침됩니다.</p>
     ${items}
   </body>
 </html>`;
@@ -177,24 +180,32 @@ function verifySignature(headers, rawBody) {
 }
 
 const server = http.createServer((request, response) => {
-  if (request.method === "GET" && request.url === "/health") {
+  const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+
+  if (request.method === "GET" && requestUrl.pathname === "/health") {
     sendJson(response, 200, { ok: true });
     return;
   }
 
-  if (request.method === "GET" && request.url === "/events") {
-    const events = readRecentWebhookEvents();
-    sendHtml(response, 200, renderEventsPage(events));
+  if (request.method === "GET" && requestUrl.pathname === "/events") {
+    const limitParam = requestUrl.searchParams.get("limit");
+    const limit = limitParam ? Number(limitParam) : null;
+    const allEvents = readWebhookEvents();
+    const events = readWebhookEvents(limit);
+    sendHtml(response, 200, renderEventsPage(events, allEvents.length));
     return;
   }
 
-  if (request.method === "GET" && request.url === "/events.json") {
-    const events = readRecentWebhookEvents();
-    sendJson(response, 200, { ok: true, events });
+  if (request.method === "GET" && requestUrl.pathname === "/events.json") {
+    const limitParam = requestUrl.searchParams.get("limit");
+    const limit = limitParam ? Number(limitParam) : null;
+    const allEvents = readWebhookEvents();
+    const events = readWebhookEvents(limit);
+    sendJson(response, 200, { ok: true, total: allEvents.length, events });
     return;
   }
 
-  if (request.method !== "POST" || request.url !== "/webhook") {
+  if (request.method !== "POST" || requestUrl.pathname !== "/webhook") {
     sendJson(response, 404, { ok: false, message: "Not found" });
     return;
   }
