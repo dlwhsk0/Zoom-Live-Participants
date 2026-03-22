@@ -18,6 +18,11 @@
 - REST API 기준으로는 live participants, past participants 모두 사용할 수 없다.
 - webhook 경로는 공개 URL 준비까지 끝났고, 다음 검증은 `Zoom Event Subscriptions 실제 연결`이다.
 
+추가 정리:
+
+- webhook 이벤트 구독 자체와 REST API scope는 별개로 봐야 한다.
+- 현재 기준 우선 구독 대상은 `meeting.started`, `meeting.ended`, `meeting.participant_joined`, `meeting.participant_left` 이다.
+
 ## 목적
 
 이번 단계의 목적은 Zoom에서 `회의 진행 중 현재 참가자 전체 목록`을 서버에서 읽을 수 있는지 검증하는 것이다.
