@@ -23,7 +23,7 @@ Step 03까지는 webhook 서버가 로컬에서 정상 동작하는지 확인했
 
 - `.env.example`
 - `README.md`
-- `docs/step-04-cloudflare-tunnel-webhook-prep.md`
+- `docs/20260322/step-04-cloudflare-tunnel-webhook-prep.md`
 
 정리 내용:
 
