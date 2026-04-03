@@ -85,22 +85,83 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;");
 }
 
-function renderEventsPage(events, totalCount) {
+function deriveRoomContext(entry) {
+  const object = entry.raw?.payload?.object ?? {};
+  const participant = entry.participant ?? {};
+  const leaveReason = String(participant.leave_reason ?? "").toLowerCase();
+  const breakout = object.breakout_room ?? participant.breakout_room;
+
+  if (breakout && typeof breakout === "object") {
+    return {
+      scope: "breakout",
+      detail: breakout.name ?? breakout.room_name ?? "breakout"
+    };
+  }
+
+  if (leaveReason.includes("breakout room")) {
+    return {
+      scope: "breakout_transition",
+      detail: "leave_reason mentions breakout room"
+    };
+  }
+
+  return {
+    scope: "main_or_unknown",
+    detail: "payload has no explicit breakout field"
+  };
+}
+
+function normalizeQueryValue(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function filterWebhookEvents(events, filters) {
+  return events.filter((entry) => {
+    const room = deriveRoomContext(entry);
+    const participantName = entry.participant?.user_name ?? "";
+
+    if (filters.event && normalizeQueryValue(entry.event) !== filters.event) {
+      return false;
+    }
+
+    if (filters.meetingId && normalizeQueryValue(entry.meeting_id) !== filters.meetingId) {
+      return false;
+    }
+
+    if (filters.userName && !normalizeQueryValue(participantName).includes(filters.userName)) {
+      return false;
+    }
+
+    if (filters.roomScope && normalizeQueryValue(room.scope) !== filters.roomScope) {
+      return false;
+    }
+
+    return true;
+  });
+}
+
+function renderEventsPage(events, totalCount, filters) {
   const items = events.length
     ? events.map((entry) => {
         const participantName = entry.participant?.user_name ?? "-";
         const participantId = entry.participant?.user_id ?? entry.participant?.id ?? "-";
+        const participantUuid = entry.participant?.participant_uuid ?? "-";
+        const room = deriveRoomContext(entry);
 
         return `
           <article class="event">
             <div class="meta">
               <strong>${escapeHtml(entry.event ?? "-")}</strong>
               <span>${escapeHtml(entry.received_at ?? "-")}</span>
+              <span class="pill">${escapeHtml(room.scope)}</span>
             </div>
             <div>meeting_id: ${escapeHtml(entry.meeting_id ?? "-")}</div>
             <div>meeting_uuid: ${escapeHtml(entry.meeting_uuid ?? "-")}</div>
             <div>participant_name: ${escapeHtml(participantName)}</div>
             <div>participant_id: ${escapeHtml(participantId)}</div>
+            <div>participant_uuid: ${escapeHtml(participantUuid)}</div>
+            <div>room_context: ${escapeHtml(room.scope)}</div>
+            <div>room_detail: ${escapeHtml(room.detail)}</div>
             <details>
               <summary>raw payload</summary>
               <pre>${escapeHtml(JSON.stringify(entry.raw, null, 2))}</pre>
@@ -128,6 +189,44 @@ function renderEventsPage(events, totalCount) {
       }
       h1 { margin: 0 0 8px; font-size: 24px; }
       p { margin: 0 0 16px; }
+      form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+        margin: 0 0 16px;
+        background: #fffdf8;
+        border: 1px solid #d8d1c3;
+        border-radius: 10px;
+        padding: 14px;
+      }
+      label {
+        display: block;
+        font-size: 12px;
+        margin-bottom: 4px;
+      }
+      input, select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 8px;
+        border: 1px solid #c9c1b4;
+        border-radius: 8px;
+        background: #fff;
+      }
+      .actions {
+        display: flex;
+        align-items: end;
+        gap: 8px;
+      }
+      .actions a, .actions button {
+        display: inline-block;
+        border: 1px solid #c9c1b4;
+        border-radius: 8px;
+        padding: 8px 10px;
+        background: #fff;
+        color: inherit;
+        text-decoration: none;
+        cursor: pointer;
+      }
       .event {
         background: #fffdf8;
         border: 1px solid #d8d1c3;
@@ -141,6 +240,12 @@ function renderEventsPage(events, totalCount) {
         flex-wrap: wrap;
         margin-bottom: 8px;
       }
+      .pill {
+        border: 1px solid #c9c1b4;
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: #f7f3ea;
+      }
       pre {
         white-space: pre-wrap;
         word-break: break-word;
@@ -153,6 +258,37 @@ function renderEventsPage(events, totalCount) {
   <body>
     <h1>Zoom Webhook Events</h1>
     <p>저장된 전체 이벤트 ${totalCount}건 중 현재 ${events.length}건을 표시합니다. 3초마다 새로고침됩니다.</p>
+    <form method="get" action="/events">
+      <div>
+        <label for="event">event</label>
+        <input id="event" name="event" value="${escapeHtml(filters.event ?? "")}" placeholder="meeting.participant_joined" />
+      </div>
+      <div>
+        <label for="meeting_id">meeting_id</label>
+        <input id="meeting_id" name="meeting_id" value="${escapeHtml(filters.meetingId ?? "")}" placeholder="89791995600" />
+      </div>
+      <div>
+        <label for="user_name">user_name</label>
+        <input id="user_name" name="user_name" value="${escapeHtml(filters.userName ?? "")}" placeholder="이현호" />
+      </div>
+      <div>
+        <label for="room_scope">room_scope</label>
+        <select id="room_scope" name="room_scope">
+          <option value="">all</option>
+          <option value="main_or_unknown"${filters.roomScope === "main_or_unknown" ? " selected" : ""}>main_or_unknown</option>
+          <option value="breakout_transition"${filters.roomScope === "breakout_transition" ? " selected" : ""}>breakout_transition</option>
+          <option value="breakout"${filters.roomScope === "breakout" ? " selected" : ""}>breakout</option>
+        </select>
+      </div>
+      <div>
+        <label for="limit">limit</label>
+        <input id="limit" name="limit" value="${escapeHtml(filters.limit ?? "")}" placeholder="100" />
+      </div>
+      <div class="actions">
+        <button type="submit">apply</button>
+        <a href="/events">reset</a>
+      </div>
+    </form>
     ${items}
   </body>
 </html>`;
@@ -191,8 +327,19 @@ const server = http.createServer((request, response) => {
     const limitParam = requestUrl.searchParams.get("limit");
     const limit = limitParam ? Number(limitParam) : null;
     const allEvents = readWebhookEvents();
-    const events = readWebhookEvents(limit);
-    sendHtml(response, 200, renderEventsPage(events, allEvents.length));
+    const filteredEvents = filterWebhookEvents(readWebhookEvents(limit), {
+      event: normalizeQueryValue(requestUrl.searchParams.get("event")),
+      meetingId: normalizeQueryValue(requestUrl.searchParams.get("meeting_id")),
+      userName: normalizeQueryValue(requestUrl.searchParams.get("user_name")),
+      roomScope: normalizeQueryValue(requestUrl.searchParams.get("room_scope"))
+    });
+    sendHtml(response, 200, renderEventsPage(filteredEvents, allEvents.length, {
+      event: requestUrl.searchParams.get("event") ?? "",
+      meetingId: requestUrl.searchParams.get("meeting_id") ?? "",
+      userName: requestUrl.searchParams.get("user_name") ?? "",
+      roomScope: requestUrl.searchParams.get("room_scope") ?? "",
+      limit: requestUrl.searchParams.get("limit") ?? ""
+    }));
     return;
   }
 
@@ -200,8 +347,16 @@ const server = http.createServer((request, response) => {
     const limitParam = requestUrl.searchParams.get("limit");
     const limit = limitParam ? Number(limitParam) : null;
     const allEvents = readWebhookEvents();
-    const events = readWebhookEvents(limit);
-    sendJson(response, 200, { ok: true, total: allEvents.length, events });
+    const events = filterWebhookEvents(readWebhookEvents(limit), {
+      event: normalizeQueryValue(requestUrl.searchParams.get("event")),
+      meetingId: normalizeQueryValue(requestUrl.searchParams.get("meeting_id")),
+      userName: normalizeQueryValue(requestUrl.searchParams.get("user_name")),
+      roomScope: normalizeQueryValue(requestUrl.searchParams.get("room_scope"))
+    }).map((entry) => ({
+      ...entry,
+      room_context: deriveRoomContext(entry)
+    }));
+    sendJson(response, 200, { ok: true, total: allEvents.length, filtered: events.length, events });
     return;
   }
 
