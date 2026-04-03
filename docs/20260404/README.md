@@ -12,6 +12,7 @@
 - Step 06 Slack Incoming Webhook 연동 준비 문서화
 - Step 07 Slack Incoming Webhook 구현
 - Step 08 webhook 서버 코드 구조 분리
+- Step 09 이벤트 확인 페이지 UI 개편
 
 현재 결론:
 
