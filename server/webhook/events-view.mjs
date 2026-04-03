@@ -50,7 +50,77 @@ export function filterWebhookEvents(events, filters) {
 	});
 }
 
+function getEventKindLabel(eventName) {
+	if (eventName === "meeting.participant_joined") {
+		return "입장 이벤트";
+	}
+
+	if (eventName === "meeting.participant_left") {
+		return "퇴장 이벤트";
+	}
+
+	if (eventName === "meeting.started") {
+		return "회의 시작";
+	}
+
+	if (eventName === "meeting.ended") {
+		return "회의 종료";
+	}
+
+	return "기타 이벤트";
+}
+
+function getRoomPresentation(entry) {
+	const room = deriveRoomContext(entry);
+	const isJoin = entry.event === "meeting.participant_joined";
+	const isLeft = entry.event === "meeting.participant_left";
+
+	if (room.scope === "breakout") {
+		return {
+			badge: "소회의실",
+			title: isJoin
+				? "소회의실 입장으로 보입니다"
+				: isLeft
+					? "소회의실 퇴장으로 보입니다"
+					: "소회의실 관련 이벤트입니다",
+			description: `Zoom payload에 소회의실 정보가 직접 포함되었습니다. 식별된 방: ${room.detail}`,
+			tone: "breakout",
+		};
+	}
+
+	if (room.scope === "breakout_transition") {
+		return {
+			badge: "소회의실 이동 추정",
+			title: isLeft
+				? "소회의실 이동 또는 소회의실 이탈로 추정됩니다"
+				: "소회의실 전환 관련 이벤트로 추정됩니다",
+			description:
+				"payload의 leave_reason에 breakout room 문구가 있어 메인 회의실 단순 퇴장보다 소회의실 이동 가능성이 높습니다.",
+			tone: "transition",
+		};
+	}
+
+	return {
+		badge: "메인 회의실 또는 일반 입퇴장",
+		title: isJoin
+			? "메인 회의실 입장으로 처리합니다"
+			: isLeft
+				? "메인 회의실 퇴장으로 처리합니다"
+				: "메인 회의실 기준 일반 이벤트입니다",
+		description:
+			"payload에 소회의실 식별 필드가 없어서 현재는 메인 회의실 이벤트로 간주합니다. 필요하면 raw payload로 재확인하세요.",
+		tone: "main",
+	};
+}
+
 export function renderEventsPage(events, totalCount, filters) {
+	const breakoutCount = events.filter(
+		(entry) => deriveRoomContext(entry).scope === "breakout",
+	).length;
+	const transitionCount = events.filter(
+		(entry) => deriveRoomContext(entry).scope === "breakout_transition",
+	).length;
+	const mainCount = events.length - breakoutCount - transitionCount;
 	const items = events.length
 		? events
 				.map((entry) => {
@@ -62,23 +132,55 @@ export function renderEventsPage(events, totalCount, filters) {
 					const participantUuid =
 						entry.participant?.participant_uuid ?? "-";
 					const room = deriveRoomContext(entry);
+					const roomPresentation = getRoomPresentation(entry);
+					const eventKindLabel = getEventKindLabel(entry.event);
 
 					return `
-          <article class="event">
-            <div class="meta">
-              <strong>${escapeHtml(entry.event ?? "-")}</strong>
-              <span>${escapeHtml(entry.received_at ?? "-")}</span>
-              <span class="pill">${escapeHtml(room.scope)}</span>
+          <article class="event tone-${escapeHtml(roomPresentation.tone)}">
+            <div class="event-top">
+              <div>
+                <div class="eyebrow">${escapeHtml(eventKindLabel)}</div>
+                <h2>${escapeHtml(participantName)}</h2>
+              </div>
+              <div class="pill-group">
+                <span class="pill pill-event">${escapeHtml(entry.event ?? "-")}</span>
+                <span class="pill pill-room">${escapeHtml(roomPresentation.badge)}</span>
+              </div>
             </div>
-            <div>meeting_id: ${escapeHtml(entry.meeting_id ?? "-")}</div>
-            <div>meeting_uuid: ${escapeHtml(entry.meeting_uuid ?? "-")}</div>
-            <div>participant_name: ${escapeHtml(participantName)}</div>
-            <div>participant_id: ${escapeHtml(participantId)}</div>
-            <div>participant_uuid: ${escapeHtml(participantUuid)}</div>
-            <div>room_context: ${escapeHtml(room.scope)}</div>
-            <div>room_detail: ${escapeHtml(room.detail)}</div>
+            <p class="lead">${escapeHtml(roomPresentation.title)}</p>
+            <p class="explain">${escapeHtml(roomPresentation.description)}</p>
+            <div class="meta-grid">
+              <div class="meta-item">
+                <span class="meta-label">수신 시각</span>
+                <strong>${escapeHtml(entry.received_at ?? "-")}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">회의 ID</span>
+                <strong>${escapeHtml(entry.meeting_id ?? "-")}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">회의 UUID</span>
+                <strong>${escapeHtml(entry.meeting_uuid ?? "-")}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">참가자 ID</span>
+                <strong>${escapeHtml(participantId)}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">participant_uuid</span>
+                <strong>${escapeHtml(participantUuid)}</strong>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">내부 판정</span>
+                <strong>${escapeHtml(room.scope)}</strong>
+              </div>
+            </div>
             <details>
-              <summary>raw payload</summary>
+              <summary>raw payload와 판정 근거 보기</summary>
+              <div class="reason-box">
+                <div>room_scope: ${escapeHtml(room.scope)}</div>
+                <div>room_detail: ${escapeHtml(room.detail)}</div>
+              </div>
               <pre>${escapeHtml(JSON.stringify(entry.raw, null, 2))}</pre>
             </details>
           </article>
@@ -95,38 +197,93 @@ export function renderEventsPage(events, totalCount, filters) {
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Zoom Webhook Events</title>
     <style>
-      :root { color-scheme: light; }
+      :root {
+        color-scheme: light;
+        --bg: linear-gradient(180deg, #e9f4ff 0%, #f7fbff 55%, #eef7ff 100%);
+        --panel: rgba(255, 255, 255, 0.92);
+        --panel-strong: #ffffff;
+        --line: #b9d3f2;
+        --text: #12304d;
+        --muted: #58789b;
+        --primary: #1c6ed8;
+        --primary-soft: #dcecff;
+        --main: #1e88e5;
+        --main-soft: #e7f3ff;
+        --breakout: #0f766e;
+        --breakout-soft: #ddfbf5;
+        --transition: #2563eb;
+        --transition-soft: #e0ebff;
+      }
       body {
         margin: 0;
-        padding: 24px;
+        padding: 28px;
         font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-        background: #f4f1ea;
-        color: #1e1b16;
+        background: var(--bg);
+        color: var(--text);
       }
-      h1 { margin: 0 0 8px; font-size: 24px; }
+      .page {
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 30px;
+        letter-spacing: -0.04em;
+      }
       p { margin: 0 0 16px; }
+      .intro {
+        margin-bottom: 18px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        margin: 0 0 18px;
+      }
+      .summary-card {
+        padding: 16px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: 0 14px 30px rgba(30, 92, 180, 0.08);
+      }
+      .summary-card strong {
+        display: block;
+        font-size: 28px;
+        margin-bottom: 6px;
+      }
+      .summary-card span {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.5;
+      }
       form {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
         gap: 10px;
         margin: 0 0 16px;
-        background: #fffdf8;
-        border: 1px solid #d8d1c3;
-        border-radius: 10px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
         padding: 14px;
+        box-shadow: 0 14px 30px rgba(30, 92, 180, 0.08);
       }
       label {
         display: block;
         font-size: 12px;
         margin-bottom: 4px;
+        color: var(--muted);
       }
       input, select {
         width: 100%;
         box-sizing: border-box;
         padding: 8px;
-        border: 1px solid #c9c1b4;
-        border-radius: 8px;
-        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--panel-strong);
+        color: var(--text);
       }
       .actions {
         display: flex;
@@ -135,45 +292,150 @@ export function renderEventsPage(events, totalCount, filters) {
       }
       .actions a, .actions button {
         display: inline-block;
-        border: 1px solid #c9c1b4;
-        border-radius: 8px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
         padding: 8px 10px;
-        background: #fff;
+        background: var(--panel-strong);
         color: inherit;
         text-decoration: none;
         cursor: pointer;
       }
-      .event {
-        background: #fffdf8;
-        border: 1px solid #d8d1c3;
-        border-radius: 10px;
-        padding: 14px;
-        margin: 0 0 12px;
+      .actions button {
+        background: linear-gradient(135deg, #1f7ae0 0%, #4aa4ff 100%);
+        color: white;
+        border-color: #1f7ae0;
       }
-      .meta {
+      .event {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 18px;
+        margin: 0 0 14px;
+        box-shadow: 0 16px 34px rgba(30, 92, 180, 0.08);
+      }
+      .tone-main {
+        border-left: 8px solid var(--main);
+        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--main-soft) 100%);
+      }
+      .tone-breakout {
+        border-left: 8px solid var(--breakout);
+        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--breakout-soft) 100%);
+      }
+      .tone-transition {
+        border-left: 8px solid var(--transition);
+        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--transition-soft) 100%);
+      }
+      .event-top {
         display: flex;
-        gap: 12px;
+        justify-content: space-between;
+        align-items: start;
+        gap: 14px;
         flex-wrap: wrap;
-        margin-bottom: 8px;
+        margin-bottom: 10px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      h2 {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.2;
+        letter-spacing: -0.03em;
       }
       .pill {
-        border: 1px solid #c9c1b4;
+        border: 1px solid var(--line);
         border-radius: 999px;
-        padding: 2px 8px;
-        background: #f7f3ea;
+        padding: 6px 10px;
+        background: rgba(255,255,255,0.7);
+        font-size: 12px;
+      }
+      .pill-group {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+      .pill-room {
+        background: #dff0ff;
+      }
+      .lead {
+        margin: 0 0 8px;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      .explain {
+        margin: 0 0 14px;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+      .meta-item {
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(150, 188, 232, 0.7);
+        border-radius: 14px;
+        padding: 12px;
+      }
+      .meta-label {
+        display: block;
+        font-size: 11px;
+        color: var(--muted);
+        margin-bottom: 6px;
+      }
+      .reason-box {
+        margin: 10px 0;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(150, 188, 232, 0.7);
       }
       pre {
         white-space: pre-wrap;
         word-break: break-word;
-        background: #f7f3ea;
+        background: #eff6ff;
         padding: 10px;
-        border-radius: 8px;
+        border-radius: 12px;
+        border: 1px solid #c8ddfb;
+      }
+      .empty {
+        padding: 24px;
+        border-radius: 18px;
+        background: var(--panel);
+        border: 1px solid var(--line);
+        color: var(--muted);
       }
     </style>
   </head>
   <body>
+    <main class="page">
     <h1>Zoom Webhook Events</h1>
-    <p>저장된 전체 이벤트 ${totalCount}건 중 현재 ${events.length}건을 표시합니다. 3초마다 새로고침됩니다.</p>
+    <p class="intro">최근 수신한 Zoom webhook 이벤트를 메인 회의실, 소회의실, 소회의실 이동 추정으로 나눠서 보여줍니다. 현재 페이지는 저장된 전체 이벤트 ${totalCount}건 중 ${events.length}건을 표시하며 3초마다 자동 새로고침됩니다.</p>
+    <section class="summary">
+      <article class="summary-card">
+        <strong>${events.length}</strong>
+        <span>현재 화면에 표시 중인 이벤트 수입니다. 필터 적용 결과를 기준으로 계산합니다.</span>
+      </article>
+      <article class="summary-card">
+        <strong>${mainCount}</strong>
+        <span>소회의실 근거가 없어 메인 회의실 또는 일반 입퇴장으로 처리한 이벤트 수입니다.</span>
+      </article>
+      <article class="summary-card">
+        <strong>${breakoutCount}</strong>
+        <span>payload에 소회의실 정보가 직접 들어 있어 소회의실 이벤트로 확정한 수입니다.</span>
+      </article>
+      <article class="summary-card">
+        <strong>${transitionCount}</strong>
+        <span>leave_reason 등을 근거로 소회의실 이동 또는 전환으로 추정한 이벤트 수입니다.</span>
+      </article>
+    </section>
     <form method="get" action="/events">
       <div>
         <label for="event">event</label>
@@ -205,7 +467,9 @@ export function renderEventsPage(events, totalCount, filters) {
         <a href="/events">reset</a>
       </div>
     </form>
+    <p class="intro">카드 상단의 파란 배지는 이벤트 종류를, 큰 설명 문장은 현재 시스템이 메인 회의실인지 소회의실인지 어떻게 판정했는지를 한국어로 설명합니다. 소회의실 관련 여부가 애매하면 raw payload와 판정 근거를 함께 열어 확인할 수 있습니다.</p>
     ${items}
+    </main>
   </body>
 </html>`;
 }
