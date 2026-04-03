@@ -78,9 +78,9 @@ function getRoomPresentation(entry) {
 	if (room.scope === "breakout_left") {
 		return {
 			badge: "소회의실 퇴장",
-			title: "소회의실 퇴장으로 처리합니다",
+			title: "소회의실 퇴장",
 			description:
-				"leave_reason에 'left the meeting to join breakout room' 문구가 있어 메인 회의실 일반 퇴장이 아니라 소회의실 진입을 위한 퇴장으로 판정했습니다.",
+				"leave_reason에 'left the meeting to join breakout room' 문구가 있음. 메인 회의실 일반 퇴장이 아니라 소회의실 진입을 위한 퇴장으로 판정함.",
 			tone: "breakout-left",
 		};
 	}
@@ -89,11 +89,11 @@ function getRoomPresentation(entry) {
 		return {
 			badge: "소회의실",
 			title: isJoin
-				? "소회의실 입장으로 보입니다"
+				? "소회의실 입장"
 				: isLeft
-					? "소회의실 퇴장으로 보입니다"
-					: "소회의실 관련 이벤트입니다",
-			description: `Zoom payload에 소회의실 정보가 직접 포함되었습니다. 식별된 방: ${room.detail}`,
+					? "소회의실 퇴장"
+					: "소회의실 관련 이벤트",
+			description: `Zoom payload에 소회의실 정보가 직접 포함됨. 식별된 방: ${room.detail}`,
 			tone: "breakout",
 		};
 	}
@@ -102,10 +102,10 @@ function getRoomPresentation(entry) {
 		return {
 			badge: "소회의실 이동 추정",
 			title: isLeft
-				? "소회의실 이동 또는 소회의실 이탈로 추정됩니다"
-				: "소회의실 전환 관련 이벤트로 추정됩니다",
+				? "소회의실 이동 또는 소회의실 이탈로 추정됨"
+				: "소회의실 전환 관련 이벤트로 추정됨",
 			description:
-				"payload의 leave_reason에 breakout room 문구가 있어 메인 회의실 단순 퇴장보다 소회의실 이동 가능성이 높습니다.",
+				"payload의 leave_reason에 breakout room 문구가 있어 메인 회의실 단순 퇴장보다 소회의실 이동 가능성이 높음.",
 			tone: "transition",
 		};
 	}
@@ -113,17 +113,29 @@ function getRoomPresentation(entry) {
 	return {
 		badge: "메인 회의실 또는 일반 입퇴장",
 		title: isJoin
-			? "메인 회의실 입장으로 처리합니다"
+			? "메인 회의실 입장"
 			: isLeft
-				? "메인 회의실 퇴장으로 처리합니다"
-				: "메인 회의실 기준 일반 이벤트입니다",
+				? "메인 회의실 퇴장"
+				: "메인 회의실 기준 일반 이벤트",
 		description:
-			"payload에 소회의실 식별 필드가 없어서 현재는 메인 회의실 이벤트로 간주합니다. 필요하면 raw payload로 재확인하세요.",
+			"payload에 소회의실 식별 필드 없음. 메인 회의실 이벤트로 간주함.",
 		tone: "main",
 	};
 }
 
+function getMeetingInfo(events, filters) {
+	const source = events.find(
+		(entry) => entry.meeting_id || entry.meeting_uuid,
+	);
+
+	return {
+		meetingId: filters.meetingId || source?.meeting_id || "-",
+		meetingUuid: source?.meeting_uuid || "-",
+	};
+}
+
 export function renderEventsPage(events, totalCount, filters) {
+	const meetingInfo = getMeetingInfo(events, filters);
 	const breakoutLeftCount = events.filter(
 		(entry) => deriveRoomContext(entry).scope === "breakout_left",
 	).length;
@@ -155,42 +167,26 @@ export function renderEventsPage(events, totalCount, filters) {
               <div>
                 <div class="eyebrow">${escapeHtml(eventKindLabel)}</div>
                 <h2>${escapeHtml(participantName)}</h2>
+                <div class="participant-identifiers">
+                  <span>참가자 ID: ${escapeHtml(participantId)}</span>
+                  <span>participant_uuid: ${escapeHtml(participantUuid)}</span>
+                </div>
               </div>
               <div class="pill-group">
                 <span class="pill pill-event">${escapeHtml(entry.event ?? "-")}</span>
                 <span class="pill pill-room">${escapeHtml(roomPresentation.badge)}</span>
               </div>
             </div>
-            <p class="lead">${escapeHtml(roomPresentation.title)}</p>
+            <p class="lead">[${escapeHtml(room.scope)}] ${escapeHtml(roomPresentation.title)}</p>
             <p class="explain">${escapeHtml(roomPresentation.description)}</p>
             <div class="meta-grid">
               <div class="meta-item">
                 <span class="meta-label">수신 시각</span>
                 <strong>${escapeHtml(entry.received_at ?? "-")}</strong>
               </div>
-              <div class="meta-item">
-                <span class="meta-label">회의 ID</span>
-                <strong>${escapeHtml(entry.meeting_id ?? "-")}</strong>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">회의 UUID</span>
-                <strong>${escapeHtml(entry.meeting_uuid ?? "-")}</strong>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">참가자 ID</span>
-                <strong>${escapeHtml(participantId)}</strong>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">participant_uuid</span>
-                <strong>${escapeHtml(participantUuid)}</strong>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">내부 판정</span>
-                <strong>${escapeHtml(room.scope)}</strong>
-              </div>
             </div>
             <details>
-              <summary>raw payload와 판정 근거 보기</summary>
+              <summary>raw payload</summary>
               <div class="reason-box">
                 <div>room_scope: ${escapeHtml(room.scope)}</div>
                 <div>room_detail: ${escapeHtml(room.detail)}</div>
@@ -274,6 +270,44 @@ export function renderEventsPage(events, totalCount, filters) {
         color: var(--muted);
         font-size: 12px;
         line-height: 1.5;
+      }
+      .meeting-card {
+        margin: 0 0 18px;
+        padding: 18px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: linear-gradient(135deg, rgba(18, 84, 170, 0.96) 0%, rgba(47, 126, 232, 0.92) 100%);
+        color: white;
+        box-shadow: 0 18px 36px rgba(20, 83, 168, 0.18);
+      }
+      .meeting-card h2 {
+        margin: 0 0 8px;
+        font-size: 18px;
+      }
+      .meeting-card p {
+        margin: 0 0 14px;
+        color: rgba(255,255,255,0.84);
+        line-height: 1.7;
+      }
+      .meeting-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+      .meeting-item {
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.14);
+        border: 1px solid rgba(255,255,255,0.2);
+      }
+      .meeting-item strong,
+      .meeting-item span {
+        display: block;
+      }
+      .meeting-item span {
+        font-size: 11px;
+        margin-bottom: 6px;
+        color: rgba(255,255,255,0.74);
       }
       form {
         display: grid;
@@ -365,6 +399,21 @@ export function renderEventsPage(events, totalCount, filters) {
         font-size: 24px;
         line-height: 1.2;
         letter-spacing: -0.03em;
+      }
+      .participant-identifiers {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        margin-top: 8px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .participant-identifiers span {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.72);
+        border: 1px solid rgba(150, 188, 232, 0.7);
       }
       .pill {
         border: 1px solid var(--line);
@@ -459,6 +508,20 @@ export function renderEventsPage(events, totalCount, filters) {
         <strong>${transitionCount}</strong>
         <span>leave_reason 등을 근거로 소회의실 이동 또는 전환으로 추정한 이벤트 수입니다.</span>
       </article>
+    </section>
+    <section class="meeting-card">
+      <h2>연결된 미팅 정보</h2>
+      <p>카드별로 반복 표시하지 않고, 현재 화면에 표시 중인 이벤트 기준 회의 식별자를 여기서만 보여줍니다.</p>
+      <div class="meeting-grid">
+        <div class="meeting-item">
+          <span>회의 ID</span>
+          <strong>${escapeHtml(meetingInfo.meetingId)}</strong>
+        </div>
+        <div class="meeting-item">
+          <span>회의 UUID</span>
+          <strong>${escapeHtml(meetingInfo.meetingUuid)}</strong>
+        </div>
+      </div>
     </section>
     <form method="get" action="/events">
       <div>
