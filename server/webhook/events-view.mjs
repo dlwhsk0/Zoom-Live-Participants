@@ -209,22 +209,17 @@ export function renderEventsPage(events, totalCount, filters) {
     <style>
       :root {
         color-scheme: light;
-        --bg: linear-gradient(180deg, #e9f4ff 0%, #f7fbff 55%, #eef7ff 100%);
-        --panel: rgba(255, 255, 255, 0.92);
+        --bg: #f4f8fc;
+        --panel: #ffffff;
         --panel-strong: #ffffff;
-        --line: #b9d3f2;
-        --text: #12304d;
-        --muted: #58789b;
-        --primary: #1c6ed8;
-        --primary-soft: #dcecff;
-        --main: #1e88e5;
-        --main-soft: #e7f3ff;
+        --line: #d5e2f0;
+        --text: #16324f;
+        --muted: #5f7a96;
+        --primary: #2563eb;
+        --main: #2563eb;
         --breakout: #0f766e;
-        --breakout-soft: #ddfbf5;
         --breakout-left: #0369a1;
-        --breakout-left-soft: #e0f2fe;
         --transition: #2563eb;
-        --transition-soft: #e0ebff;
       }
       body {
         margin: 0;
@@ -259,7 +254,7 @@ export function renderEventsPage(events, totalCount, filters) {
         border-radius: 18px;
         border: 1px solid var(--line);
         background: var(--panel);
-        box-shadow: 0 14px 30px rgba(30, 92, 180, 0.08);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
       }
       .summary-card strong {
         display: block;
@@ -276,9 +271,9 @@ export function renderEventsPage(events, totalCount, filters) {
         padding: 18px;
         border-radius: 18px;
         border: 1px solid var(--line);
-        background: linear-gradient(135deg, rgba(18, 84, 170, 0.96) 0%, rgba(47, 126, 232, 0.92) 100%);
-        color: white;
-        box-shadow: 0 18px 36px rgba(20, 83, 168, 0.18);
+        background: #0f2742;
+        color: #f8fbff;
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
       }
       .meeting-card h2 {
         margin: 0 0 8px;
@@ -286,7 +281,7 @@ export function renderEventsPage(events, totalCount, filters) {
       }
       .meeting-card p {
         margin: 0 0 14px;
-        color: rgba(255,255,255,0.84);
+        color: rgba(248, 251, 255, 0.76);
         line-height: 1.7;
       }
       .meeting-grid {
@@ -297,8 +292,8 @@ export function renderEventsPage(events, totalCount, filters) {
       .meeting-item {
         padding: 12px;
         border-radius: 14px;
-        background: rgba(255,255,255,0.14);
-        border: 1px solid rgba(255,255,255,0.2);
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.12);
       }
       .meeting-item strong,
       .meeting-item span {
@@ -307,7 +302,7 @@ export function renderEventsPage(events, totalCount, filters) {
       .meeting-item span {
         font-size: 11px;
         margin-bottom: 6px;
-        color: rgba(255,255,255,0.74);
+        color: rgba(248, 251, 255, 0.62);
       }
       form {
         display: grid;
@@ -318,7 +313,7 @@ export function renderEventsPage(events, totalCount, filters) {
         border: 1px solid var(--line);
         border-radius: 18px;
         padding: 14px;
-        box-shadow: 0 14px 30px rgba(30, 92, 180, 0.08);
+        box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
       }
       label {
         display: block;
@@ -351,9 +346,9 @@ export function renderEventsPage(events, totalCount, filters) {
         cursor: pointer;
       }
       .actions button {
-        background: linear-gradient(135deg, #1f7ae0 0%, #4aa4ff 100%);
+        background: #1d4ed8;
         color: white;
-        border-color: #1f7ae0;
+        border-color: #1d4ed8;
       }
       .event {
         background: var(--panel);
@@ -361,23 +356,23 @@ export function renderEventsPage(events, totalCount, filters) {
         border-radius: 20px;
         padding: 18px;
         margin: 0 0 14px;
-        box-shadow: 0 16px 34px rgba(30, 92, 180, 0.08);
+        box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
       }
       .tone-main {
         border-left: 8px solid var(--main);
-        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--main-soft) 100%);
+        background: #ffffff;
       }
       .tone-breakout {
         border-left: 8px solid var(--breakout);
-        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--breakout-soft) 100%);
+        background: #ffffff;
       }
       .tone-breakout-left {
         border-left: 8px solid var(--breakout-left);
-        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--breakout-left-soft) 100%);
+        background: #ffffff;
       }
       .tone-transition {
         border-left: 8px solid var(--transition);
-        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--transition-soft) 100%);
+        background: #ffffff;
       }
       .event-top {
         display: flex;
@@ -412,14 +407,14 @@ export function renderEventsPage(events, totalCount, filters) {
         display: inline-block;
         padding: 4px 8px;
         border-radius: 999px;
-        background: rgba(255,255,255,0.72);
-        border: 1px solid rgba(150, 188, 232, 0.7);
+        background: #f8fbff;
+        border: 1px solid #d9e5f2;
       }
       .pill {
         border: 1px solid var(--line);
         border-radius: 999px;
         padding: 6px 10px;
-        background: rgba(255,255,255,0.7);
+        background: #f8fbff;
         font-size: 12px;
       }
       .pill-group {
@@ -429,7 +424,7 @@ export function renderEventsPage(events, totalCount, filters) {
         justify-content: flex-end;
       }
       .pill-room {
-        background: #dff0ff;
+        background: #eaf3ff;
       }
       .lead {
         margin: 0 0 8px;
@@ -448,8 +443,8 @@ export function renderEventsPage(events, totalCount, filters) {
         margin-bottom: 12px;
       }
       .meta-item {
-        background: rgba(255,255,255,0.72);
-        border: 1px solid rgba(150, 188, 232, 0.7);
+        background: #f8fbff;
+        border: 1px solid #d9e5f2;
         border-radius: 14px;
         padding: 12px;
       }
@@ -463,8 +458,8 @@ export function renderEventsPage(events, totalCount, filters) {
         margin: 10px 0;
         padding: 10px 12px;
         border-radius: 12px;
-        background: rgba(255,255,255,0.72);
-        border: 1px solid rgba(150, 188, 232, 0.7);
+        background: #f8fbff;
+        border: 1px solid #d9e5f2;
       }
       pre {
         white-space: pre-wrap;
