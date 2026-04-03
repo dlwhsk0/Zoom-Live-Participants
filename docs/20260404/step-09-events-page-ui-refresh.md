@@ -27,6 +27,9 @@
 - `breakout`
   - 화면에서는 `소회의실`로 표시
   - payload에 직접 들어온 소회의실 정보를 함께 설명
+- `breakout_left`
+  - 화면에서는 `소회의실 퇴장`으로 표시
+  - `leave_reason`에 `left the meeting to join breakout room` 문구가 있으면 이 규칙을 우선 적용
 - `breakout_transition`
   - 화면에서는 `소회의실 이동 추정`으로 표시
   - `leave_reason` 기반 추정이라는 점을 같이 설명

@@ -75,6 +75,16 @@ function getRoomPresentation(entry) {
 	const isJoin = entry.event === "meeting.participant_joined";
 	const isLeft = entry.event === "meeting.participant_left";
 
+	if (room.scope === "breakout_left") {
+		return {
+			badge: "소회의실 퇴장",
+			title: "소회의실 퇴장으로 처리합니다",
+			description:
+				"leave_reason에 'left the meeting to join breakout room' 문구가 있어 메인 회의실 일반 퇴장이 아니라 소회의실 진입을 위한 퇴장으로 판정했습니다.",
+			tone: "breakout-left",
+		};
+	}
+
 	if (room.scope === "breakout") {
 		return {
 			badge: "소회의실",
@@ -114,13 +124,17 @@ function getRoomPresentation(entry) {
 }
 
 export function renderEventsPage(events, totalCount, filters) {
+	const breakoutLeftCount = events.filter(
+		(entry) => deriveRoomContext(entry).scope === "breakout_left",
+	).length;
 	const breakoutCount = events.filter(
 		(entry) => deriveRoomContext(entry).scope === "breakout",
 	).length;
 	const transitionCount = events.filter(
 		(entry) => deriveRoomContext(entry).scope === "breakout_transition",
 	).length;
-	const mainCount = events.length - breakoutCount - transitionCount;
+	const mainCount =
+		events.length - breakoutCount - breakoutLeftCount - transitionCount;
 	const items = events.length
 		? events
 				.map((entry) => {
@@ -211,6 +225,8 @@ export function renderEventsPage(events, totalCount, filters) {
         --main-soft: #e7f3ff;
         --breakout: #0f766e;
         --breakout-soft: #ddfbf5;
+        --breakout-left: #0369a1;
+        --breakout-left-soft: #e0f2fe;
         --transition: #2563eb;
         --transition-soft: #e0ebff;
       }
@@ -321,6 +337,10 @@ export function renderEventsPage(events, totalCount, filters) {
         border-left: 8px solid var(--breakout);
         background: linear-gradient(180deg, var(--panel-strong) 0%, var(--breakout-soft) 100%);
       }
+      .tone-breakout-left {
+        border-left: 8px solid var(--breakout-left);
+        background: linear-gradient(180deg, var(--panel-strong) 0%, var(--breakout-left-soft) 100%);
+      }
       .tone-transition {
         border-left: 8px solid var(--transition);
         background: linear-gradient(180deg, var(--panel-strong) 0%, var(--transition-soft) 100%);
@@ -428,6 +448,10 @@ export function renderEventsPage(events, totalCount, filters) {
         <span>소회의실 근거가 없어 메인 회의실 또는 일반 입퇴장으로 처리한 이벤트 수입니다.</span>
       </article>
       <article class="summary-card">
+        <strong>${breakoutLeftCount}</strong>
+        <span>leave_reason 기준으로 소회의실 진입을 위한 퇴장으로 확정한 이벤트 수입니다.</span>
+      </article>
+      <article class="summary-card">
         <strong>${breakoutCount}</strong>
         <span>payload에 소회의실 정보가 직접 들어 있어 소회의실 이벤트로 확정한 수입니다.</span>
       </article>
@@ -454,6 +478,7 @@ export function renderEventsPage(events, totalCount, filters) {
         <select id="room_scope" name="room_scope">
           <option value="">all</option>
           <option value="main_or_unknown"${filters.roomScope === "main_or_unknown" ? " selected" : ""}>main_or_unknown</option>
+          <option value="breakout_left"${filters.roomScope === "breakout_left" ? " selected" : ""}>breakout_left</option>
           <option value="breakout_transition"${filters.roomScope === "breakout_transition" ? " selected" : ""}>breakout_transition</option>
           <option value="breakout"${filters.roomScope === "breakout" ? " selected" : ""}>breakout</option>
         </select>
