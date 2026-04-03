@@ -9,6 +9,7 @@
 - Step 03 webhook 스모크 체크
 - Step 04 실제 입/퇴장 webhook 실측
 - Step 05 webhook 데이터 모델과 매칭 전략 정리
+- Step 06 Slack Incoming Webhook 연동 준비 문서화
 
 현재 결론:
 
@@ -21,5 +22,6 @@
 - `meeting.participant_joined` 실제 수신 성공
 - `meeting.participant_left` 실제 수신 성공
 - join/left 매칭 키는 `user_id` 보다 `participant_uuid` 가 더 안정적으로 보임
+- Slack Incoming Webhook 기준 연동 절차 정리 완료
 
 즉, 새 Zoom 앱 자격증명으로도 현재 계정은 REST 기반 live/past 참가자 경로를 열지 못했지만, webhook 기반 입/퇴장 이벤트 수집은 가능하다.
