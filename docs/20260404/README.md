@@ -11,6 +11,7 @@
 - Step 05 webhook 데이터 모델과 매칭 전략 정리
 - Step 06 Slack Incoming Webhook 연동 준비 문서화
 - Step 07 Slack Incoming Webhook 구현
+- Step 08 webhook 서버 코드 구조 분리
 
 현재 결론:
 
