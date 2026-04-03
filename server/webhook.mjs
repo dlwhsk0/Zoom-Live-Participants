@@ -4,151 +4,322 @@ import { appendFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
 const ENV_PATH = resolve(process.cwd(), ".env");
-const webhookLogPath = resolve(process.cwd(), process.env.WEBHOOK_LOG_PATH ?? "logs/webhook-events.ndjson");
+const webhookLogPath = resolve(
+	process.cwd(),
+	process.env.WEBHOOK_LOG_PATH ?? "logs/webhook-events.ndjson",
+);
 
 function loadDotEnv() {
-  if (!existsSync(ENV_PATH)) {
-    return;
-  }
+	if (!existsSync(ENV_PATH)) {
+		return;
+	}
 
-  const contents = readFileSync(ENV_PATH, "utf8");
+	const contents = readFileSync(ENV_PATH, "utf8");
 
-  for (const rawLine of contents.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) {
-      continue;
-    }
+	for (const rawLine of contents.split(/\r?\n/)) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) {
+			continue;
+		}
 
-    const separatorIndex = line.indexOf("=");
-    if (separatorIndex === -1) {
-      continue;
-    }
+		const separatorIndex = line.indexOf("=");
+		if (separatorIndex === -1) {
+			continue;
+		}
 
-    const key = line.slice(0, separatorIndex).trim();
-    const value = line.slice(separatorIndex + 1).trim();
+		const key = line.slice(0, separatorIndex).trim();
+		const value = line.slice(separatorIndex + 1).trim();
 
-    if (!(key in process.env)) {
-      process.env[key] = value;
-    }
-  }
+		if (!(key in process.env)) {
+			process.env[key] = value;
+		}
+	}
 }
 
 loadDotEnv();
 
 const secretToken = process.env.ZOOM_WEBHOOK_SECRET_TOKEN ?? "";
 const port = Number(process.env.PORT ?? "3000");
+const slackWebhookUrl = process.env.SLACK_WEBHOOK_URL ?? "";
+const slackNotifyMeetingId = process.env.SLACK_NOTIFY_MEETING_ID ?? "";
+const slackNotifyEvents = new Set(
+	String(process.env.SLACK_NOTIFY_EVENTS ?? "")
+		.split(",")
+		.map((value) => value.trim())
+		.filter(Boolean),
+);
+const slackJoinTemplates = [
+	"{name} 용사님 드디어 돌아오셨군요! :crossed_swords:",
+	"{name} 님께서 입장하십니다~! :tada:",
+	"{name} 님 등장! 이제 분위기 좀 나겠네요. :fire:",
+	"{name} 님 입장 완료. 슬슬 시작해도 되겠습니다. :eyes:",
+	"{name} 님 어서 오세요. 오늘도 한 건 해봅시다. :rocket:",
+	"{name} 님 입장. 오셨군요, 이제 판이 커집니다. :sparkles:",
+	"{name} 님 합류! 이 조합, 제법 맛도리인데요? :chefkiss:",
+	"{name} 님 들어오셨습니다. 이건 좀 든든한데요. :muscle:",
+	"{name} 님 등장. 오늘 회의 폼 미쳤다. :boom:",
+	"{name} 님 입장하셨습니다. 이 타이밍, 꽤나 럭키비키잖아. :four_leaf_clover:",
+	"{name} 님 합류 완료. 이제 좀 사람 사는 회의 같네요. :raised_hands:",
+	"{name} 님 들어오셨습니다. 시작부터 텐션 좋고. :zap:",
+	"{name} 님 등장! 다들 집중, 메인 캐릭터 입장하셨습니다. :crown:",
+	"{name} 님 입장. 오늘의 킥, 벌써부터 기대됩니다. :star2:",
+	"{name} 님 접속 완료. 이 회의 이제 진짜 굴러갑니다. :gear:",
+	"{name} 님 오셨습니다. 일단 마음이 놓이네요. :relieved:",
+	"{name} 님 등장. 오늘도 레전드 갱신 각 보입니다. :clap:",
+	"{name} 님 입장. 이 멤버면 된다, 됩니다. :ok_hand:",
+	"{name} 님 들어오셨네요. 분위기 바로 살아납니다. :microphone:",
+	"{name} 님 합류! 오자마자 신뢰도 +37 상승했습니다. :chart_with_upwards_trend:",
+];
+
+const slackLeftTemplates = [
+	"{name} 님 벌써 가세요? :eyes:",
+	"{name}님 할 일 다 하셨답니다 벌써 들어가신답니다~~ :dash:",
+	"{name} 님 퇴장! 다음 출근 도장도 기대하겠습니다. :wave:",
+	"{name} 님이 자리를 비웠습니다. 금방 돌아오시려나요? :thinking_face:",
+	"{name} 님 퇴장 완료. 남은 분들 집중 유지 바랍니다. :saluting_face:",
+	"{name} 님 퇴장하셨습니다. 여운이 제법 남는데요. :cloud:",
+	"{name} 님 이탈. 방금까지 좋았던 공기, 살짝 아쉽네요. :broken_heart:",
+	"{name} 님 퇴장 완료. 이 또한 흐름이겠죠. :leaves:",
+	"{name} 님 나가셨습니다. 회의장에 적막이 한 스푼 추가됐습니다. :mute:",
+	"{name} 님 퇴장. 아... 이건 좀 아쉽다. :pensive:",
+	"{name} 님 자리 비움. 돌아오시면 다시 텐션 올리겠습니다. :battery:",
+	"{name} 님 퇴장하셨습니다. 보내드려야죠, 어쩌겠습니까. :man-shrugging:",
+	"{name} 님 나가셨네요. 남은 인원, 정신 바짝 차리시죠. :face_with_monocle:",
+	"{name} 님 퇴장. 도파민 살짝 감소했습니다. :chart_with_downwards_trend:",
+	"{name} 님 이탈 확인. 회의 난이도 소폭 상승. :warning:",
+	"{name} 님 퇴장 완료. 그래도 우린 해냅니다. :muscle:",
+	"{name} 님 로그아웃급 퇴장. 다음 등장을 기다리겠습니다. :hourglass_flowing_sand:",
+	"{name} 님 나가셨습니다. 방금까지 있었던 안정감이 사라졌습니다. :melting_face:",
+	"{name} 님 퇴장. 그저 갓생을 사러 떠나신 걸로. :briefcase:",
+	"{name} 님 이탈! 이 장면, 살짝 눈물 버튼이네요. :sob:",
+	"{name} 님 퇴장하셨습니다. 다음 입장 때 더 크게 환영하겠습니다. :mega:",
+	"{name} 님 퇴장. 현장 체감상 아쉬움 200%입니다. :cry:",
+	"{name} 님 나가셨습니다. 회의방이 갑자기 현실 모드네요. :coffee:",
+	"{name} 님 퇴장 완료. 남은 분들끼리 잘 버텨보겠습니다. :shield:",
+	"{name} 님 이탈. 짧지만 강렬했습니다. :sparkling_heart:",
+];
 
 function sendJson(response, statusCode, body) {
-  response.writeHead(statusCode, { "content-type": "application/json" });
-  response.end(JSON.stringify(body, null, 2));
+	response.writeHead(statusCode, { "content-type": "application/json" });
+	response.end(JSON.stringify(body, null, 2));
 }
 
 function sendHtml(response, statusCode, body) {
-  response.writeHead(statusCode, { "content-type": "text/html; charset=utf-8" });
-  response.end(body);
+	response.writeHead(statusCode, {
+		"content-type": "text/html; charset=utf-8",
+	});
+	response.end(body);
 }
 
 function appendWebhookLog(entry) {
-  mkdirSync(dirname(webhookLogPath), { recursive: true });
-  appendFileSync(webhookLogPath, `${JSON.stringify(entry)}\n`);
+	mkdirSync(dirname(webhookLogPath), { recursive: true });
+	appendFileSync(webhookLogPath, `${JSON.stringify(entry)}\n`);
 }
 
 function readWebhookEvents(limit = null) {
-  if (!existsSync(webhookLogPath)) {
-    return [];
-  }
+	if (!existsSync(webhookLogPath)) {
+		return [];
+	}
 
-  let lines = readFileSync(webhookLogPath, "utf8")
-    .split(/\r?\n/)
-    .filter(Boolean);
+	let lines = readFileSync(webhookLogPath, "utf8")
+		.split(/\r?\n/)
+		.filter(Boolean);
 
-  if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
-    lines = lines.slice(-limit);
-  }
+	if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+		lines = lines.slice(-limit);
+	}
 
-  return lines
-    .map((line) => {
-      try {
-        return JSON.parse(line);
-      } catch {
-        return null;
-      }
-    })
-    .filter(Boolean)
-    .reverse();
+	return lines
+		.map((line) => {
+			try {
+				return JSON.parse(line);
+			} catch {
+				return null;
+			}
+		})
+		.filter(Boolean)
+		.reverse();
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+	return String(value)
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;");
 }
 
 function deriveRoomContext(entry) {
-  const object = entry.raw?.payload?.object ?? {};
-  const participant = entry.participant ?? {};
-  const leaveReason = String(participant.leave_reason ?? "").toLowerCase();
-  const breakout = object.breakout_room ?? participant.breakout_room;
+	const object = entry.raw?.payload?.object ?? {};
+	const participant = entry.participant ?? {};
+	const leaveReason = String(participant.leave_reason ?? "").toLowerCase();
+	const breakout = object.breakout_room ?? participant.breakout_room;
 
-  if (breakout && typeof breakout === "object") {
-    return {
-      scope: "breakout",
-      detail: breakout.name ?? breakout.room_name ?? "breakout"
-    };
-  }
+	if (breakout && typeof breakout === "object") {
+		return {
+			scope: "breakout",
+			detail: breakout.name ?? breakout.room_name ?? "breakout",
+		};
+	}
 
-  if (leaveReason.includes("breakout room")) {
-    return {
-      scope: "breakout_transition",
-      detail: "leave_reason mentions breakout room"
-    };
-  }
+	if (leaveReason.includes("breakout room")) {
+		return {
+			scope: "breakout_transition",
+			detail: "leave_reason mentions breakout room",
+		};
+	}
 
-  return {
-    scope: "main_or_unknown",
-    detail: "payload has no explicit breakout field"
-  };
+	return {
+		scope: "main_or_unknown",
+		detail: "payload has no explicit breakout field",
+	};
+}
+
+function pickRandom(list) {
+	if (!Array.isArray(list) || list.length === 0) {
+		return "";
+	}
+
+	return list[Math.floor(Math.random() * list.length)];
+}
+
+function shouldNotifySlack(entry) {
+	if (!slackWebhookUrl) {
+		return false;
+	}
+
+	if (
+		slackNotifyMeetingId &&
+		String(entry.meeting_id ?? "") !== slackNotifyMeetingId
+	) {
+		return false;
+	}
+
+	if (
+		slackNotifyEvents.size > 0 &&
+		!slackNotifyEvents.has(String(entry.event ?? ""))
+	) {
+		return false;
+	}
+
+	return true;
+}
+
+function buildSlackMessage(entry) {
+	const participant = entry.participant ?? {};
+	const room = deriveRoomContext(entry);
+	const isJoin = entry.event === "meeting.participant_joined";
+	const eventLabel = isJoin ? "입장" : "퇴장";
+	const eventTime =
+		participant.join_time ?? participant.leave_time ?? entry.received_at;
+	const headerTemplate = isJoin
+		? pickRandom(slackJoinTemplates)
+		: pickRandom(slackLeftTemplates);
+	const participantName = participant.user_name ?? "알 수 없음";
+	const header = (headerTemplate || `{name} ${eventLabel}`).replaceAll(
+		"{name}",
+		participantName,
+	);
+	const sublineParts = [room.scope];
+
+	if (eventTime) {
+		sublineParts.push(eventTime);
+	}
+
+	if (
+		!isJoin &&
+		participant.leave_reason &&
+		room.scope === "breakout_transition"
+	) {
+		sublineParts.push("소회의실 이동 추정");
+	}
+
+	return {
+		text: [`${header}`, sublineParts.join(" | ")]
+			.filter(Boolean)
+			.join("\n"),
+	};
+}
+
+async function notifySlack(entry) {
+	if (!shouldNotifySlack(entry)) {
+		return;
+	}
+
+	const payload = buildSlackMessage(entry);
+
+	const response = await fetch(slackWebhookUrl, {
+		method: "POST",
+		headers: {
+			"content-type": "application/json",
+		},
+		body: JSON.stringify(payload),
+	});
+
+	if (!response.ok) {
+		const body = await response.text().catch(() => "");
+		throw new Error(
+			`Slack webhook failed: ${response.status} ${body}`.trim(),
+		);
+	}
 }
 
 function normalizeQueryValue(value) {
-  return String(value ?? "").trim().toLowerCase();
+	return String(value ?? "")
+		.trim()
+		.toLowerCase();
 }
 
 function filterWebhookEvents(events, filters) {
-  return events.filter((entry) => {
-    const room = deriveRoomContext(entry);
-    const participantName = entry.participant?.user_name ?? "";
+	return events.filter((entry) => {
+		const room = deriveRoomContext(entry);
+		const participantName = entry.participant?.user_name ?? "";
 
-    if (filters.event && normalizeQueryValue(entry.event) !== filters.event) {
-      return false;
-    }
+		if (
+			filters.event &&
+			normalizeQueryValue(entry.event) !== filters.event
+		) {
+			return false;
+		}
 
-    if (filters.meetingId && normalizeQueryValue(entry.meeting_id) !== filters.meetingId) {
-      return false;
-    }
+		if (
+			filters.meetingId &&
+			normalizeQueryValue(entry.meeting_id) !== filters.meetingId
+		) {
+			return false;
+		}
 
-    if (filters.userName && !normalizeQueryValue(participantName).includes(filters.userName)) {
-      return false;
-    }
+		if (
+			filters.userName &&
+			!normalizeQueryValue(participantName).includes(filters.userName)
+		) {
+			return false;
+		}
 
-    if (filters.roomScope && normalizeQueryValue(room.scope) !== filters.roomScope) {
-      return false;
-    }
+		if (
+			filters.roomScope &&
+			normalizeQueryValue(room.scope) !== filters.roomScope
+		) {
+			return false;
+		}
 
-    return true;
-  });
+		return true;
+	});
 }
 
 function renderEventsPage(events, totalCount, filters) {
-  const items = events.length
-    ? events.map((entry) => {
-        const participantName = entry.participant?.user_name ?? "-";
-        const participantId = entry.participant?.user_id ?? entry.participant?.id ?? "-";
-        const participantUuid = entry.participant?.participant_uuid ?? "-";
-        const room = deriveRoomContext(entry);
+	const items = events.length
+		? events
+				.map((entry) => {
+					const participantName = entry.participant?.user_name ?? "-";
+					const participantId =
+						entry.participant?.user_id ??
+						entry.participant?.id ??
+						"-";
+					const participantUuid =
+						entry.participant?.participant_uuid ?? "-";
+					const room = deriveRoomContext(entry);
 
-        return `
+					return `
           <article class="event">
             <div class="meta">
               <strong>${escapeHtml(entry.event ?? "-")}</strong>
@@ -168,10 +339,11 @@ function renderEventsPage(events, totalCount, filters) {
             </details>
           </article>
         `;
-      }).join("")
-    : "<p>아직 수신된 이벤트가 없습니다.</p>";
+				})
+				.join("")
+		: "<p>아직 수신된 이벤트가 없습니다.</p>";
 
-  return `<!doctype html>
+	return `<!doctype html>
 <html lang="ko">
   <head>
     <meta charset="utf-8" />
@@ -295,136 +467,171 @@ function renderEventsPage(events, totalCount, filters) {
 }
 
 function verifySignature(headers, rawBody) {
-  if (!secretToken) {
-    return { ok: true, reason: "secret token not configured" };
-  }
+	if (!secretToken) {
+		return { ok: true, reason: "secret token not configured" };
+	}
 
-  const signature = headers["x-zm-signature"];
-  const timestamp = headers["x-zm-request-timestamp"];
+	const signature = headers["x-zm-signature"];
+	const timestamp = headers["x-zm-request-timestamp"];
 
-  if (!signature || !timestamp) {
-    return { ok: false, reason: "missing signature headers" };
-  }
+	if (!signature || !timestamp) {
+		return { ok: false, reason: "missing signature headers" };
+	}
 
-  const message = `v0:${timestamp}:${rawBody}`;
-  const expected = `v0=${createHmac("sha256", secretToken).update(message).digest("hex")}`;
+	const message = `v0:${timestamp}:${rawBody}`;
+	const expected = `v0=${createHmac("sha256", secretToken).update(message).digest("hex")}`;
 
-  return {
-    ok: signature === expected,
-    reason: signature === expected ? "verified" : "signature mismatch"
-  };
+	return {
+		ok: signature === expected,
+		reason: signature === expected ? "verified" : "signature mismatch",
+	};
 }
 
 const server = http.createServer((request, response) => {
-  const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
+	const requestUrl = new URL(
+		request.url ?? "/",
+		`http://${request.headers.host ?? "localhost"}`,
+	);
 
-  if (request.method === "GET" && requestUrl.pathname === "/health") {
-    sendJson(response, 200, { ok: true });
-    return;
-  }
+	if (request.method === "GET" && requestUrl.pathname === "/health") {
+		sendJson(response, 200, { ok: true });
+		return;
+	}
 
-  if (request.method === "GET" && requestUrl.pathname === "/events") {
-    const limitParam = requestUrl.searchParams.get("limit");
-    const limit = limitParam ? Number(limitParam) : null;
-    const allEvents = readWebhookEvents();
-    const filteredEvents = filterWebhookEvents(readWebhookEvents(limit), {
-      event: normalizeQueryValue(requestUrl.searchParams.get("event")),
-      meetingId: normalizeQueryValue(requestUrl.searchParams.get("meeting_id")),
-      userName: normalizeQueryValue(requestUrl.searchParams.get("user_name")),
-      roomScope: normalizeQueryValue(requestUrl.searchParams.get("room_scope"))
-    });
-    sendHtml(response, 200, renderEventsPage(filteredEvents, allEvents.length, {
-      event: requestUrl.searchParams.get("event") ?? "",
-      meetingId: requestUrl.searchParams.get("meeting_id") ?? "",
-      userName: requestUrl.searchParams.get("user_name") ?? "",
-      roomScope: requestUrl.searchParams.get("room_scope") ?? "",
-      limit: requestUrl.searchParams.get("limit") ?? ""
-    }));
-    return;
-  }
+	if (request.method === "GET" && requestUrl.pathname === "/events") {
+		const limitParam = requestUrl.searchParams.get("limit");
+		const limit = limitParam ? Number(limitParam) : null;
+		const allEvents = readWebhookEvents();
+		const filteredEvents = filterWebhookEvents(readWebhookEvents(limit), {
+			event: normalizeQueryValue(requestUrl.searchParams.get("event")),
+			meetingId: normalizeQueryValue(
+				requestUrl.searchParams.get("meeting_id"),
+			),
+			userName: normalizeQueryValue(
+				requestUrl.searchParams.get("user_name"),
+			),
+			roomScope: normalizeQueryValue(
+				requestUrl.searchParams.get("room_scope"),
+			),
+		});
+		sendHtml(
+			response,
+			200,
+			renderEventsPage(filteredEvents, allEvents.length, {
+				event: requestUrl.searchParams.get("event") ?? "",
+				meetingId: requestUrl.searchParams.get("meeting_id") ?? "",
+				userName: requestUrl.searchParams.get("user_name") ?? "",
+				roomScope: requestUrl.searchParams.get("room_scope") ?? "",
+				limit: requestUrl.searchParams.get("limit") ?? "",
+			}),
+		);
+		return;
+	}
 
-  if (request.method === "GET" && requestUrl.pathname === "/events.json") {
-    const limitParam = requestUrl.searchParams.get("limit");
-    const limit = limitParam ? Number(limitParam) : null;
-    const allEvents = readWebhookEvents();
-    const events = filterWebhookEvents(readWebhookEvents(limit), {
-      event: normalizeQueryValue(requestUrl.searchParams.get("event")),
-      meetingId: normalizeQueryValue(requestUrl.searchParams.get("meeting_id")),
-      userName: normalizeQueryValue(requestUrl.searchParams.get("user_name")),
-      roomScope: normalizeQueryValue(requestUrl.searchParams.get("room_scope"))
-    }).map((entry) => ({
-      ...entry,
-      room_context: deriveRoomContext(entry)
-    }));
-    sendJson(response, 200, { ok: true, total: allEvents.length, filtered: events.length, events });
-    return;
-  }
+	if (request.method === "GET" && requestUrl.pathname === "/events.json") {
+		const limitParam = requestUrl.searchParams.get("limit");
+		const limit = limitParam ? Number(limitParam) : null;
+		const allEvents = readWebhookEvents();
+		const events = filterWebhookEvents(readWebhookEvents(limit), {
+			event: normalizeQueryValue(requestUrl.searchParams.get("event")),
+			meetingId: normalizeQueryValue(
+				requestUrl.searchParams.get("meeting_id"),
+			),
+			userName: normalizeQueryValue(
+				requestUrl.searchParams.get("user_name"),
+			),
+			roomScope: normalizeQueryValue(
+				requestUrl.searchParams.get("room_scope"),
+			),
+		}).map((entry) => ({
+			...entry,
+			room_context: deriveRoomContext(entry),
+		}));
+		sendJson(response, 200, {
+			ok: true,
+			total: allEvents.length,
+			filtered: events.length,
+			events,
+		});
+		return;
+	}
 
-  if (request.method !== "POST" || requestUrl.pathname !== "/webhook") {
-    sendJson(response, 404, { ok: false, message: "Not found" });
-    return;
-  }
+	if (request.method !== "POST" || requestUrl.pathname !== "/webhook") {
+		sendJson(response, 404, { ok: false, message: "Not found" });
+		return;
+	}
 
-  let rawBody = "";
+	let rawBody = "";
 
-  request.setEncoding("utf8");
-  request.on("data", (chunk) => {
-    rawBody += chunk;
-  });
+	request.setEncoding("utf8");
+	request.on("data", (chunk) => {
+		rawBody += chunk;
+	});
 
-  request.on("end", () => {
-    let body;
+	request.on("end", () => {
+		let body;
 
-    try {
-      body = rawBody ? JSON.parse(rawBody) : {};
-    } catch {
-      sendJson(response, 400, { ok: false, message: "Invalid JSON" });
-      return;
-    }
+		try {
+			body = rawBody ? JSON.parse(rawBody) : {};
+		} catch {
+			sendJson(response, 400, { ok: false, message: "Invalid JSON" });
+			return;
+		}
 
-    const verification = verifySignature(request.headers, rawBody);
-    if (!verification.ok) {
-      sendJson(response, 401, { ok: false, message: verification.reason });
-      return;
-    }
+		const verification = verifySignature(request.headers, rawBody);
+		if (!verification.ok) {
+			sendJson(response, 401, {
+				ok: false,
+				message: verification.reason,
+			});
+			return;
+		}
 
-    if (body.event === "endpoint.url_validation") {
-      if (!secretToken) {
-        sendJson(response, 500, {
-          ok: false,
-          message: "ZOOM_WEBHOOK_SECRET_TOKEN is required for endpoint validation"
-        });
-        return;
-      }
+		if (body.event === "endpoint.url_validation") {
+			if (!secretToken) {
+				sendJson(response, 500, {
+					ok: false,
+					message:
+						"ZOOM_WEBHOOK_SECRET_TOKEN is required for endpoint validation",
+				});
+				return;
+			}
 
-      const plainToken = body.payload?.plainToken;
-      const encryptedToken = createHmac("sha256", secretToken).update(plainToken).digest("hex");
+			const plainToken = body.payload?.plainToken;
+			const encryptedToken = createHmac("sha256", secretToken)
+				.update(plainToken)
+				.digest("hex");
 
-      sendJson(response, 200, {
-        plainToken,
-        encryptedToken
-      });
-      return;
-    }
+			sendJson(response, 200, {
+				plainToken,
+				encryptedToken,
+			});
+			return;
+		}
 
-    const entry = {
-      received_at: new Date().toISOString(),
-      event: body.event,
-      meeting_id: body.payload?.object?.id,
-      meeting_uuid: body.payload?.object?.uuid,
-      participant: body.payload?.object?.participant,
-      raw: body
-    };
+		const entry = {
+			received_at: new Date().toISOString(),
+			event: body.event,
+			meeting_id: body.payload?.object?.id,
+			meeting_uuid: body.payload?.object?.uuid,
+			participant: body.payload?.object?.participant,
+			raw: body,
+		};
 
-    appendWebhookLog(entry);
+		appendWebhookLog(entry);
 
-    console.log("\n[webhook event]");
-    console.log(JSON.stringify(entry, null, 2));
+		console.log("\n[webhook event]");
+		console.log(JSON.stringify(entry, null, 2));
 
-    sendJson(response, 200, { ok: true });
-  });
+		notifySlack(entry).catch((error) => {
+			console.error("\n[slack notify failed]");
+			console.error(error.message);
+		});
+
+		sendJson(response, 200, { ok: true });
+	});
 });
 
 server.listen(port, () => {
-  console.log(`Webhook server listening on http://localhost:${port}/webhook`);
+	console.log(`Webhook server listening on http://localhost:${port}/webhook`);
 });
