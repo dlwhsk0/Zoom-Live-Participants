@@ -5,11 +5,16 @@
 현재 완료:
 
 - Step 01 재검증
+- Step 02 REST 대체 경로 재검증
+- Step 03 webhook 스모크 체크
 
 현재 결론:
 
 - `zoom:token` 성공
 - `GET /metrics/meetings/{meetingId}?type=live` 실패
 - `GET /metrics/meetings/{meetingId}/participants?type=live` 실패
+- `GET /past_meetings/{meetingId}/instances` scope 부족으로 실패
+- `GET /past_meetings/{meetingUUID}/participants` scope 부족으로 실패
+- webhook health / endpoint validation 은 성공
 
-즉, 새 Zoom 앱 자격증명으로도 현재 계정은 Dashboard live participants 경로를 열지 못했다.
+즉, 새 Zoom 앱 자격증명으로도 현재 계정은 REST 기반 live/past 참가자 경로를 열지 못했고, 다음 우선순위는 webhook 실측이다.
