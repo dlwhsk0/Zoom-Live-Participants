@@ -5,6 +5,7 @@ import { filterWebhookEvents, normalizeQueryValue, renderEventsPage } from "./ev
 import { sendHtml, sendJson } from "./http-response.mjs";
 import { appendWebhookLog, readWebhookEvents } from "./log-store.mjs";
 import { deriveRoomContext } from "./room-context.mjs";
+import { deleteSlackMessage } from "./slack-api.mjs";
 import { notifySlack } from "./slack-notifier.mjs";
 import { buildEndpointValidation, verifySignature } from "./signature.mjs";
 
@@ -76,6 +77,95 @@ function handleEventsJson(requestUrl, response) {
 		filtered: events.length,
 		events,
 	});
+}
+
+function readJsonBody(request) {
+	return new Promise((resolve, reject) => {
+		let rawBody = "";
+
+		request.setEncoding("utf8");
+		request.on("data", (chunk) => {
+			rawBody += chunk;
+		});
+
+		request.on("end", () => {
+			try {
+				resolve(rawBody ? JSON.parse(rawBody) : {});
+			} catch {
+				reject(new Error("Invalid JSON"));
+			}
+		});
+
+		request.on("error", reject);
+	});
+}
+
+function verifyAdminApiKey(request) {
+	if (!appConfig.slackAdminApiKey) {
+		return {
+			ok: false,
+			statusCode: 503,
+			message: "SLACK_ADMIN_API_KEY is required",
+		};
+	}
+
+	if (request.headers["x-admin-api-key"] !== appConfig.slackAdminApiKey) {
+		return {
+			ok: false,
+			statusCode: 401,
+			message: "invalid admin api key",
+		};
+	}
+
+	return { ok: true };
+}
+
+async function handleSlackMessageDelete(request, response) {
+	const adminCheck = verifyAdminApiKey(request);
+	if (!adminCheck.ok) {
+		sendJson(response, adminCheck.statusCode, {
+			ok: false,
+			message: adminCheck.message,
+		});
+		return;
+	}
+
+	let body;
+
+	try {
+		body = await readJsonBody(request);
+	} catch (error) {
+		sendJson(response, 400, {
+			ok: false,
+			message: error.message,
+		});
+		return;
+	}
+
+	const channel = String(body.channel ?? "").trim();
+	const ts = String(body.ts ?? "").trim();
+
+	if (!channel || !ts) {
+		sendJson(response, 400, {
+			ok: false,
+			message: "channel and ts are required",
+		});
+		return;
+	}
+
+	try {
+		const result = await deleteSlackMessage({ channel, ts });
+		sendJson(response, 200, {
+			ok: true,
+			channel: result.channel,
+			ts: result.ts,
+		});
+	} catch (error) {
+		sendJson(response, 502, {
+			ok: false,
+			message: error.message,
+		});
+	}
 }
 
 function handleWebhookRequest(request, response) {
@@ -163,6 +253,14 @@ export function createWebhookServer() {
 
 		if (request.method === "GET" && requestUrl.pathname === "/events.json") {
 			handleEventsJson(requestUrl, response);
+			return;
+		}
+
+		if (
+			request.method === "POST" &&
+			requestUrl.pathname === "/slack/messages/delete"
+		) {
+			handleSlackMessageDelete(request, response);
 			return;
 		}
 
