@@ -13,9 +13,9 @@ export function normalizeQueryValue(value) {
 		.toLowerCase();
 }
 
-export function filterWebhookEvents(events, filters) {
+export function filterWebhookEvents(events, filters, allEntries = events) {
 	return events.filter((entry) => {
-		const room = deriveRoomContext(entry);
+		const room = deriveRoomContext(entry, allEntries);
 		const participantName = entry.participant?.user_name ?? "";
 
 		if (
@@ -48,26 +48,6 @@ export function filterWebhookEvents(events, filters) {
 
 		return true;
 	});
-}
-
-function getEventKindLabel(eventName) {
-	if (eventName === "meeting.participant_joined") {
-		return "입장 이벤트";
-	}
-
-	if (eventName === "meeting.participant_left") {
-		return "퇴장 이벤트";
-	}
-
-	if (eventName === "meeting.started") {
-		return "회의 시작";
-	}
-
-	if (eventName === "meeting.ended") {
-		return "회의 종료";
-	}
-
-	return "기타 이벤트";
 }
 
 function getEventAppearance(eventName) {
@@ -105,64 +85,52 @@ function getEventAppearance(eventName) {
 	};
 }
 
-function getRoomPresentation(entry) {
-	const room = deriveRoomContext(entry);
-	const isJoin = entry.event === "meeting.participant_joined";
-	const isLeft = entry.event === "meeting.participant_left";
+function getRoomPresentation(entry, allEntries = []) {
+	const room = deriveRoomContext(entry, allEntries);
 
 	if (entry.event === "meeting.started") {
 		return {
-			badge: "회의 Lifecycle",
-			title: "회의가 시작된 이벤트",
+			badge: "회의 시작",
+			title: "회의 시작",
 			tone: "meeting-lifecycle",
 		};
 	}
 
 	if (entry.event === "meeting.ended") {
 		return {
-			badge: "회의 Lifecycle",
-			title: "회의가 종료된 이벤트",
+			badge: "회의 종료",
+			title: "회의 종료",
 			tone: "meeting-lifecycle",
 		};
 	}
 
-	if (room.scope === "breakout_left") {
+	if (room.scope === "temporary_breakout_exit") {
 		return {
-			badge: "소회의실 퇴장",
-			title: "소회의실 퇴장",
+			badge: "소회의실 입장을 위한 임시 퇴장",
+			title: "소회의실 입장을 위한 임시 퇴장",
 			tone: "breakout-left",
 		};
 	}
 
-	if (room.scope === "breakout") {
+	if (room.scope === "breakout_join_inferred") {
 		return {
-			badge: "소회의실",
-			title: isJoin
-				? "소회의실 입장"
-				: isLeft
-					? "소회의실 퇴장"
-					: "소회의실 관련 이벤트",
+			badge: "소회의실 입장",
+			title: "소회의실 입장",
 			tone: "breakout",
 		};
 	}
 
-	if (room.scope === "breakout_transition") {
+	if (room.scope === "meeting_left") {
 		return {
-			badge: "소회의실 이동 추정",
-			title: isLeft
-				? "소회의실 이동 또는 소회의실 이탈로 추정됨"
-				: "소회의실 전환 관련 이벤트로 추정됨",
+			badge: "회의 완전 퇴장",
+			title: "회의 완전 퇴장",
 			tone: "transition",
 		};
 	}
 
 	return {
-		badge: "메인 회의실 또는 일반 입퇴장",
-		title: isJoin
-			? "메인 회의실 입장"
-			: isLeft
-				? "메인 회의실 퇴장"
-				: "메인 회의실 기준 일반 이벤트",
+		badge: "메인 회의실 입장",
+		title: "메인 회의실 입장",
 		tone: "main",
 	};
 }
@@ -178,19 +146,20 @@ function getMeetingInfo(events, filters) {
 	};
 }
 
-export function renderEventsPage(events, totalCount, filters) {
+export function renderEventsPage(events, totalCount, filters, allEntries = events) {
 	const meetingInfo = getMeetingInfo(events, filters);
-	const breakoutLeftCount = events.filter(
-		(entry) => deriveRoomContext(entry).scope === "breakout_left",
+	const temporaryBreakoutExitCount = events.filter(
+		(entry) => deriveRoomContext(entry, allEntries).scope === "temporary_breakout_exit",
 	).length;
-	const breakoutCount = events.filter(
-		(entry) => deriveRoomContext(entry).scope === "breakout",
+	const breakoutJoinInferredCount = events.filter(
+		(entry) => deriveRoomContext(entry, allEntries).scope === "breakout_join_inferred",
 	).length;
-	const transitionCount = events.filter(
-		(entry) => deriveRoomContext(entry).scope === "breakout_transition",
+	const meetingLeftCount = events.filter(
+		(entry) => deriveRoomContext(entry, allEntries).scope === "meeting_left",
 	).length;
-	const mainCount =
-		events.length - breakoutCount - breakoutLeftCount - transitionCount;
+	const mainJoinCount = events.filter(
+		(entry) => deriveRoomContext(entry, allEntries).scope === "main_join",
+	).length;
 	const items = events.length
 		? events
 				.map((entry) => {
@@ -201,8 +170,8 @@ export function renderEventsPage(events, totalCount, filters) {
 						"-";
 					const participantUuid =
 						entry.participant?.participant_uuid ?? "-";
-					const room = deriveRoomContext(entry);
-					const roomPresentation = getRoomPresentation(entry);
+					const room = deriveRoomContext(entry, allEntries);
+					const roomPresentation = getRoomPresentation(entry, allEntries);
 					const eventAppearance = getEventAppearance(entry.event);
 					const isParticipantEvent =
 						entry.event === "meeting.participant_joined" ||
@@ -740,10 +709,10 @@ export function renderEventsPage(events, totalCount, filters) {
         <label for="room_scope">room_scope</label>
         <select id="room_scope" name="room_scope">
           <option value="">all</option>
-          <option value="main_or_unknown"${filters.roomScope === "main_or_unknown" ? " selected" : ""}>main_or_unknown</option>
-          <option value="breakout_left"${filters.roomScope === "breakout_left" ? " selected" : ""}>breakout_left</option>
-          <option value="breakout_transition"${filters.roomScope === "breakout_transition" ? " selected" : ""}>breakout_transition</option>
-          <option value="breakout"${filters.roomScope === "breakout" ? " selected" : ""}>breakout</option>
+          <option value="main_join"${filters.roomScope === "main_join" ? " selected" : ""}>main_join</option>
+          <option value="meeting_left"${filters.roomScope === "meeting_left" ? " selected" : ""}>meeting_left</option>
+          <option value="temporary_breakout_exit"${filters.roomScope === "temporary_breakout_exit" ? " selected" : ""}>temporary_breakout_exit</option>
+          <option value="breakout_join_inferred"${filters.roomScope === "breakout_join_inferred" ? " selected" : ""}>breakout_join_inferred</option>
         </select>
       </div>
       <div>
@@ -761,20 +730,20 @@ export function renderEventsPage(events, totalCount, filters) {
         <span>필터 적용 결과를 기준으로 계산한 이벤트</span>
       </article>
       <article class="summary-card">
-        <strong>${mainCount}</strong>
-        <span>소메인 회의실 또는 일반 입퇴장 이벤트</span>
+        <strong>${mainJoinCount}</strong>
+        <span>기본 규칙상 메인 회의실 입장으로 본 이벤트</span>
       </article>
       <article class="summary-card">
-        <strong>${breakoutLeftCount}</strong>
-        <span>소회의실 진입을 위한 퇴장 추정 이벤트</span>
+        <strong>${meetingLeftCount}</strong>
+        <span>회의에서 완전히 나간 퇴장 이벤트</span>
       </article>
       <article class="summary-card">
-        <strong>${breakoutCount}</strong>
-        <span>소회의실 입장 이벤트</span>
+        <strong>${temporaryBreakoutExitCount}</strong>
+        <span>소회의실 입장을 위한 임시 퇴장 이벤트</span>
       </article>
       <article class="summary-card">
-        <strong>${transitionCount}</strong>
-        <span>소회의실 이동 또는 전환 추정 이벤트</span>
+        <strong>${breakoutJoinInferredCount}</strong>
+        <span>이전 임시 퇴장을 근거로 추론한 소회의실 입장</span>
       </article>
     </section>
     ${items}

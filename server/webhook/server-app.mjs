@@ -47,15 +47,25 @@ function handleEventsPage(requestUrl, response) {
 	const limitParam = requestUrl.searchParams.get("limit");
 	const limit = limitParam ? Number(limitParam) : null;
 	const allEvents = readWebhookEvents(appConfig.webhookLogPath);
+	const pageEvents =
+		typeof limit === "number" && Number.isFinite(limit) && limit > 0
+			? allEvents.slice(0, limit)
+			: allEvents;
 	const filteredEvents = filterWebhookEvents(
-		readWebhookEvents(appConfig.webhookLogPath, limit),
+		pageEvents,
 		parseEventFilters(requestUrl),
+		allEvents,
 	);
 
 	sendHtml(
 		response,
 		200,
-		renderEventsPage(filteredEvents, allEvents.length, parseEventFormState(requestUrl)),
+		renderEventsPage(
+			filteredEvents,
+			allEvents.length,
+			parseEventFormState(requestUrl),
+			allEvents,
+		),
 	);
 }
 
@@ -63,12 +73,17 @@ function handleEventsJson(requestUrl, response) {
 	const limitParam = requestUrl.searchParams.get("limit");
 	const limit = limitParam ? Number(limitParam) : null;
 	const allEvents = readWebhookEvents(appConfig.webhookLogPath);
+	const pageEvents =
+		typeof limit === "number" && Number.isFinite(limit) && limit > 0
+			? allEvents.slice(0, limit)
+			: allEvents;
 	const events = filterWebhookEvents(
-		readWebhookEvents(appConfig.webhookLogPath, limit),
+		pageEvents,
 		parseEventFilters(requestUrl),
+		allEvents,
 	).map((entry) => ({
 		...entry,
-		room_context: deriveRoomContext(entry),
+		room_context: deriveRoomContext(entry, allEvents),
 	}));
 
 	sendJson(response, 200, {
