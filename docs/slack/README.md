@@ -5,6 +5,7 @@
 현재 문서:
 
 - `current-slack-webhook-integration.md`
+- `message-delete-api.md`
 
 기준:
 

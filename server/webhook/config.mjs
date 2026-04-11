@@ -40,6 +40,8 @@ export const appConfig = {
 		process.env.WEBHOOK_LOG_PATH ?? "logs/webhook-events.ndjson",
 	),
 	slackWebhookUrl: process.env.SLACK_WEBHOOK_URL ?? "",
+	slackBotToken: process.env.SLACK_BOT_TOKEN ?? "",
+	slackAdminApiKey: process.env.SLACK_ADMIN_API_KEY ?? "",
 	slackNotifyMeetingId: process.env.SLACK_NOTIFY_MEETING_ID ?? "",
 	slackNotifyEvents: new Set(
 		String(process.env.SLACK_NOTIFY_EVENTS ?? "")
