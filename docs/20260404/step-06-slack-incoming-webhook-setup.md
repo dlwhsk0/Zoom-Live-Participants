@@ -100,7 +100,7 @@ SLACK_NOTIFY_EVENTS=meeting.participant_joined,meeting.participant_left
 [Zoom] 조하나 입장
 - meeting_id: 10000000001
 - participant_uuid: FDDC7C6F-D51D-137B-20AF-64D77D0CE70D
-- room: main_or_unknown
+- room: main_join
 - join_time: 2026-04-03T17:06:25Z
 ```
 
@@ -110,7 +110,7 @@ SLACK_NOTIFY_EVENTS=meeting.participant_joined,meeting.participant_left
 [Zoom] 조하나 퇴장
 - meeting_id: 10000000001
 - participant_uuid: FDDC7C6F-D51D-137B-20AF-64D77D0CE70D
-- room: breakout_transition
+- room: temporary_breakout_exit
 - leave_time: 2026-04-03T17:45:29Z
 - reason: left the meeting to join breakout room
 ```

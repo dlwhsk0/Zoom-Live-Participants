@@ -55,11 +55,12 @@ Step 06까지 Slack Incoming Webhook 생성 절차는 정리됐다.
 
 ## room 표시 규칙
 
-현재 구현 기준:
+현재 기준:
 
-- payload 에 명시적 breakout 필드가 있으면 `breakout`
-- `leave_reason` 에 breakout room 문구가 있으면 `breakout_transition`
-- 그 외는 `main_or_unknown`
+- 입장은 기본적으로 `main_join`
+- 일반 퇴장은 `meeting_left`
+- `leave_reason`에 `left the meeting to join breakout room`가 있으면 `temporary_breakout_exit`
+- 같은 `participant_uuid`의 직전 이벤트가 임시 퇴장이면 다음 입장은 `breakout_join_inferred`
 
 ## 현재 구현 의미
 

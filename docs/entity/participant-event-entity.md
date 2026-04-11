@@ -86,10 +86,10 @@ raw webhook는 보존용이다.
 - `leave_reason`
   - left 이벤트일 때 저장
 - `room_scope`
-  - `main_or_unknown`
-  - `breakout`
-  - `breakout_left`
-  - `breakout_transition`
+  - `main_join`
+  - `meeting_left`
+  - `temporary_breakout_exit`
+  - `breakout_join_inferred`
 - `room_detail`
   - 현재 룸 판정 근거 문구
 
@@ -173,7 +173,7 @@ raw webhook는 보존용이다.
   "event_occurred_at": "2026-04-11T08:00:00Z",
   "received_at": "2026-04-11T08:00:01Z",
   "leave_reason": "left the meeting. Reason : left the meeting to join breakout room",
-  "room_scope": "breakout_left",
+  "room_scope": "temporary_breakout_exit",
   "room_detail": "leave_reason says participant left to join breakout room",
   "slack_message_sent": true,
   "slack_sent_at": "2026-04-11T08:00:02Z",
