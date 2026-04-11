@@ -1,0 +1,10 @@
+{
+  "name": "@zoom-live-participants/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:schema": "node --check src/db/schema.ts"
+  }
+}
+
