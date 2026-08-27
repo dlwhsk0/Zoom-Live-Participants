@@ -237,52 +237,63 @@ apps/web/
 **완료 기준:** 실제 회의에서 소회의실 이동 시 사람이 사라지지 않는다.
 이게 v1이 실패했던 지점이고, 이 프로젝트의 합격선이다.
 
-## 로컬 검증 방법
+## 로컬 실행
 
-실제 DB 없이 판정 로직만 확인하려면 테스트로 충분하다.
+판정 로직만 확인하려면 테스트로 충분하다.
 
 ```
 pnpm test
 ```
 
-DB까지 붙여 확인하려면 로컬 Postgres 를 띄운다.
+DB까지 붙이려면 Postgres 를 띄운다.
 
 ```
-docker run -d --name zlp-pg \
-  -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=devpass \
-  -e POSTGRES_DB=zoom_live_participants \
-  -p 55432:5432 postgres:16-alpine
+docker compose up -d
 ```
 
-`.env.local` 에 로컬 접속 정보를 넣는다 (gitignore 대상).
+`postgres:16-alpine` 이 55432 포트로 뜬다.
+5432 를 피한 것은 로컬에 다른 Postgres 가 있어도 충돌하지 않게 하기 위해서다.
+데이터는 named volume 에 있어 컨테이너를 지워도 남는다.
+
+`.env` 에 아래를 넣는다.
 
 ```
 DATABASE_URL=postgresql://dev:devpass@localhost:55432/zoom_live_participants
-ZOOM_WEBHOOK_SECRET_TOKEN=local-test-secret
-ZOOM_MEETING_ID=10000000001
+ZOOM_WEBHOOK_SECRET_TOKEN=<Zoom Event Subscription 의 Secret Token>
+ZOOM_MEETING_ID=<회의방 번호>
 ```
 
 이후:
 
 ```
 cd apps/api
-npx drizzle-kit migrate                                   # 스키마 적용
-node --env-file=../../.env.local scripts/db-check.mjs     # 연결/테이블 확인
+npx drizzle-kit migrate                                # 스키마 적용 (.env 를 자동으로 읽는다)
+node --env-file=../../.env scripts/db-check.mjs        # 연결/테이블 확인
+```
 
-# fixture 162건을 웹훅 경로로 재생하고 결과를 대조한다 (3단계 완료 기준)
-node --env-file=../../.env.local --experimental-strip-types scripts/replay-fixture.ts
+검증과 데모용 스크립트:
 
-# 화면 확인용으로 "12명 접속 중" 상태를 만든다
-node --env-file=../../.env.local --experimental-strip-types scripts/seed-live.ts
+```
+# fixture 162건을 웹훅 경로로 재생하고 DB 결과를 전수 대조한다 (3단계 완료 기준)
+node --env-file=../../.env --experimental-strip-types scripts/replay-fixture.ts
 
-# API 서버
-node --env-file=../../.env.local --experimental-strip-types scripts/dev-server.ts
+# 화면 확인용으로 "12명 접속 중" 상태를 만든다. meeting_id 는 ZOOM_MEETING_ID 를 따른다
+node --env-file=../../.env --experimental-strip-types scripts/seed-live.ts
+
+# API 서버 (api/*.ts 핸들러를 로컬 http 서버로 띄운다)
+node --env-file=../../.env --experimental-strip-types scripts/dev-server.ts
 ```
 
 프론트는 별도 터미널에서:
 
 ```
 cd apps/web && API_ORIGIN=http://localhost:3000 pnpm dev
+```
+
+DB 를 비우고 다시 시작하려면:
+
+```
+docker compose down -v && docker compose up -d
 ```
 
 ## 순서 요약

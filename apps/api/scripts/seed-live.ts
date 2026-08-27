@@ -6,6 +6,7 @@
  */
 import { readFileSync } from "node:fs";
 
+import { getEnv } from "../src/config/env.ts";
 import { closeDb, getDb } from "../src/db/client.ts";
 import { participantEvents, participants, webhookEvents } from "../src/db/schema.ts";
 import { participantKey, shouldAdvance } from "../src/domain/presence.ts";
@@ -13,6 +14,12 @@ import type { ParticipantEvent, ParticipantState } from "../src/domain/presence.
 
 const FIXTURE = new URL("../test/fixtures/webhook-events.ndjson", import.meta.url);
 const TARGET_SESSION = "TESTUUID0004==";
+
+/**
+ * fixture 의 회의방 번호는 익명화된 더미다.
+ * 조회 API 는 ZOOM_MEETING_ID 로 세션을 찾으므로, 시드도 그 값에 맞춘다.
+ */
+const MEETING_ID = getEnv().ZOOM_MEETING_ID ?? "10000000001";
 
 const rows = readFileSync(FIXTURE, "utf8")
 	.split("\n")
@@ -28,7 +35,7 @@ const events: ParticipantEvent[] = rows
 	.map((r) => {
 		const isJoin = r.event === "meeting.participant_joined";
 		return {
-			meetingId: r.meeting_id ?? "",
+			meetingId: MEETING_ID,
 			meetingUuid: r.meeting_uuid ?? "",
 			participantUuid: r.participant?.participant_uuid ?? "",
 			eventType: isJoin ? ("joined" as const) : ("left" as const),
@@ -135,7 +142,7 @@ for (const state of final.values()) {
 }
 
 const present = [...final.values()].filter((s) => s.isPresent);
-console.log(`이벤트 ${shifted.length}건 시드 완료 / 접속 중 ${present.length}명`);
+console.log(`이벤트 ${shifted.length}건 시드 완료 / 접속 중 ${present.length}명 (meeting_id=${MEETING_ID})`);
 for (const p of present) {
 	console.log(`  ${p.displayName}`);
 }

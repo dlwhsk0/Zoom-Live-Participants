@@ -1,0 +1,25 @@
+# 로컬 개발용 PostgreSQL.
+#
+# 포트는 5432 대신 55432 를 쓴다. 로컬에 다른 Postgres 가 있어도 충돌하지 않는다.
+# 데이터는 named volume 에 두어 컨테이너를 지워도 남는다.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: zlp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: devpass
+      POSTGRES_DB: zoom_live_participants
+    ports:
+      - "55432:5432"
+    volumes:
+      - zlp-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d zoom_live_participants"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  zlp-pgdata:
