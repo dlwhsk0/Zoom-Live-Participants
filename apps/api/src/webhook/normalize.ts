@@ -19,6 +19,8 @@ const participantSchema = z.object({
 
 const payloadSchema = z.object({
 	event: z.string().min(1),
+	/** Zoom 이 이벤트를 만든 시각(ms). 재전송해도 값이 같다. */
+	event_ts: z.number().optional(),
 	payload: z.object({
 		plainToken: z.string().optional(),
 		object: z
@@ -91,11 +93,22 @@ export function buildDedupeKey(event: ParticipantEvent): string {
 	].join("|");
 }
 
-/** 참가자 이벤트가 아닌 경우(meeting.ended 등)의 멱등성 키. */
+/**
+ * 참가자 이벤트가 아닌 경우(meeting.started/ended 등)의 멱등성 키.
+ *
+ * event_ts 는 Zoom 이 이벤트를 만든 시각이라 재전송해도 값이 같다.
+ * 수신 시각을 쓰면 재전송마다 다른 키가 되어 중복이 걸러지지 않는다.
+ * event_ts 가 없는 경우에만 수신 시각으로 물러선다.
+ */
 export function buildMeetingDedupeKey(
 	body: ZoomWebhookBody,
 	receivedAt: Date,
 ): string {
 	const uuid = body.payload.object?.uuid ?? "unknown";
-	return [uuid, body.event, receivedAt.toISOString()].join("|");
+	const stamp =
+		body.event_ts === undefined
+			? receivedAt.toISOString()
+			: String(body.event_ts);
+
+	return [uuid, body.event, stamp].join("|");
 }

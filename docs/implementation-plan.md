@@ -237,6 +237,54 @@ apps/web/
 **완료 기준:** 실제 회의에서 소회의실 이동 시 사람이 사라지지 않는다.
 이게 v1이 실패했던 지점이고, 이 프로젝트의 합격선이다.
 
+## 로컬 검증 방법
+
+실제 DB 없이 판정 로직만 확인하려면 테스트로 충분하다.
+
+```
+pnpm test
+```
+
+DB까지 붙여 확인하려면 로컬 Postgres 를 띄운다.
+
+```
+docker run -d --name zlp-pg \
+  -e POSTGRES_USER=dev -e POSTGRES_PASSWORD=devpass \
+  -e POSTGRES_DB=zoom_live_participants \
+  -p 55432:5432 postgres:16-alpine
+```
+
+`.env.local` 에 로컬 접속 정보를 넣는다 (gitignore 대상).
+
+```
+DATABASE_URL=postgresql://dev:devpass@localhost:55432/zoom_live_participants
+ZOOM_WEBHOOK_SECRET_TOKEN=local-test-secret
+ZOOM_MEETING_ID=10000000001
+```
+
+이후:
+
+```
+cd apps/api
+npx drizzle-kit migrate                                   # 스키마 적용
+node --env-file=../../.env.local scripts/db-check.mjs     # 연결/테이블 확인
+
+# fixture 162건을 웹훅 경로로 재생하고 결과를 대조한다 (3단계 완료 기준)
+node --env-file=../../.env.local --experimental-strip-types scripts/replay-fixture.ts
+
+# 화면 확인용으로 "12명 접속 중" 상태를 만든다
+node --env-file=../../.env.local --experimental-strip-types scripts/seed-live.ts
+
+# API 서버
+node --env-file=../../.env.local --experimental-strip-types scripts/dev-server.ts
+```
+
+프론트는 별도 터미널에서:
+
+```
+cd apps/web && API_ORIGIN=http://localhost:3000 pnpm dev
+```
+
 ## 순서 요약
 
 | 단계 | 내용 | 완료 기준 |
@@ -248,6 +296,10 @@ apps/web/
 | 4 | 조회 API | JSON 응답 확인 |
 | 5 | 프론트 | 폰에서 목록이 갱신됨 |
 | 6 | 배포 | 실제 소회의실 이동에서 유지 |
+
+0~5단계는 로컬 Postgres 로 검증을 마쳤다.
+fixture 162건 재생 시 participants 63행이 순수 함수 결과와 완전히 일치하고,
+재전송 162건이 전부 중복으로 걸러진다.
 
 1단계를 먼저 하는 이유: 난이도가 전부 판정 규칙에 있고 나머지는 배선이다.
 규칙이 fixture로 검증되면 그 뒤는 막히지 않는다.

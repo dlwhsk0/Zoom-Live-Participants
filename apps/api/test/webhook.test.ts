@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildDedupeKey,
+	buildMeetingDedupeKey,
 	parseWebhookBody,
 	toParticipantEvent,
 } from "../src/webhook/normalize.ts";
@@ -159,5 +160,39 @@ describe("dedupe_key", () => {
 		const leftKey = buildDedupeKey({ ...base, eventType: "left" });
 		const joinKey = buildDedupeKey({ ...base, eventType: "joined" });
 		expect(leftKey).not.toBe(joinKey);
+	});
+});
+
+describe("meeting 이벤트 멱등성", () => {
+	const bodies = loadRawZoomBodies().map((raw) => parseWebhookBody(raw));
+	const meetingBodies = bodies.filter(
+		(b) => !b.event.startsWith("meeting.participant_"),
+	);
+
+	it("fixture 에 meeting.started / ended 가 5건 있다", () => {
+		expect(meetingBodies).toHaveLength(5);
+	});
+
+	it("수신 시각이 달라도 같은 키를 만든다 — 재전송 멱등성", () => {
+		for (const body of meetingBodies) {
+			const first = buildMeetingDedupeKey(body, new Date("2026-01-01T00:00:00Z"));
+			const second = buildMeetingDedupeKey(body, new Date("2026-06-01T12:34:56Z"));
+			expect(first).toBe(second);
+		}
+	});
+
+	it("서로 다른 meeting 이벤트는 다른 키를 만든다", () => {
+		const keys = meetingBodies.map((b) => buildMeetingDedupeKey(b, new Date()));
+		expect(new Set(keys).size).toBe(meetingBodies.length);
+	});
+
+	it("event_ts 가 없으면 수신 시각으로 물러선다", () => {
+		const body = parseWebhookBody({
+			event: "meeting.ended",
+			payload: { object: { uuid: "u1" } },
+		});
+		const a = buildMeetingDedupeKey(body, new Date("2026-01-01T00:00:00Z"));
+		const b = buildMeetingDedupeKey(body, new Date("2026-01-01T00:00:01Z"));
+		expect(a).not.toBe(b);
 	});
 });
