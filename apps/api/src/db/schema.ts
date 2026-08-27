@@ -48,6 +48,9 @@ export const participantEvents = pgTable(
 		id: uuid("id").defaultRandom().primaryKey(),
 		/** webhook_events 참조. FK 제약은 두지 않는다. */
 		webhookEventId: uuid("webhook_event_id").notNull(),
+		/** 회의방 번호. 세션이 바뀌어도 고정이다. */
+		meetingId: text("meeting_id").notNull(),
+		/** 회의 세션. 회의를 새로 열 때마다 바뀐다. */
 		meetingUuid: text("meeting_uuid").notNull(),
 		/** 세션 내 참가자 동일성 키. 방을 옮겨도 유지된다. */
 		participantUuid: text("participant_uuid").notNull(),
@@ -93,6 +96,9 @@ export const participants = pgTable(
 	"participants",
 	{
 		id: uuid("id").defaultRandom().primaryKey(),
+		/** 회의방 번호. 세션이 바뀌어도 고정이다. */
+		meetingId: text("meeting_id").notNull(),
+		/** 회의 세션. 회의를 새로 열 때마다 바뀐다. */
 		meetingUuid: text("meeting_uuid").notNull(),
 		participantUuid: text("participant_uuid").notNull(),
 		/** 마지막으로 관측된 표시 이름 */
@@ -118,6 +124,11 @@ export const participants = pgTable(
 		presentIdx: index("idx_participants_present").on(
 			table.meetingUuid,
 			table.isPresent,
+		),
+		/** 회의방의 최신 세션을 찾을 때 쓴다. */
+		latestSessionIdx: index("idx_participants_latest_session").on(
+			table.meetingId,
+			table.lastOccurredAt,
 		),
 	}),
 );

@@ -43,11 +43,12 @@ v1 코드 전체는 **`snapshot/v1-esm` 브랜치**에 보존되어 있다.
 4. 웹훅 수신 엔드포인트
 5. 현재 접속자 조회 API → `apps/web` 화면 → 배포
 
-상세는 [`docs/plan.md`](docs/plan.md).
+상세는 [`docs/plan.md`](docs/plan.md)와 [`docs/implementation-plan.md`](docs/implementation-plan.md).
 
 ## 문서
 
 - [`docs/plan.md`](docs/plan.md) — **v2 계획서** (범위, 식별자, 접속 판정 규칙, 데이터 모델)
+- [`docs/implementation-plan.md`](docs/implementation-plan.md) — 백/프론트/DB 실행 계획, 단계별 완료 기준
 - [`docs/webhook-data-reference.md`](docs/webhook-data-reference.md) — fixture 실측 수치
 - [`docs/README.md`](docs/README.md) — 문서 운영 방식
 

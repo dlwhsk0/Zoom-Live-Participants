@@ -12,6 +12,8 @@
 
 - `docs/plan.md`
   - **v2 계획서.** 범위, 식별자 결정, 접속 판정 규칙, 데이터 모델, 진행 순서
+- `docs/implementation-plan.md`
+  - 백/프론트/DB 연결 실행 계획과 단계별 완료 기준
 - `docs/webhook-data-reference.md`
   - 위 결정의 근거가 되는 fixture 실측 수치
 
