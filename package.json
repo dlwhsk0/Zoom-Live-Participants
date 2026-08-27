@@ -4,9 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check:schema": "pnpm --filter @zoom-live-participants/api run check:schema"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build"
   },
   "engines": {
     "node": ">=20"
-  }
+  },
+  "packageManager": "pnpm@10.15.1"
 }

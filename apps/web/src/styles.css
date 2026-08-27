@@ -1,0 +1,133 @@
+:root {
+	--bg: #ffffff;
+	--fg: #111318;
+	--muted: #6b7280;
+	--line: #e8eaed;
+	--accent: #1a73e8;
+	--warn-bg: #fff4e5;
+	--warn-fg: #8a5300;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body {
+	margin: 0;
+	padding: 0;
+}
+
+body {
+	background: var(--bg);
+	color: var(--fg);
+	font-family:
+		-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+		"Segoe UI", Roboto, sans-serif;
+	-webkit-font-smoothing: antialiased;
+	/* 폴링 갱신 시 텍스트 선택이 튀지 않게 */
+	-webkit-tap-highlight-color: transparent;
+}
+
+.screen {
+	max-width: 480px;
+	margin: 0 auto;
+	min-height: 100dvh;
+	padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+}
+
+.banner {
+	margin: 12px -20px 0;
+	padding: 10px 20px;
+	background: var(--warn-bg);
+	color: var(--warn-fg);
+	font-size: 14px;
+	text-align: center;
+}
+
+.header {
+	padding: 36px 0 24px;
+	border-bottom: 1px solid var(--line);
+}
+
+.header__label {
+	margin: 0;
+	font-size: 15px;
+	color: var(--muted);
+}
+
+.header__count {
+	margin: 4px 0 0;
+	font-size: 56px;
+	font-weight: 700;
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+}
+
+.header__unit {
+	margin-left: 4px;
+	font-size: 24px;
+	font-weight: 600;
+	color: var(--muted);
+}
+
+.header__placeholder {
+	color: var(--line);
+}
+
+.header__meta {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 8px 0 0;
+	font-size: 14px;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.header__dot {
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: var(--accent);
+	opacity: 0.7;
+}
+
+.list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 16px;
+	padding: 18px 2px;
+	border-bottom: 1px solid var(--line);
+}
+
+.row__name {
+	font-size: 17px;
+	font-weight: 500;
+	/* 긴 이름이 시간 표시를 밀어내지 않게 */
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.row__time {
+	flex: none;
+	font-size: 14px;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.empty {
+	padding: 64px 0;
+	text-align: center;
+	color: var(--muted);
+	font-size: 15px;
+}
