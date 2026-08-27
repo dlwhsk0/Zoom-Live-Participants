@@ -12,6 +12,10 @@
 
 - `docs/migration-baseline.md`
   - 마이그레이션 범위와 목표/비목표
+- `docs/setup-vercel-supabase.md`
+  - Vercel + Supabase 무료 플랜 기준 가입/연동/환경변수 설정 가이드
+- `docs/participant-event-classification.md`
+  - 실측 `leave_reason` 5종과 `room_scope` 분류 규칙 (v1 결함 포함)
 
 운영 방식:
 

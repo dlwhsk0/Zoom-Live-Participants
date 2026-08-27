@@ -2,7 +2,7 @@
 
 Zoom 회의 참가자의 입장/퇴장 이벤트를 수집하고, 이를 웹 화면과 Slack 알림으로 확인할 수 있게 만드는 프로젝트다.
 
-이 프로젝트는 Zoom의 실시간 webhook 이벤트를 받아 다음과 같은 운영 흐름을 지원한다.
+Zoom Event Subscription webhook을 받아 다음 운영 흐름을 지원하는 것이 목표다.
 
 - 참가자 입장/퇴장 이벤트 수집
 - 메인 회의실 / 소회의실 관련 이벤트 구분
@@ -10,79 +10,47 @@ Zoom 회의 참가자의 입장/퇴장 이벤트를 수집하고, 이를 웹 화
 - Slack 알림 전송
 - 잘못 전송된 봇 메시지 삭제용 관리 API
 
-세부 검증 메모와 구현 과정은 `docs/` 아래에 정리한다. 이 README는 프로젝트를 처음 보는 사람이 전체 방향과 현재 제공 기능을 빠르게 이해하도록 돕는 문서다.
+## 현재 상태: v2 재작성 중
 
-## 누구를 위한 레포인가
+v1(로컬 Node ESM 서버 + NDJSON 파일 저장)은 동작하는 수준까지 구현했고,
+지금은 배포/운영 기준의 v2 구조로 **처음부터 다시 만드는 중**이다.
 
-### 개발자
+| | v1 (종료) | v2 (진행 중) |
+|---|---|---|
+| 런타임 | Node ESM 단일 서버 | TypeScript + Vercel Functions |
+| 저장소 | `logs/*.ndjson` 파일 | Supabase PostgreSQL + Drizzle |
+| 화면 | 문자열 템플릿 HTML | Vite + React + TanStack Query |
+| 구조 | 단일 레포 | pnpm workspace (`apps/api`, `apps/web`) |
 
-이 레포를 포크해서 직접 실행해보거나, Zoom webhook 기반 출결/알림 시스템을 확장하려는 사람을 위한 프로젝트다.
+v1 코드 전체는 **`snapshot/v1-esm` 브랜치**에 보존되어 있다.
+`main`에서는 제거했으므로, v1 구현을 참조할 일이 있으면 그 브랜치를 보면 된다.
 
-개발자라면 아래 문서를 먼저 보면 된다.
+### 지금 있는 것
 
-- 세팅 가이드: [`docs/setup/README.md`](/Users/hana/ZoomAttandance/zoom-live-participants/docs/setup/README.md#L1)
-- Slack 관련 문서: [`docs/slack/README.md`](/Users/hana/ZoomAttandance/zoom-live-participants/docs/slack/README.md#L1)
+- `apps/api/src/db/schema.ts` — Drizzle 스키마 초안 (4테이블)
+- `apps/api/test/fixtures/webhook-events.ndjson` — 실측 webhook 이벤트 162건 (익명화됨)
+- `docs/` — 마이그레이션 기준서, 배포 세팅 가이드, 이벤트 분류 기준
 
-### 기획자 / 사용자
+### 아직 없는 것
 
-이 프로젝트가 현재 어떤 기능을 제공하는지, 앞으로 어떤 운영 기능이 추가될 예정인지 알고 싶은 사람을 위한 설명은 아래 기능 목록과 예정 기능 섹션을 보면 된다.
+- `apps/web` (프론트엔드)
+- Vercel 함수 엔트리포인트 / webhook 수신 경로
+- DB 마이그레이션 파일, drizzle 설정, TS 툴체인
 
-## 현재 프로젝트 설명
+## 다음 작업 순서
 
-현재 구현은 `Zoom webhook 수집 서버`와 `운영 확인용 화면/Slack 연동`에 초점을 맞춘다.
+1. `dedupe_key` 생성 규칙과 `occurred_at` 컬럼 확정 → 스키마 반영
+2. `apps/api` 툴체인 세팅 (pnpm install, drizzle-orm/kit, tsconfig)
+3. 첫 마이그레이션 생성 및 Supabase 적용
+4. webhook 핸들러 TS 포팅 (raw insert → participant_events → slack_deliveries)
+5. Vercel 배포 + Zoom endpoint URL 교체
 
-핵심 포인트:
+## 문서
 
-- Zoom Event Subscription을 통해 참가자 입장/퇴장 이벤트를 수집한다.
-- 수신 이벤트는 로컬 로그 파일에 저장된다.
-- `/events` 화면에서 현재까지 수집된 이벤트를 확인할 수 있다.
-- Slack으로 입장/퇴장 알림을 보낼 수 있다.
-- 관리용 API를 통해 봇이 보낸 Slack 메시지를 삭제할 수 있다.
-
-## 현재 기능 목록
-
-### Zoom webhook 수집
-
-- `meeting.participant_joined` 수집
-- `meeting.participant_left` 수집
-- `meeting.started` 수집
-- `meeting.ended` 수집
-- `endpoint.url_validation` 처리
-
-### 이벤트 저장
-
-- webhook 이벤트를 `logs/webhook-events.ndjson`에 저장
-- 조회를 위해 일부 필드를 정규화하고, 원본 payload는 `raw`로 함께 보관
-
-### 웹 화면
-
-- `GET /health`
-  - 서버 생존 확인
-- `GET /events`
-  - 수집 이벤트 HTML 화면
-- `GET /events.json`
-  - 수집 이벤트 JSON 조회
-
-`/events`에서 현재 확인 가능한 내용:
-
-- 참가자 입장/퇴장 기록
-- 메인 회의실 / 소회의실 / 소회의실 퇴장 / 소회의실 이동 추정 구분
-- 참가자 이름, 참가자 ID, participant UUID
-- 필터 기준 이벤트 집계
-
-### Slack 연동
-
-- Incoming Webhook으로 입장/퇴장 알림 전송
-- 랜덤 템플릿 기반 메시지
-- 이름 bold, 문장 italic 스타일링
-- 특정 회의 ID만 전송하는 필터
-- 특정 이벤트만 전송하는 필터
-
-### Slack 관리 API
-
-- `POST /slack/messages/delete`
-  - 봇이 보낸 Slack 메시지 삭제
-  - `SLACK_BOT_TOKEN`, `SLACK_ADMIN_API_KEY` 필요
+- [`docs/migration-baseline.md`](docs/migration-baseline.md) — 마이그레이션 범위, 테이블 스키마, 저장소 선택 근거
+- [`docs/setup-vercel-supabase.md`](docs/setup-vercel-supabase.md) — Vercel + Supabase 무료 플랜 세팅 가이드
+- [`docs/participant-event-classification.md`](docs/participant-event-classification.md) — 실측 `leave_reason` 5종과 `room_scope` 분류 규칙
+- [`docs/README.md`](docs/README.md) — 문서 운영 방식
 
 ## 추후 추가될 예정 기능
 
@@ -90,29 +58,12 @@ Zoom 회의 참가자의 입장/퇴장 이벤트를 수집하고, 이를 웹 화
 
 - 슬랙 메시지 템플릿 CRUD
 - 봇 메시지 삭제 고도화
-- 입퇴장 누락 기록 누락 방지
-  - 채팅 이벤트 체킹 기반 보완
+- 입퇴장 기록 누락 방지 (채팅 이벤트 체킹 기반 보완)
 - 회의 시작/종료 시 Slack 메시지 전송
 
 ### 장기 확장 기능
 
-아래는 정말 나중에 붙일 수 있는 기능들이다.
-
-현재는 거의 실현 계획이 없고, 운영 범위가 커질 때 다시 검토할 항목으로 본다.
+현재는 실현 계획이 없고, 운영 범위가 커질 때 다시 검토할 항목이다.
 
 - 관리 대상 회의가 여러 개인 경우를 위한 회의 정보 엔티티/테이블
 - 참가 통계
-
-## 세팅과 실행
-
-세팅 방법과 실행 절차는 README에서 분리했다.
-
-아래 문서를 기준으로 진행하면 된다.
-
-- [`docs/setup/README.md`](/Users/hana/ZoomAttandance/zoom-live-participants/docs/setup/README.md#L1)
-
-## 문서 위치
-
-- 초기 검증 문서: [`docs/20260322`](/Users/hana/ZoomAttandance/zoom-live-participants/docs/20260322#L1)
-- 재검증 문서: [`docs/20260404`](/Users/hana/ZoomAttandance/zoom-live-participants/docs/20260404#L1)
-- Slack 문서: [`docs/slack`](/Users/hana/ZoomAttandance/zoom-live-participants/docs/slack#L1)

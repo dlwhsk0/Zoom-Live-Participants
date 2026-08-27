@@ -146,6 +146,16 @@
 
 - `participant_sessions` 테이블은 1차에서 만들지 않는다.
 
+### 재검토 필요 (미결정)
+
+- `occurred_at` (Zoom payload의 `event_ts`)
+  - 위에서는 "`raw` 기준으로 조회"를 이유로 제외했으나,
+    `room_scope` 추론이 "같은 참가자의 직전 이벤트" 순서에 의존하므로 재검토가 필요하다.
+  - 상세: `docs/participant-event-classification.md`의 "순서 의존성 주의"
+- `dedupe_key` 생성 규칙
+  - 멱등성 전체가 이 값에 걸려 있으나 아직 정의되지 않았다.
+  - 후보: `event` + `event_ts` + `participant_uuid`
+
 ## 저장소 검토 결과 (Notion MCP vs Supabase)
 
 ### 결론
@@ -200,6 +210,9 @@
 - 단계별로 작업하고, 각 단계 끝에서 확인받고 다음 단계로 간다.
 - 문서는 단계별 산출물 누적보다, 현재 정답 기준서를 지속 수정하는 방식으로 관리한다.
 
-## 다음 단계 (Step 2)
+## 진행 현황
 
-위 스키마를 기준으로 Drizzle 스키마 초안(`apps/api`)을 작성하고, webhook 수신 경로를 DB insert 중심으로 전환한다.
+- Step 1 (완료): 스키마/저장소 기준 확정
+- Step 2 (완료): Drizzle 스키마 초안 작성 (`apps/api/src/db/schema.ts`)
+- Step 3 (다음): 위 "재검토 필요" 항목을 확정하고 스키마에 반영, 첫 마이그레이션 생성
+- Step 4: webhook 수신 경로를 DB insert 중심으로 전환
