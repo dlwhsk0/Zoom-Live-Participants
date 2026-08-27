@@ -227,7 +227,75 @@ apps/web/
 
 **완료 기준:** 폰 브라우저에서 열어두면 사람이 들어오고 나갈 때마다 목록이 바뀐다.
 
-## 6. 배포
+## 6-A. 실제 Zoom 회의로 검증 (배포 전)
+
+fixture 는 2026년 4월 데이터다. Zoom 이 그 사이 동작을 바꿨을 수 있으므로,
+배포 전에 실제 회의로 한 번 확인한다. 로컬 서버를 터널로 노출하면 된다.
+
+### 1. 로컬 API 를 띄운다
+
+```
+cd apps/api && pnpm dev          # localhost:3000
+```
+
+### 2. 터널로 외부에 노출한다
+
+```
+ngrok http 3000
+# 또는
+cloudflared tunnel --url http://localhost:3000
+```
+
+출력된 https 주소를 쓴다. 웹훅 엔드포인트는 `<주소>/api/webhook` 이다.
+
+### 3. Zoom App 에 등록한다
+
+Zoom Marketplace → 해당 앱 → Feature → Event Subscriptions
+
+- Event notification endpoint URL: `<터널 주소>/api/webhook`
+- Validate 를 누르면 Zoom 이 `endpoint.url_validation` 을 보낸다.
+  핸들러가 이미 처리하므로 바로 통과해야 한다.
+- 구독할 이벤트: `meeting.participant_joined`, `meeting.participant_left`,
+  `meeting.started`, `meeting.ended`
+
+`.env` 의 `ZOOM_WEBHOOK_SECRET_TOKEN` 이 이 앱의 Secret Token 과 같아야 한다.
+다르면 서명 검증에서 401 로 거부된다.
+
+### 4. 회의를 열고 확인한다
+
+`.env` 의 `ZOOM_MEETING_ID` 가 그 회의방 번호여야 조회 API 가 세션을 찾는다.
+
+확인할 것:
+
+| 동작 | 기대 |
+|---|---|
+| 참가자 입장 | 목록에 나타남 |
+| 메인 → 소회의실 이동 | **목록에서 사라지지 않음** |
+| 소회의실 → 다른 소회의실 | 사라지지 않음 |
+| 소회의실에서 바로 종료 | 목록에서 빠짐 |
+| 메인에서 퇴장 | 목록에서 빠짐 |
+| 회의 종료 | 전원 정리 |
+
+소회의실 이동에서 사람이 사라지지 않는 것이 이 프로젝트의 합격선이다.
+v1 이 실패한 지점이다.
+
+### 5. 실제 데이터 확인
+
+```
+cd apps/api && pnpm db:check
+```
+
+pgAdmin(http://localhost:5050)이나 SQL 로 `participant_events` 를 열어
+실제 `leave_reason` 값과 발생 시각 쌍이 fixture 와 같은 패턴인지 본다.
+다르다면 판정 규칙을 다시 봐야 한다.
+
+### 6. 검증 후 정리
+
+```
+cd apps/api && pnpm db:reset --yes
+```
+
+## 6-B. 배포
 
 1. Vercel 프로젝트 연결 (`apps/api`, `apps/web`)
 2. 환경변수 등록 — `DATABASE_URL`, `ZOOM_WEBHOOK_SECRET_TOKEN`, `ZOOM_MEETING_ID`
@@ -282,18 +350,19 @@ npx drizzle-kit migrate                                # 스키마 적용 (.env 
 node --env-file=../../.env scripts/db-check.mjs        # 연결/테이블 확인
 ```
 
-검증과 데모용 스크립트:
+`apps/api` 스크립트 (전부 저장소 루트의 `.env` 를 읽는다):
 
-```
-# fixture 162건을 웹훅 경로로 재생하고 DB 결과를 전수 대조한다 (3단계 완료 기준)
-node --env-file=../../.env --experimental-strip-types scripts/replay-fixture.ts
+| 명령 | 하는 일 |
+|---|---|
+| `pnpm db:migrate` | 스키마 적용 |
+| `pnpm db:check` | 연결과 테이블 확인 |
+| `pnpm db:replay` | fixture 162건을 웹훅 경로로 재생하고 DB 결과를 전수 대조 (3단계 완료 기준) |
+| `pnpm db:seed` | 화면 확인용 "12명 접속 중" 상태 생성 |
+| `pnpm db:reset --yes` | 테이블 내용 삭제. 스키마와 마이그레이션 기록은 유지 |
+| `pnpm dev` | API 서버 (api/*.ts 핸들러를 로컬 http 서버로) |
 
-# 화면 확인용으로 "12명 접속 중" 상태를 만든다. meeting_id 는 ZOOM_MEETING_ID 를 따른다
-node --env-file=../../.env --experimental-strip-types scripts/seed-live.ts
-
-# API 서버 (api/*.ts 핸들러를 로컬 http 서버로 띄운다)
-node --env-file=../../.env --experimental-strip-types scripts/dev-server.ts
-```
+`db:reset` 은 `--yes` 없이 실행하면 현재 행 수만 보여주고 멈춘다.
+검증 데이터를 걷어낼 때 쓴다.
 
 프론트는 별도 터미널에서:
 
@@ -317,7 +386,8 @@ docker compose down -v && docker compose up -d
 | 3 | 웹훅 수신 | fixture 재생 결과가 1단계와 일치 |
 | 4 | 조회 API | JSON 응답 확인 |
 | 5 | 프론트 | 폰에서 목록이 갱신됨 |
-| 6 | 배포 | 실제 소회의실 이동에서 유지 |
+| 6-A | 실제 회의 검증 | 소회의실 이동에서 사람이 사라지지 않음 |
+| 6-B | 배포 | 배포 환경에서 같은 결과 |
 
 0~5단계는 로컬 Postgres 로 검증을 마쳤다.
 fixture 162건 재생 시 participants 63행이 순수 함수 결과와 완전히 일치하고,
