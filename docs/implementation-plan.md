@@ -251,9 +251,20 @@ DB까지 붙이려면 Postgres 를 띄운다.
 docker compose up -d
 ```
 
-`postgres:16-alpine` 이 55432 포트로 뜬다.
-5432 를 피한 것은 로컬에 다른 Postgres 가 있어도 충돌하지 않게 하기 위해서다.
+두 개가 뜬다.
+
+| 서비스 | 주소 | 설명 |
+|---|---|---|
+| `postgres` | `localhost:55432` | PostgreSQL 16 |
+| `pgadmin` | http://localhost:5050 | 브라우저 DB 클라이언트 |
+
+Postgres 포트가 5432 가 아닌 것은 로컬에 다른 Postgres 가 있어도 충돌하지 않게 하기 위해서다.
 데이터는 named volume 에 있어 컨테이너를 지워도 남는다.
+
+pgAdmin 은 로컬 전용이라 로그인 없이 바로 열린다.
+DB 연결은 `docker/pgadmin/servers.json` 으로 미리 등록되어 있어 서버를 직접 추가할 필요가 없다.
+비밀번호는 `docker/pgadmin/pgpass` 에서 읽는다.
+pgAdmin 컨테이너는 같은 compose 네트워크에 있으므로 호스트명이 `localhost` 가 아니라 `postgres` 다.
 
 `.env` 에 아래를 넣는다.
 

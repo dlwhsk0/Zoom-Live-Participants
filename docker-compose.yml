@@ -1,6 +1,6 @@
-# 로컬 개발용 PostgreSQL.
+# 로컬 개발용 PostgreSQL + pgAdmin.
 #
-# 포트는 5432 대신 55432 를 쓴다. 로컬에 다른 Postgres 가 있어도 충돌하지 않는다.
+# Postgres 포트는 5432 대신 55432 를 쓴다. 로컬에 다른 Postgres 가 있어도 충돌하지 않는다.
 # 데이터는 named volume 에 두어 컨테이너를 지워도 남는다.
 services:
   postgres:
@@ -21,5 +21,29 @@ services:
       timeout: 3s
       retries: 10
 
+  # http://localhost:5050
+  # 로그인: admin@local.dev / admin
+  # 서버 연결은 servers.json 으로 미리 등록되어 있다.
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: zlp-pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # 로컬 전용이므로 로그인 화면을 간소화한다
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - zlp-pgadmin:/var/lib/pgadmin
+      - ./docker/pgadmin/servers.json:/pgadmin4/servers.json:ro
+      - ./docker/pgadmin/pgpass:/pgpass:ro
+
 volumes:
   zlp-pgdata:
+  zlp-pgadmin:

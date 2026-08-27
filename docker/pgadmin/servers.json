@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "zoom-live-participants (local)",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "zoom_live_participants",
+      "Username": "dev",
+      "PassFile": "/pgpass",
+      "SSLMode": "prefer",
+      "Comment": "docker compose 로 띄운 로컬 개발 DB"
+    }
+  }
+}
