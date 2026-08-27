@@ -9,113 +9,115 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 
-export const zoomRawWebhookEvents = pgTable(
-	"zoom_raw_webhook_events",
+/**
+ * 원본 웹훅 보존.
+ *
+ * 정규화 결과만 저장하면 판정 규칙이 바뀌었을 때 과거 데이터를 다시 만들 수 없다.
+ * 실제로 v1의 leave_reason 기반 분류가 틀린 것으로 확인되어 규칙을 갈아엎었다.
+ * 원본이 있으면 재처리로 복구할 수 있다.
+ */
+export const webhookEvents = pgTable(
+	"webhook_events",
 	{
-		rawId: uuid("raw_id").defaultRandom().primaryKey(),
+		id: uuid("id").defaultRandom().primaryKey(),
 		receivedAt: timestamp("received_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
-		payloadJson: jsonb("payload_json").notNull(),
+		payload: jsonb("payload").notNull(),
+		/** meeting_uuid | participant_uuid | event_type | occurred_at */
 		dedupeKey: text("dedupe_key").notNull(),
 	},
 	(table) => ({
-		dedupeKeyUnique: uniqueIndex("uq_zoom_raw_webhook_events_dedupe_key").on(
+		dedupeKeyUnique: uniqueIndex("uq_webhook_events_dedupe_key").on(
 			table.dedupeKey,
 		),
-		receivedAtIdx: index("idx_zoom_raw_webhook_events_received_at").on(
-			table.receivedAt,
-		),
+		receivedAtIdx: index("idx_webhook_events_received_at").on(table.receivedAt),
 	}),
 );
 
+/**
+ * 로그성 테이블. 참가자 입퇴장 이벤트를 정규화해 시간순으로 쌓는다.
+ *
+ * occurredAt 이 판정의 기준이다. receivedAt(수신 시각)은 도착 순서가
+ * 뒤바뀌므로 정렬에 쓸 수 없다. 실측상 방 이동 쌍 40건 중 17건은
+ * joined 가 left 보다 먼저 도착했다.
+ */
 export const participantEvents = pgTable(
 	"participant_events",
 	{
-		eventId: uuid("event_id").defaultRandom().primaryKey(),
-		rawId: uuid("raw_id").notNull(),
-		eventName: text("event_name").notNull(),
+		id: uuid("id").defaultRandom().primaryKey(),
+		/** webhook_events 참조. FK 제약은 두지 않는다. */
+		webhookEventId: uuid("webhook_event_id").notNull(),
 		meetingUuid: text("meeting_uuid").notNull(),
-		meetingId: text("meeting_id").notNull(),
-		participantUuid: text("participant_uuid"),
-		userName: text("user_name"),
+		/** 세션 내 참가자 동일성 키. 방을 옮겨도 유지된다. */
+		participantUuid: text("participant_uuid").notNull(),
+		/** joined | left */
+		eventType: text("event_type").notNull(),
+		/** join_time 또는 leave_time. 정렬·판정의 기준. */
+		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		/** 표시용. 판정에 쓰지 않는다. 사용자가 임의로 바꿀 수 있다. */
+		displayName: text("display_name"),
+		/** 방 세션마다 새로 발급된다. 디버깅 참고용. */
+		userId: text("user_id"),
+		/** 원문 보존. 판정에 쓰지 않는다. */
 		leaveReason: text("leave_reason"),
-		roomScope: text("room_scope").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
+	},
+	(table) => ({
+		presenceIdx: index("idx_participant_events_presence").on(
+			table.meetingUuid,
+			table.participantUuid,
+			table.occurredAt,
+		),
+		meetingOccurredIdx: index("idx_participant_events_meeting_occurred").on(
+			table.meetingUuid,
+			table.occurredAt,
+		),
+	}),
+);
+
+/**
+ * 사용자 목록. 회의 세션 단위 참가자와 현재 접속 상태.
+ *
+ * participant_events 로부터 upsert 로 갱신한다.
+ * 갱신 규칙은 판정 규칙과 같다 —
+ * (occurredAt 이 더 늦거나) 또는 (occurredAt 이 같고 들어온 쪽이 joined 인) 경우에만 진행한다.
+ * 이 조건 덕분에 웹훅이 순서 없이 도착하거나 중복 수신되어도 결과가 같다.
+ *
+ * participantUuid 는 회의 세션 단위로 발급되므로 사람 단위 식별자가 아니다.
+ * 날짜를 가로지르는 동일인 판별은 이 테이블로 할 수 없다.
+ */
+export const participants = pgTable(
+	"participants",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		meetingUuid: text("meeting_uuid").notNull(),
+		participantUuid: text("participant_uuid").notNull(),
+		/** 마지막으로 관측된 표시 이름 */
+		displayName: text("display_name"),
+		/** 현재 접속 여부. lastEventType 에서 파생되지만 조회 편의를 위해 둔다. */
+		isPresent: boolean("is_present").notNull(),
+		/** joined | left */
+		lastEventType: text("last_event_type").notNull(),
+		/** 마지막으로 반영된 이벤트의 발생 시각. upsert 비교 기준. */
+		lastOccurredAt: timestamp("last_occurred_at", {
+			withTimezone: true,
+		}).notNull(),
+		firstJoinedAt: timestamp("first_joined_at", { withTimezone: true }),
 		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
 	},
 	(table) => ({
-		rawIdIdx: index("idx_participant_events_raw_id").on(table.rawId),
-		meetingUuidIdx: index("idx_participant_events_meeting_uuid").on(
+		identityUnique: uniqueIndex("uq_participants_meeting_participant").on(
 			table.meetingUuid,
-		),
-		meetingIdIdx: index("idx_participant_events_meeting_id").on(table.meetingId),
-		participantUuidIdx: index("idx_participant_events_participant_uuid").on(
 			table.participantUuid,
 		),
-		eventNameIdx: index("idx_participant_events_event_name").on(table.eventName),
-		roomScopeIdx: index("idx_participant_events_room_scope").on(table.roomScope),
-		createdAtIdx: index("idx_participant_events_created_at").on(table.createdAt),
+		presentIdx: index("idx_participants_present").on(
+			table.meetingUuid,
+			table.isPresent,
+		),
 	}),
 );
-
-export const slackDeliveries = pgTable(
-	"slack_deliveries",
-	{
-		messageId: uuid("message_id").defaultRandom().primaryKey(),
-		eventId: uuid("event_id").notNull(),
-		templateKey: text("template_key").notNull(),
-		status: text("status").notNull(),
-		errorMessage: text("error_message"),
-		channelId: text("channel_id"),
-		messageTs: text("message_ts"),
-		sentAt: timestamp("sent_at", { withTimezone: true }),
-		deletedAt: timestamp("deleted_at", { withTimezone: true }),
-		createdAt: timestamp("created_at", { withTimezone: true })
-			.notNull()
-			.defaultNow(),
-		updatedAt: timestamp("updated_at", { withTimezone: true })
-			.notNull()
-			.defaultNow(),
-	},
-	(table) => ({
-		eventIdIdx: index("idx_slack_deliveries_event_id").on(table.eventId),
-		statusIdx: index("idx_slack_deliveries_status").on(table.status),
-		channelMessageIdx: index("idx_slack_deliveries_channel_id_message_ts").on(
-			table.channelId,
-			table.messageTs,
-		),
-		createdAtIdx: index("idx_slack_deliveries_created_at").on(table.createdAt),
-	}),
-);
-
-export const slackMessageTemplates = pgTable(
-	"slack_message_templates",
-	{
-		templateId: uuid("template_id").defaultRandom().primaryKey(),
-		templateKey: text("template_key").notNull(),
-		eventName: text("event_name").notNull(),
-		text: text("text").notNull(),
-		isActive: boolean("is_active").notNull().default(true),
-		createdAt: timestamp("created_at", { withTimezone: true })
-			.notNull()
-			.defaultNow(),
-		updatedAt: timestamp("updated_at", { withTimezone: true })
-			.notNull()
-			.defaultNow(),
-	},
-	(table) => ({
-		templateKeyUnique: uniqueIndex("uq_slack_message_templates_template_key").on(
-			table.templateKey,
-		),
-		eventNameIdx: index("idx_slack_message_templates_event_name").on(
-			table.eventName,
-		),
-		isActiveIdx: index("idx_slack_message_templates_is_active").on(table.isActive),
-	}),
-);
-

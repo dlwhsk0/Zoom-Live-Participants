@@ -1,14 +1,12 @@
 # Zoom Live Participants
 
-Zoom 회의 참가자의 입장/퇴장 이벤트를 수집하고, 이를 웹 화면과 Slack 알림으로 확인할 수 있게 만드는 프로젝트다.
+Zoom 회의에 **지금 누가 접속해 있는지**를 실시간으로 보여주는 프로젝트다.
 
 Zoom Event Subscription webhook을 받아 다음 운영 흐름을 지원하는 것이 목표다.
 
-- 참가자 입장/퇴장 이벤트 수집
-- 메인 회의실 / 소회의실 관련 이벤트 구분
-- 브라우저 기반 이벤트 모니터링
-- Slack 알림 전송
-- 잘못 전송된 봇 메시지 삭제용 관리 API
+- 참가자 입장/퇴장 웹훅 수집
+- 메인 회의실 / 소회의실 이동을 구분한 접속 상태 판정
+- 브라우저 기반 실시간 현황 화면
 
 ## 현재 상태: v2 재작성 중
 
@@ -18,7 +16,7 @@ v1(로컬 Node ESM 서버 + NDJSON 파일 저장)은 동작하는 수준까지 �
 | | v1 (종료) | v2 (진행 중) |
 |---|---|---|
 | 런타임 | Node ESM 단일 서버 | TypeScript + Vercel Functions |
-| 저장소 | `logs/*.ndjson` 파일 | Supabase PostgreSQL + Drizzle |
+| 저장소 | `logs/*.ndjson` 파일 | PostgreSQL + Drizzle |
 | 화면 | 문자열 템플릿 HTML | Vite + React + TanStack Query |
 | 구조 | 단일 레포 | pnpm workspace (`apps/api`, `apps/web`) |
 
@@ -39,31 +37,24 @@ v1 코드 전체는 **`snapshot/v1-esm` 브랜치**에 보존되어 있다.
 
 ## 다음 작업 순서
 
-1. `dedupe_key` 생성 규칙과 `occurred_at` 컬럼 확정 → 스키마 반영
-2. `apps/api` 툴체인 세팅 (pnpm install, drizzle-orm/kit, tsconfig)
-3. 첫 마이그레이션 생성 및 Supabase 적용
-4. webhook 핸들러 TS 포팅 (raw insert → participant_events → slack_deliveries)
-5. Vercel 배포 + Zoom endpoint URL 교체
+1. 접속 판정 로직을 순수 함수로 구현하고 fixture로 검증
+2. `apps/api` 툴체인 세팅 (pnpm, TypeScript, Drizzle, Zod)
+3. 스키마 + 첫 마이그레이션
+4. 웹훅 수신 엔드포인트
+5. 현재 접속자 조회 API → `apps/web` 화면 → 배포
+
+상세는 [`docs/plan.md`](docs/plan.md).
 
 ## 문서
 
-- [`docs/migration-baseline.md`](docs/migration-baseline.md) — 마이그레이션 범위, 테이블 스키마, 저장소 선택 근거
-- [`docs/setup-vercel-supabase.md`](docs/setup-vercel-supabase.md) — Vercel + Supabase 무료 플랜 세팅 가이드
-- [`docs/participant-event-classification.md`](docs/participant-event-classification.md) — 실측 `leave_reason` 5종과 `room_scope` 분류 규칙
+- [`docs/plan.md`](docs/plan.md) — **v2 계획서** (범위, 식별자, 접속 판정 규칙, 데이터 모델)
+- [`docs/webhook-data-reference.md`](docs/webhook-data-reference.md) — fixture 실측 수치
 - [`docs/README.md`](docs/README.md) — 문서 운영 방식
 
 ## 추후 추가될 예정 기능
 
-### Admin
+접속 판정이 정확해진 뒤에 검토할 항목이다. 현재는 계획에 없다.
 
-- 슬랙 메시지 템플릿 CRUD
-- 봇 메시지 삭제 고도화
-- 입퇴장 기록 누락 방지 (채팅 이벤트 체킹 기반 보완)
-- 회의 시작/종료 시 Slack 메시지 전송
-
-### 장기 확장 기능
-
-현재는 실현 계획이 없고, 운영 범위가 커질 때 다시 검토할 항목이다.
-
-- 관리 대상 회의가 여러 개인 경우를 위한 회의 정보 엔티티/테이블
+- 입퇴장 기록 누락 보완
+- 관리 대상 회의가 여러 개인 경우를 위한 회의 정보 테이블
 - 참가 통계

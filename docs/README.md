@@ -10,12 +10,10 @@
 
 현재 기준 문서:
 
-- `docs/migration-baseline.md`
-  - 마이그레이션 범위와 목표/비목표
-- `docs/setup-vercel-supabase.md`
-  - Vercel + Supabase 무료 플랜 기준 가입/연동/환경변수 설정 가이드
-- `docs/participant-event-classification.md`
-  - 실측 `leave_reason` 5종과 `room_scope` 분류 규칙 (v1 결함 포함)
+- `docs/plan.md`
+  - **v2 계획서.** 범위, 식별자 결정, 접속 판정 규칙, 데이터 모델, 진행 순서
+- `docs/webhook-data-reference.md`
+  - 위 결정의 근거가 되는 fixture 실측 수치
 
 운영 방식:
 
