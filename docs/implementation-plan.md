@@ -576,6 +576,62 @@ cd apps/api && pnpm fingerprint
 빌드 로그에 `COPY apps/api/src ... CACHED` 로 찍히는데,
 그때는 배포가 반영되지 않는다. Clean Cache 를 켜면 해결된다.
 
+#### 겪은 사고와 대응
+
+배포하면서 실제로 겪은 것들이다. 같은 곳에서 다시 막히지 않도록 남긴다.
+
+**1. 빌드는 성공하는데 배포가 반영되지 않는다**
+
+빌드 로그에 이렇게 찍히면 옛 소스로 이미지가 만들어진 것이다.
+
+```
+#12 [runtime 5/7] COPY apps/api/src apps/api/src   CACHED
+```
+
+소스가 바뀌었으면 이 레이어는 캐시될 수 없다. `CACHED` 면 배포는 성공해도 내용은 그대로다.
+**General 탭의 `Clean Cache` 를 켜고 다시 배포하면 해결된다.**
+
+정상일 때는 `CACHED` 대신 `DONE` 으로 찍힌다.
+
+**2. 지금 뭐가 떠 있는지 모르겠다**
+
+`GET /health` 의 `version` 과 로컬 `pnpm fingerprint` 를 비교한다.
+같으면 그 서버는 지금 이 코드로 돌고 있다. 위 1번을 진단하는 가장 빠른 방법이다.
+
+**3. DB 데이터가 통째로 사라졌다**
+
+Postgres 컨테이너가 재생성되면서 빈 볼륨으로 떴다.
+회의 데이터와 스키마가 전부 사라졌고, 백업이 없어 복구하지 못했다.
+
+증상:
+
+```
+GET /health      → {"ok":true}                         컨테이너는 정상
+GET /health/db   → {"ok":false,"db":"unreachable"}     DB 만 실패
+GET /api/…       → 500
+```
+
+`/health` 와 `/health/db` 를 나눠 둔 덕분에 원인을 바로 좁힐 수 있었다.
+컨테이너 문제인지 DB 문제인지 구분되지 않으면 한참 헤맨다.
+
+진단:
+
+```sql
+select pg_postmaster_start_time();   -- 최근이면 재생성된 것
+select table_name from information_schema.tables where table_schema = 'public';
+```
+
+복구는 마이그레이션 재적용으로 스키마만 되살렸다. **데이터는 복구 못 했다.**
+
+**대응 (반드시 해둘 것):**
+
+- Postgres 서비스에 **영속 볼륨**이 붙어 있는지 확인한다.
+  컨테이너를 다시 만들어도 데이터가 남아야 한다.
+- Dokploy 의 **Backups** 로 DB 정기 백업을 건다. S3 대상을 설정해두면 된다.
+- 볼륨 백업 시 `Container OFF` 를 쓴다. 쓰기 중 백업은 깨질 수 있다.
+- **Dokploy 시스템 백업은 도커 볼륨을 담지 않는다.** 프로젝트 설정과 환경변수만 저장된다.
+  DB 데이터는 별도로 백업해야 한다.
+
 #### 마이그레이션
 
 컨테이너는 마이그레이션을 자동 실행하지 않는다.
