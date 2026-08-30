@@ -24,6 +24,8 @@ function row(
 		participantUuid: uuid,
 		displayName: "조하나",
 		publicIp: "203.0.113.1",
+		statusMessage: null,
+		statusUpdatedAt: null,
 		isPresent: false,
 		lastEventType: "left",
 		firstJoinedAt: joinedMin === null ? null : new Date(BASE + joinedMin * 60_000),
@@ -214,5 +216,64 @@ describe("sortForDisplay", () => {
 		);
 
 		expect(sorted.map((s) => s.displayName)).toEqual(["접속중", "나간사람"]);
+	});
+});
+
+describe("상태 메시지 승계", () => {
+	it("재접속해도 이전 접속의 상태 메시지가 이어진다", () => {
+		const merged = mergeReconnections([
+			row({
+				uuid: "A",
+				joinedMin: 0,
+				lastMin: 6,
+				statusMessage: "자리 비움",
+				statusUpdatedAt: new Date(BASE + 3 * 60_000),
+			}),
+			row({ uuid: "B", joinedMin: 15, lastMin: 15, isPresent: true, lastEventType: "joined" }),
+		]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.statusMessage).toBe("자리 비움");
+	});
+
+	it("나중에 적은 상태 메시지가 이긴다", () => {
+		const merged = mergeReconnections([
+			row({
+				uuid: "A",
+				joinedMin: 0,
+				lastMin: 6,
+				statusMessage: "예전 메시지",
+				statusUpdatedAt: new Date(BASE + 1 * 60_000),
+			}),
+			row({
+				uuid: "B",
+				joinedMin: 15,
+				lastMin: 15,
+				isPresent: true,
+				lastEventType: "joined",
+				statusMessage: "새 메시지",
+				statusUpdatedAt: new Date(BASE + 16 * 60_000),
+			}),
+		]);
+
+		expect(merged[0]?.statusMessage).toBe("새 메시지");
+	});
+
+	it("합쳐지지 않는 사람끼리는 상태가 섞이지 않는다", () => {
+		const merged = mergeReconnections([
+			row({
+				uuid: "A",
+				joinedMin: 0,
+				lastMin: 20,
+				isPresent: true,
+				lastEventType: "joined",
+				statusMessage: "A 의 상태",
+				statusUpdatedAt: new Date(BASE),
+			}),
+			row({ uuid: "B", joinedMin: 5, lastMin: 22, isPresent: true, lastEventType: "joined" }),
+		]);
+
+		expect(merged).toHaveLength(2);
+		expect(merged.find((m) => m.participantUuid === "B")?.statusMessage).toBeNull();
 	});
 });

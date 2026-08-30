@@ -15,6 +15,13 @@
       "when": 1788082328468,
       "tag": "0001_stormy_scalphunter",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788089537610,
+      "tag": "0002_nifty_william_stryker",
+      "breakpoints": true
     }
   ]
 }

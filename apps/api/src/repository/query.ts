@@ -20,6 +20,8 @@ export interface SessionParticipant {
 	lastOccurredAt: Date;
 	/** 몇 번 접속했는지. 1보다 크면 재접속한 사람이다. */
 	connectionCount: number;
+	/** 참가자가 적은 상태 메시지 */
+	statusMessage: string | null;
 }
 
 export interface PresenceSnapshot {
@@ -83,6 +85,8 @@ export async function getPresenceSnapshot(
 			participantUuid: participants.participantUuid,
 			displayName: participants.displayName,
 			publicIp: participants.publicIp,
+			statusMessage: participants.statusMessage,
+			statusUpdatedAt: participants.statusUpdatedAt,
 			firstJoinedAt: participants.firstJoinedAt,
 			isPresent: participants.isPresent,
 			lastEventType: participants.lastEventType,
@@ -114,6 +118,7 @@ export async function getPresenceSnapshot(
 			isPresent: p.isPresent,
 			lastOccurredAt: p.lastOccurredAt,
 			connectionCount: p.connectionCount,
+			statusMessage: p.statusMessage,
 		})),
 	};
 }

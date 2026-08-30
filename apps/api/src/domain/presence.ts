@@ -36,6 +36,8 @@ export interface ParticipantState {
 	participantUuid: string;
 	displayName: string | null;
 	publicIp: string | null;
+	statusMessage: string | null;
+	statusUpdatedAt: Date | null;
 	isPresent: boolean;
 	lastEventType: EventType;
 	lastOccurredAt: Date;
@@ -95,6 +97,9 @@ export function applyEvent(
 		participantUuid: incoming.participantUuid,
 		displayName: incoming.displayName,
 		publicIp: incoming.publicIp,
+		// 상태 메시지는 웹훅으로 오지 않는다. 별도 API 로만 바뀐다.
+		statusMessage: current?.statusMessage ?? null,
+		statusUpdatedAt: current?.statusUpdatedAt ?? null,
 		isPresent: incoming.eventType === "joined",
 		lastEventType: incoming.eventType,
 		lastOccurredAt: incoming.occurredAt,
@@ -196,6 +201,8 @@ export interface MergedParticipant {
 	lastOccurredAt: Date;
 	/** 몇 번 접속했는지. 1보다 크면 재접속한 사람이다. */
 	connectionCount: number;
+	/** 참가자가 적은 상태 메시지. 재접속해도 이어진다. */
+	statusMessage: string | null;
 }
 
 function toMerged(state: ParticipantState): MergedParticipant {
@@ -208,7 +215,20 @@ function toMerged(state: ParticipantState): MergedParticipant {
 		firstJoinedAt: state.firstJoinedAt,
 		lastOccurredAt: state.lastOccurredAt,
 		connectionCount: 1,
+		statusMessage: state.statusMessage,
 	};
+}
+
+/** 상태 메시지는 가장 나중에 적힌 것을 남긴다. */
+function laterStatus(
+	a: { statusMessage: string | null; statusUpdatedAt: Date | null },
+	b: { statusMessage: string | null; statusUpdatedAt: Date | null },
+): string | null {
+	if (!a.statusUpdatedAt) return b.statusMessage;
+	if (!b.statusUpdatedAt) return a.statusMessage;
+	return b.statusUpdatedAt.getTime() >= a.statusUpdatedAt.getTime()
+		? b.statusMessage
+		: a.statusMessage;
 }
 
 /**
@@ -232,6 +252,7 @@ function isContinuation(
 
 function absorb(
 	previous: MergedParticipant,
+	previousStatusAt: Date | null,
 	next: ParticipantState,
 ): MergedParticipant {
 	return {
@@ -241,6 +262,10 @@ function absorb(
 		meetingUuid: next.meetingUuid,
 		displayName: next.displayName,
 		isPresent: next.isPresent,
+		statusMessage: laterStatus(
+			{ statusMessage: previous.statusMessage, statusUpdatedAt: previousStatusAt },
+			next,
+		),
 		firstJoinedAt: earliest(previous.firstJoinedAt, next.firstJoinedAt),
 		lastOccurredAt:
 			next.lastOccurredAt.getTime() >= previous.lastOccurredAt.getTime()
@@ -277,6 +302,8 @@ export function mergeReconnections(
 	const merged: MergedParticipant[] = [];
 	/** 합칠 후보를 빠르게 찾기 위한 인덱스. 값은 merged 의 위치다. */
 	const openSlot = new Map<string, number>();
+	/** 각 merged 항목의 상태 메시지가 언제 적혔는지. 승계 비교에 쓴다. */
+	const statusAt: (Date | null)[] = [];
 
 	for (const state of ordered) {
 		const key = identityKey(state);
@@ -286,13 +313,21 @@ export function mergeReconnections(
 			if (slot !== undefined) {
 				const previous = merged[slot];
 				if (previous && isContinuation(previous, state)) {
-					merged[slot] = absorb(previous, state);
+					const before = statusAt[slot] ?? null;
+					merged[slot] = absorb(previous, before, state);
+					statusAt[slot] =
+						!before ||
+						(state.statusUpdatedAt &&
+							state.statusUpdatedAt.getTime() >= before.getTime())
+							? (state.statusUpdatedAt ?? before)
+							: before;
 					continue;
 				}
 			}
 		}
 
 		merged.push(toMerged(state));
+		statusAt.push(state.statusUpdatedAt);
 		if (key !== null) {
 			// 같은 키로 다음에 오는 행은 방금 넣은 것과 이어붙일지 판단한다
 			openSlot.set(key, merged.length - 1);

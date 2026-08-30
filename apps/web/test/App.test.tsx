@@ -39,6 +39,7 @@ const snapshot: PresenceSnapshot = {
 			firstJoinedAt: new Date(now - 72 * 60_000).toISOString(),
 			isPresent: true,
 			lastOccurredAt: new Date(now - 60_000).toISOString(),
+			statusMessage: "집중 중",
 		},
 		{
 			participantUuid: "p2",
@@ -46,6 +47,7 @@ const snapshot: PresenceSnapshot = {
 			firstJoinedAt: new Date(now - 4 * 60_000).toISOString(),
 			isPresent: true,
 			lastOccurredAt: new Date(now - 30_000).toISOString(),
+			statusMessage: null,
 		},
 		{
 			participantUuid: "p3",
@@ -53,6 +55,7 @@ const snapshot: PresenceSnapshot = {
 			firstJoinedAt: new Date(now).toISOString(),
 			isPresent: true,
 			lastOccurredAt: new Date(now).toISOString(),
+			statusMessage: null,
 		},
 		{
 			participantUuid: "p4",
@@ -60,6 +63,7 @@ const snapshot: PresenceSnapshot = {
 			firstJoinedAt: new Date(now - 40 * 60_000).toISOString(),
 			isPresent: false,
 			lastOccurredAt: new Date(now - 12 * 60_000).toISOString(),
+			statusMessage: null,
 		},
 	],
 };
@@ -95,8 +99,27 @@ describe("App", () => {
 		expect(html).toContain("row--offline");
 	});
 
-	it("세션 총 참여 인원을 보여준다", () => {
+	it("상태 메시지를 보여준다", () => {
+		expect(html).toContain("집중 중");
+	});
+
+	it("상태 메시지가 없으면 추가 버튼을 둔다", () => {
+		expect(html).toContain("+ 상태");
+	});
+
+	it("확인 창은 처음에 떠 있지 않다", () => {
+		expect(html).not.toContain("본인입니까");
+	});
+
+	it("테마 토글이 있다", () => {
+		expect(html).toContain("theme-toggle");
+		expect(html).toContain("화면 테마");
+	});
+
+	it("세션 총 참여 인원을 최상단에 보여준다", () => {
 		expect(html).toContain("지금까지 4명이 참여");
+		// 헤더의 큰 숫자보다 위에 온다
+		expect(html.indexOf("topbar__total")).toBeLessThan(html.indexOf("header__count"));
 	});
 
 	it("나간 사람이 없으면 오프라인 구역을 그리지 않는다", () => {

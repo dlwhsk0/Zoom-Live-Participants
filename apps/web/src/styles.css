@@ -1,13 +1,49 @@
+/*
+ * 색은 전부 토큰으로만 쓴다.
+ * 기본은 라이트, 시스템이 다크면 다크, data-theme 이 있으면 그게 이긴다.
+ */
 :root {
 	--bg: #ffffff;
 	--fg: #111318;
 	--muted: #6b7280;
 	--muted-weak: #9aa1ac;
-	--online: #16a34a;
 	--line: #e8eaed;
+	--line-strong: #d6dae0;
 	--accent: #1a73e8;
+	--online: #16a34a;
+	--field: #f4f6f8;
 	--warn-bg: #fff4e5;
 	--warn-fg: #8a5300;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--bg: #14161a;
+		--fg: #e9eaee;
+		--muted: #9aa1ac;
+		--muted-weak: #6b7280;
+		--line: #262a31;
+		--line-strong: #333942;
+		--accent: #7cb0ff;
+		--online: #4ade80;
+		--field: #1d2127;
+		--warn-bg: #3a2c14;
+		--warn-fg: #f2c98a;
+	}
+}
+
+:root[data-theme="dark"] {
+	--bg: #14161a;
+	--fg: #e9eaee;
+	--muted: #9aa1ac;
+	--muted-weak: #6b7280;
+	--line: #262a31;
+	--line-strong: #333942;
+	--accent: #7cb0ff;
+	--online: #4ade80;
+	--field: #1d2127;
+	--warn-bg: #3a2c14;
+	--warn-fg: #f2c98a;
 }
 
 * {
@@ -20,6 +56,11 @@ body {
 	padding: 0;
 }
 
+html {
+	background: var(--bg);
+	color-scheme: light dark;
+}
+
 body {
 	background: var(--bg);
 	color: var(--fg);
@@ -27,7 +68,6 @@ body {
 		-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
 		"Segoe UI", Roboto, sans-serif;
 	-webkit-font-smoothing: antialiased;
-	/* 폴링 갱신 시 텍스트 선택이 튀지 않게 */
 	-webkit-tap-highlight-color: transparent;
 }
 
@@ -47,8 +87,43 @@ body {
 	text-align: center;
 }
 
+/* 세션 누적 인원과 테마 토글을 화면 맨 위에 나란히 둔다 */
+.topbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 14px 0 0;
+	min-height: 46px;
+}
+
+.topbar__total {
+	margin: 0;
+	font-size: 13px;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.theme-toggle {
+	flex: none;
+	width: 34px;
+	height: 34px;
+	border: 1px solid var(--line);
+	border-radius: 9px;
+	background: transparent;
+	color: var(--muted);
+	font-size: 15px;
+	line-height: 1;
+	cursor: pointer;
+}
+
+.theme-toggle:hover {
+	border-color: var(--line-strong);
+	color: var(--fg);
+}
+
 .header {
-	padding: 36px 0 24px;
+	padding: 20px 0 26px;
 }
 
 .header__label {
@@ -95,47 +170,15 @@ body {
 	opacity: 0.7;
 }
 
-.list {
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.row {
-	display: flex;
-	align-items: baseline;
-	justify-content: space-between;
-	gap: 16px;
-	padding: 18px 2px;
-	border-bottom: 1px solid var(--line);
-}
-
-.row__name {
-	font-size: 17px;
-	font-weight: 500;
-	/* 긴 이름이 시간 표시를 밀어내지 않게 */
-	min-width: 0;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.row__time {
-	flex: none;
-	font-size: 14px;
-	color: var(--muted);
-	font-variant-numeric: tabular-nums;
-}
-
+/* 두 구역 사이를 넉넉히 벌려 경계를 분명히 한다 */
 .section {
-	margin-top: 28px;
+	margin-top: 56px;
 }
 
 .section--online {
 	margin-top: 4px;
 }
 
-/* 구역 제목은 목록 위에 고정 띠처럼 붙여 두 구역을 확실히 가른다 */
 .section__title {
 	display: flex;
 	align-items: center;
@@ -146,7 +189,7 @@ body {
 	font-weight: 700;
 	letter-spacing: 0.04em;
 	color: var(--muted);
-	border-bottom: 2px solid var(--line);
+	border-bottom: 2px solid var(--line-strong);
 	position: sticky;
 	top: 0;
 	background: var(--bg);
@@ -183,6 +226,47 @@ body {
 	border-bottom: 1px solid var(--line);
 }
 
+.list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 14px 2px;
+	border-bottom: 1px solid var(--line);
+}
+
+/* 이름과 상태 메시지를 한 덩어리로 묶어 시간과 벌린다 */
+.row__main {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	min-width: 0;
+	flex: 1;
+}
+
+.row__name {
+	font-size: 17px;
+	font-weight: 500;
+	flex: none;
+	max-width: 45%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.row__time {
+	flex: none;
+	font-size: 14px;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
 /* 나간 사람은 기록으로만 남기므로 눈에 덜 띄게 */
 .row--offline .row__name {
 	color: var(--muted);
@@ -193,11 +277,71 @@ body {
 	color: var(--muted-weak);
 }
 
-.footnote {
-	margin: 28px 0 32px;
-	font-size: 13px;
+/* ── 상태 메시지 ────────────────────────────── */
+
+.status {
+	min-width: 0;
+	padding: 2px 0;
+	border: 0;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 14px;
+	text-align: left;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.status:hover {
+	color: var(--fg);
+}
+
+.status--dim {
 	color: var(--muted-weak);
-	text-align: center;
+}
+
+.status__empty {
+	color: var(--muted-weak);
+	opacity: 0;
+	transition: opacity 0.12s;
+}
+
+/* 빈 상태는 평소엔 감췄다가 행에 손이 갈 때만 보인다 */
+.row:hover .status__empty,
+.status:focus-visible .status__empty {
+	opacity: 1;
+}
+
+.status--editing {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1;
+	min-width: 0;
+}
+
+.status__input {
+	flex: 1;
+	min-width: 0;
+	padding: 4px 8px;
+	border: 1px solid var(--accent);
+	border-radius: 6px;
+	background: var(--field);
+	color: var(--fg);
+	font: inherit;
+	font-size: 14px;
+}
+
+.status__input:disabled {
+	opacity: 0.6;
+}
+
+.status__error {
+	flex: none;
+	font-size: 12px;
+	color: var(--warn-fg);
 }
 
 .empty {
@@ -205,4 +349,87 @@ body {
 	text-align: center;
 	color: var(--muted);
 	font-size: 15px;
+}
+
+/* ── 확인 창 ────────────────────────────────── */
+
+.overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 50;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 24px;
+	background: rgba(0, 0, 0, 0.45);
+	/* 다크에서 뒤가 비치는 정도를 맞춘다 */
+	backdrop-filter: blur(2px);
+}
+
+.dialog {
+	width: 100%;
+	max-width: 320px;
+	padding: 22px 20px 16px;
+	border: 1px solid var(--line);
+	border-radius: 16px;
+	background: var(--bg);
+	color: var(--fg);
+	box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+.dialog__title {
+	margin: 0;
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.dialog__body {
+	margin: 8px 0 20px;
+	font-size: 14px;
+	line-height: 1.55;
+	color: var(--muted);
+}
+
+.dialog__actions {
+	display: flex;
+	gap: 8px;
+	justify-content: flex-end;
+}
+
+.dialog__button {
+	padding: 9px 14px;
+	border: 1px solid var(--line-strong);
+	border-radius: 9px;
+	background: transparent;
+	color: var(--fg);
+	font: inherit;
+	font-size: 14px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.dialog__button:hover {
+	background: var(--field);
+}
+
+.dialog__button--primary {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: #ffffff;
+}
+
+.dialog__button--primary:hover {
+	filter: brightness(0.94);
+	background: var(--accent);
+}
+
+:root[data-theme="dark"] .dialog__button--primary,
+:root:not([data-theme="light"]) .dialog__button--primary {
+	color: #10131a;
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme="dark"]) .dialog__button--primary {
+		color: #ffffff;
+	}
 }

@@ -6,7 +6,12 @@ export interface SessionParticipant {
 	isPresent: boolean;
 	/** 마지막 이벤트 시각. 퇴장자의 경우 나간 시각이다. */
 	lastOccurredAt: string;
+	/** 참가자가 적은 상태 메시지 */
+	statusMessage: string | null;
 }
+
+/** 한 줄에 들어가야 하므로 길이를 제한한다. 서버와 같은 값이다. */
+export const STATUS_MAX_LENGTH = 60;
 
 export interface PresenceSnapshot {
 	meetingId: string;
@@ -35,4 +40,33 @@ export async function fetchPresence(): Promise<PresenceSnapshot> {
 	}
 
 	return (await response.json()) as PresenceSnapshot;
+}
+
+export async function saveStatusMessage(
+	participantUuid: string,
+	message: string,
+): Promise<string | null> {
+	const url = new URL(
+		`${API_BASE}/api/participants/${encodeURIComponent(participantUuid)}/status`,
+		window.location.origin,
+	);
+	if (MEETING_ID) {
+		url.searchParams.set("meeting_id", MEETING_ID);
+	}
+
+	const response = await fetch(url, {
+		method: "PUT",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ message }),
+	});
+
+	const body = (await response.json().catch(() => null)) as
+		| { ok?: boolean; statusMessage?: string | null; reason?: string }
+		| null;
+
+	if (!response.ok || !body?.ok) {
+		throw new Error(body?.reason ?? `저장 실패 (${response.status})`);
+	}
+
+	return body.statusMessage ?? null;
 }

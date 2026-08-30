@@ -110,6 +110,13 @@ export const participants = pgTable(
 		displayName: text("display_name"),
 		/** 재접속 판별용. 상세는 participant_events.public_ip 주석 참고. */
 		publicIp: text("public_ip"),
+		/**
+		 * 참가자가 직접 적는 상태 메시지. 권한을 두지 않는다.
+		 * 재접속하면 새 행이 생기므로, 조회 시 합칠 때
+		 * statusUpdatedAt 이 가장 최근인 값을 고른다.
+		 */
+		statusMessage: text("status_message"),
+		statusUpdatedAt: timestamp("status_updated_at", { withTimezone: true }),
 		/** 현재 접속 여부. lastEventType 에서 파생되지만 조회 편의를 위해 둔다. */
 		isPresent: boolean("is_present").notNull(),
 		/** joined | left */

@@ -120,3 +120,36 @@ export async function markSessionEnded(
 
 	return rows.length;
 }
+
+/**
+ * 상태 메시지 저장.
+ *
+ * 권한을 두지 않는다. 누구나 누구의 것이든 바꿀 수 있다.
+ * 화면에서 수정 전에 한 번 확인만 받는다.
+ *
+ * 재접속하면 새 행이 생기지만, 조회 시 합칠 때
+ * statusUpdatedAt 이 가장 최근인 값을 골라 이어진다.
+ */
+export async function setStatusMessage(
+	db: Db,
+	meetingUuid: string,
+	participantUuid: string,
+	message: string | null,
+): Promise<boolean> {
+	const rows = await db
+		.update(participants)
+		.set({
+			statusMessage: message,
+			statusUpdatedAt: new Date(),
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(participants.meetingUuid, meetingUuid),
+				eq(participants.participantUuid, participantUuid),
+			),
+		)
+		.returning({ id: participants.id });
+
+	return rows.length > 0;
+}

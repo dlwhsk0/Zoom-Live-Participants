@@ -1,23 +1,41 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 
-import { fetchPresence, type SessionParticipant } from "./api.ts";
+import {
+	fetchPresence,
+	type PresenceSnapshot,
+	saveStatusMessage,
+	type SessionParticipant,
+} from "./api.ts";
 import { formatAgo, formatElapsed, formatLeftAgo } from "./format.ts";
+import StatusMessage from "./StatusMessage.tsx";
+import ThemeToggle from "./ThemeToggle.tsx";
 
 const POLL_INTERVAL_MS = 5000;
 
 function Row({
 	participant,
 	now,
+	onSaveStatus,
 }: {
 	participant: SessionParticipant;
 	now: number;
+	onSaveStatus: (uuid: string, message: string) => Promise<void>;
 }) {
 	return (
 		<li className={participant.isPresent ? "row" : "row row--offline"}>
-			<span className="row__name">
-				{participant.displayName ?? "이름 없음"}
-			</span>
+			<div className="row__main">
+				<span className="row__name">
+					{participant.displayName ?? "이름 없음"}
+				</span>
+				<StatusMessage
+					value={participant.statusMessage}
+					dimmed={!participant.isPresent}
+					onSave={(message) =>
+						onSaveStatus(participant.participantUuid, message)
+					}
+				/>
+			</div>
 			<span className="row__time">
 				{participant.isPresent
 					? formatElapsed(participant.firstJoinedAt, now)
@@ -33,12 +51,14 @@ function Section({
 	people,
 	now,
 	emptyText,
+	onSaveStatus,
 }: {
 	title: string;
 	tone: "online" | "offline";
 	people: SessionParticipant[];
 	now: number;
 	emptyText?: string;
+	onSaveStatus: (uuid: string, message: string) => Promise<void>;
 }) {
 	if (people.length === 0 && !emptyText) {
 		return null;
@@ -57,7 +77,12 @@ function Section({
 			) : (
 				<ul className="list">
 					{people.map((p) => (
-						<Row key={p.participantUuid} participant={p} now={now} />
+						<Row
+							key={p.participantUuid}
+							participant={p}
+							now={now}
+							onSaveStatus={onSaveStatus}
+						/>
 					))}
 				</ul>
 			)}
@@ -73,6 +98,8 @@ export default function App() {
 		return () => window.clearInterval(timer);
 	}, []);
 
+	const queryClient = useQueryClient();
+
 	const { data, isPending, isError, isFetching } = useQuery({
 		queryKey: ["presence"],
 		queryFn: fetchPresence,
@@ -81,6 +108,28 @@ export default function App() {
 		// 화면이 비면 전원 퇴장으로 오해된다.
 		placeholderData: (previous) => previous,
 	});
+
+	const statusMutation = useMutation({
+		mutationFn: ({ uuid, message }: { uuid: string; message: string }) =>
+			saveStatusMessage(uuid, message),
+		onSuccess: (saved, { uuid }) => {
+			// 다음 폴링을 기다리지 않고 바로 반영한다
+			queryClient.setQueryData<PresenceSnapshot>(["presence"], (prev) =>
+				prev
+					? {
+							...prev,
+							participants: prev.participants.map((p) =>
+								p.participantUuid === uuid ? { ...p, statusMessage: saved } : p,
+							),
+						}
+					: prev,
+			);
+		},
+	});
+
+	async function handleSaveStatus(uuid: string, message: string) {
+		await statusMutation.mutateAsync({ uuid, message });
+	}
 
 	const updatedAt = data?.updatedAt ? Date.parse(data.updatedAt) : null;
 	const online = data?.participants.filter((p) => p.isPresent) ?? [];
@@ -94,6 +143,15 @@ export default function App() {
 					연결 끊김 · 마지막 정보를 보여주는 중
 				</div>
 			)}
+
+			<div className="topbar">
+				<p className="topbar__total">
+					{loading || (data?.totalCount ?? 0) === 0
+						? " "
+						: `이 회의에 지금까지 ${data?.totalCount}명이 참여했습니다`}
+				</p>
+				<ThemeToggle />
+			</div>
 
 			<header className="header">
 				<p className="header__label">접속 중</p>
@@ -123,18 +181,15 @@ export default function App() {
 						people={online}
 						now={now}
 						emptyText="접속 중인 사람이 없습니다"
+						onSaveStatus={handleSaveStatus}
 					/>
 					<Section
 						title="오프라인"
 						tone="offline"
 						people={offline}
 						now={now}
+						onSaveStatus={handleSaveStatus}
 					/>
-					{(data?.totalCount ?? 0) > 0 && (
-						<p className="footnote">
-							{`이 회의에 지금까지 ${data?.totalCount}명이 참여했습니다`}
-						</p>
-					)}
 				</>
 			)}
 		</main>

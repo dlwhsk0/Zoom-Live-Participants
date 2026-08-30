@@ -1,10 +1,21 @@
 import { createServer, type Server } from "node:http";
+import { z } from "zod";
 
 import { getEnv } from "../config/env.ts";
 import { closeDb, getDb } from "../db/client.ts";
-import { getPresenceSnapshot } from "../repository/query.ts";
+import { setStatusMessage } from "../repository/ingest.ts";
+import { findCurrentSession, getPresenceSnapshot } from "../repository/query.ts";
 import { handleWebhook } from "../webhook/handle.ts";
 import { corsHeaders } from "./cors.ts";
+
+/** 한 줄에 들어가야 하므로 길이를 제한한다. */
+export const STATUS_MAX_LENGTH = 60;
+
+const statusBodySchema = z.object({
+	message: z
+		.string()
+		.max(STATUS_MAX_LENGTH, `상태 메시지는 ${STATUS_MAX_LENGTH}자 이하로 적어주세요`),
+});
 
 interface Reply {
 	status: number;
@@ -95,6 +106,53 @@ async function route(
 		const snapshot = await getPresenceSnapshot(getDb(), meetingId);
 		// 폴링이므로 캐시하면 안 된다
 		return { status: 200, body: snapshot, headers: { "cache-control": "no-store" } };
+	}
+
+	// PUT /api/participants/:participantUuid/status
+	const statusMatch = path.match(/^\/api\/participants\/([^/]+)\/status$/);
+	if (statusMatch && (method === "PUT" || method === "POST")) {
+		const participantUuid = decodeURIComponent(statusMatch[1] ?? "");
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "invalid json" } };
+		}
+
+		const result = statusBodySchema.safeParse(parsed);
+		if (!result.success) {
+			return {
+				status: 400,
+				body: {
+					ok: false,
+					reason: result.error.issues[0]?.message ?? "invalid body",
+				},
+			};
+		}
+
+		const meetingId =
+			query.get("meeting_id")?.trim() || getEnv().ZOOM_MEETING_ID || "";
+		const session = await findCurrentSession(getDb(), meetingId);
+
+		if (!session) {
+			return { status: 404, body: { ok: false, reason: "no active session" } };
+		}
+
+		// 빈 문자열은 상태 지우기로 본다
+		const message = result.data.message.trim() || null;
+		const updated = await setStatusMessage(
+			getDb(),
+			session.meetingUuid,
+			participantUuid,
+			message,
+		);
+
+		if (!updated) {
+			return { status: 404, body: { ok: false, reason: "participant not found" } };
+		}
+
+		return { status: 200, body: { ok: true, statusMessage: message } };
 	}
 
 	if (method === "POST" && path === "/api/webhook") {

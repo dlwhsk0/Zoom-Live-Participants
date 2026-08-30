@@ -12,6 +12,7 @@ server.listen(env.PORT, () => {
 	console.log(`  GET  /health`);
 	console.log(`  GET  /health/db`);
 	console.log(`  GET  /api/participants`);
+	console.log(`  PUT  /api/participants/:uuid/status`);
 	console.log(`  POST /api/webhook`);
 	console.log(
 		`  CORS: ${
