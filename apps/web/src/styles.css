@@ -72,18 +72,18 @@ body {
 }
 
 .screen {
-	max-width: 480px;
+	max-width: 420px;
 	margin: 0 auto;
 	min-height: 100dvh;
-	padding: env(safe-area-inset-top) 20px env(safe-area-inset-bottom);
+	padding: env(safe-area-inset-top) 16px env(safe-area-inset-bottom);
 }
 
 .banner {
-	margin: 12px -20px 0;
-	padding: 10px 20px;
+	margin: 10px -16px 0;
+	padding: 8px 16px;
 	background: var(--warn-bg);
 	color: var(--warn-fg);
-	font-size: 14px;
+	font-size: 13px;
 	text-align: center;
 }
 
@@ -92,27 +92,27 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
-	padding: 14px 0 0;
-	min-height: 46px;
+	gap: 10px;
+	padding: 12px 0 0;
+	min-height: 38px;
 }
 
 .topbar__total {
 	margin: 0;
-	font-size: 13px;
+	font-size: 12px;
 	color: var(--muted);
 	font-variant-numeric: tabular-nums;
 }
 
 .theme-toggle {
 	flex: none;
-	width: 34px;
-	height: 34px;
+	width: 28px;
+	height: 28px;
 	border: 1px solid var(--line);
-	border-radius: 9px;
+	border-radius: 8px;
 	background: transparent;
 	color: var(--muted);
-	font-size: 15px;
+	font-size: 13px;
 	line-height: 1;
 	cursor: pointer;
 }
@@ -123,18 +123,18 @@ body {
 }
 
 .header {
-	padding: 20px 0 26px;
+	padding: 12px 0 18px;
 }
 
 .header__label {
 	margin: 0;
-	font-size: 15px;
+	font-size: 13px;
 	color: var(--muted);
 }
 
 .header__count {
 	margin: 4px 0 0;
-	font-size: 56px;
+	font-size: 40px;
 	font-weight: 700;
 	line-height: 1.1;
 	letter-spacing: -0.02em;
@@ -142,8 +142,8 @@ body {
 }
 
 .header__unit {
-	margin-left: 4px;
-	font-size: 24px;
+	margin-left: 3px;
+	font-size: 18px;
 	font-weight: 600;
 	color: var(--muted);
 }
@@ -155,9 +155,9 @@ body {
 .header__meta {
 	display: flex;
 	align-items: center;
-	gap: 8px;
-	margin: 8px 0 0;
-	font-size: 14px;
+	gap: 7px;
+	margin: 6px 0 0;
+	font-size: 12px;
 	color: var(--muted);
 	font-variant-numeric: tabular-nums;
 }
@@ -172,7 +172,7 @@ body {
 
 /* 두 구역 사이를 넉넉히 벌려 경계를 분명히 한다 */
 .section {
-	margin-top: 56px;
+	margin-top: 40px;
 }
 
 .section--online {
@@ -184,8 +184,8 @@ body {
 	align-items: center;
 	gap: 8px;
 	margin: 0;
-	padding: 10px 2px;
-	font-size: 13px;
+	padding: 8px 2px;
+	font-size: 12px;
 	font-weight: 700;
 	letter-spacing: 0.04em;
 	color: var(--muted);
@@ -220,9 +220,9 @@ body {
 
 .section__empty {
 	margin: 0;
-	padding: 28px 2px;
+	padding: 22px 2px;
 	color: var(--muted-weak);
-	font-size: 14px;
+	font-size: 13px;
 	border-bottom: 1px solid var(--line);
 }
 
@@ -236,8 +236,8 @@ body {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	gap: 12px;
-	padding: 14px 2px;
+	gap: 10px;
+	padding: 10px 2px;
 	border-bottom: 1px solid var(--line);
 }
 
@@ -245,13 +245,13 @@ body {
 .row__main {
 	display: flex;
 	align-items: baseline;
-	gap: 8px;
+	gap: 7px;
 	min-width: 0;
 	flex: 1;
 }
 
 .row__name {
-	font-size: 17px;
+	font-size: 15px;
 	font-weight: 500;
 	flex: none;
 	max-width: 45%;
@@ -262,7 +262,7 @@ body {
 
 .row__time {
 	flex: none;
-	font-size: 14px;
+	font-size: 12px;
 	color: var(--muted);
 	font-variant-numeric: tabular-nums;
 }
@@ -286,7 +286,7 @@ body {
 	background: none;
 	color: var(--muted);
 	font: inherit;
-	font-size: 14px;
+	font-size: 13px;
 	text-align: left;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -325,13 +325,13 @@ body {
 .status__input {
 	flex: 1;
 	min-width: 0;
-	padding: 4px 8px;
+	padding: 3px 7px;
 	border: 1px solid var(--accent);
 	border-radius: 6px;
 	background: var(--field);
 	color: var(--fg);
 	font: inherit;
-	font-size: 14px;
+	font-size: 13px;
 }
 
 .status__input:disabled {
@@ -345,10 +345,10 @@ body {
 }
 
 .empty {
-	padding: 64px 0;
+	padding: 48px 0;
 	text-align: center;
 	color: var(--muted);
-	font-size: 15px;
+	font-size: 14px;
 }
 
 /* ── 확인 창 ────────────────────────────────── */
@@ -368,8 +368,8 @@ body {
 
 .dialog {
 	width: 100%;
-	max-width: 320px;
-	padding: 22px 20px 16px;
+	max-width: 288px;
+	padding: 18px 16px 14px;
 	border: 1px solid var(--line);
 	border-radius: 16px;
 	background: var(--bg);
@@ -379,13 +379,13 @@ body {
 
 .dialog__title {
 	margin: 0;
-	font-size: 18px;
+	font-size: 16px;
 	font-weight: 700;
 }
 
 .dialog__body {
-	margin: 8px 0 20px;
-	font-size: 14px;
+	margin: 7px 0 16px;
+	font-size: 13px;
 	line-height: 1.55;
 	color: var(--muted);
 }
@@ -397,13 +397,13 @@ body {
 }
 
 .dialog__button {
-	padding: 9px 14px;
+	padding: 7px 12px;
 	border: 1px solid var(--line-strong);
-	border-radius: 9px;
+	border-radius: 8px;
 	background: transparent;
 	color: var(--fg);
 	font: inherit;
-	font-size: 14px;
+	font-size: 13px;
 	font-weight: 500;
 	cursor: pointer;
 }
