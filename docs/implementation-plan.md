@@ -516,6 +516,22 @@ HMAC 서명 검증이 fail-closed 로 동작해 서명 없는 요청은 401 로 
 | `CORS_ALLOWED_ORIGINS` | ✅ | 프론트 도메인. 비우면 모두 허용되므로 운영에서는 지정한다 |
 | `PORT` | | 기본 3000 |
 
+#### CORS 허용 오리진 표기
+
+`CORS_ALLOWED_ORIGINS` 는 세 가지 표기를 모두 받는다.
+
+```
+https://a.com
+https://a.com,https://b.com
+["https://a.com", "https://b.com"]
+```
+
+환경변수는 결국 문자열이라 JSON 배열도 문자열로 들어온다.
+어느 쪽으로 적어도 동작하게 해서 표기 때문에 막히지 않도록 했다.
+
+**끝의 슬래시는 자동으로 떼어낸다.** `Origin` 헤더에는 슬래시가 없어서
+`https://a.com/` 로 적으면 매칭되지 않는다. 흔한 실수라 파서에서 막는다.
+
 #### DB 연결은 Internal URL 을 쓴다
 
 Dokploy 의 DB 서비스는 두 가지 주소를 준다.
