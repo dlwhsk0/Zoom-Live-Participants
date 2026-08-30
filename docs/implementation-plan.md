@@ -679,6 +679,19 @@ Dokploy 의 **Advanced → Cluster Settings → Update Config** 에 넣는다.
 전환 중 잠깐 컨테이너가 둘이 된다. `dedupe_key` 로 중복이 걸러지고
 상태를 전부 DB 에 두었기 때문에 안전하다.
 
+Swarm Settings 는 JSON 이 아니라 폼이다.
+칸에 보이는 값이 placeholder 일 수 있으니 **직접 입력해야 저장된다.**
+
+**실측 결과 (1초 간격으로 `/health` 측정):**
+
+| 동작 | 끊김 |
+|---|---|
+| **Reload** | **0초** — `start-first` 로 롤링 전환 |
+| Deploy | **129초** — 빌드 전에 컨테이너를 먼저 내린다 |
+
+설정은 정상 적용됐다. `Deploy` 가 빌드 시작 전에 서비스를 내리는 것이 원인이라
+`start-first` 가 개입할 대상이 없다. 배포 빈도를 줄이는 것이 현실적인 대응이다.
+
 상세와 다른 대책은 `docs/time-and-gaps.md` 참고.
 
 #### 겪은 사고와 대응
