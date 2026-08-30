@@ -406,26 +406,123 @@ cd apps/api && pnpm db:reset --yes
 docker build -f apps/api/Dockerfile -t zlp-api .
 ```
 
-Dokploy 설정:
+#### Provider (소스)와 Build Type (빌드 방식)은 별개의 설정이다
 
-- Build Type: Dockerfile
-- Dockerfile Path: `apps/api/Dockerfile`
-- Build Context: `.` (저장소 루트 — 워크스페이스 매니페스트가 필요하다)
-- Port: `3000`
-- Health Check Path: `/health`
-- Watch Paths: `apps/api/**` (이 경로가 바뀔 때만 재배포)
+둘은 택일이 아니다. 소스는 GitHub, 빌드 방식은 Dockerfile 로 **둘 다** 지정한다.
 
-환경변수:
+| 설정 | 값 |
+|---|---|
+| Provider | **Github** (Gitlab/Git 탭이 아니라) |
+| Repository / Branch | `Zoom-Live-Participants` / `main` |
+| Build Path | `/` |
+| Trigger Type | On Push |
+| Watch Paths | `apps/api/**`, `pnpm-lock.yaml` |
+| Build Type | **Dockerfile** |
+| Docker File | `apps/api/Dockerfile` |
+| Docker Context Path | `.` |
+
+범용 `Git` 탭은 URL 로 클론만 하므로 자동 배포에 웹훅을 직접 걸어야 한다.
+`Github` 탭은 GitHub App 연동이라 웹훅이 자동으로 설정된다.
+
+**Build Path 와 Context 를 루트로 두는 것이 중요하다.**
+`apps/api` 로 좁히면 `pnpm-workspace.yaml` 과 `pnpm-lock.yaml` 을 찾지 못해 install 이 실패한다.
+
+Watch Paths 에 `pnpm-lock.yaml` 을 넣는 이유:
+`apps/api/**` 만 보면 의존성이 바뀌어도 백엔드가 재배포되지 않는다.
+프론트 의존성 변경으로 백엔드가 같이 재배포되는 낭비보다,
+백엔드가 낡은 패키지로 도는 쪽이 훨씬 나쁘다.
+
+#### Domain
+
+| 필드 | 값 |
+|---|---|
+| Host | 배포 도메인 |
+| Path | `/` |
+| Container Port | **3000** (앱이 실제로 듣는 포트) |
+| HTTPS | **켠다** |
+| Middlewares | **비운다** |
+
+Container Port 는 컨테이너 안의 포트다.
+컨테이너마다 네트워크 네임스페이스가 다르고 Traefik 이 호스트명으로 라우팅하므로,
+다른 앱이 같은 번호를 써도 충돌하지 않는다.
+
+HTTPS 는 필수다. **Zoom 은 HTTPS 엔드포인트만 등록을 허용한다.**
+
+#### Middlewares 를 붙이면 안 되는 이유
+
+**rate limit 이나 CrowdSec 류를 이 엔드포인트에 걸면 이벤트가 유실된다.**
+
+Zoom 웹훅은 고르게 오지 않고 몰려서 온다. 실측(참가자 3명):
+
+| 창 | 최대 수신 |
+|---|---|
+| 1초 | 3건 |
+| 2초 | 4건 |
+
+가장 몰린 구간:
+
+```
+09:05:38.662  participant_left_breakout_room
+09:05:39.597  participant_joined_breakout_room
+09:05:39.915  participant_left
+09:05:40.246  participant_joined
+```
+
+**참가자 한 명이 방을 한 번 옮길 때마다 약 2초 안에 4건이 발생한다.**
+호스트가 20명에게 소회의실을 동시에 열면 수 초 안에 수십 건이 몰린다.
+
+rate limit 에 걸리면 Zoom 은 429 를 받고 그 이벤트는 유실된다.
+입장/퇴장 쌍 중 한쪽만 유실되면 접속 판정이 그대로 틀어진다.
+
+보호는 미들웨어가 아니라 애플리케이션이 한다.
+HMAC 서명 검증이 fail-closed 로 동작해 서명 없는 요청은 401 로 떨어진다.
+
+#### 환경변수
 
 | 키 | 필수 | 설명 |
 |---|---|---|
-| `DATABASE_URL` | ✅ | PostgreSQL 연결 문자열 |
+| `DATABASE_URL` | ✅ | DB 의 **Internal** Connection URL |
 | `ZOOM_WEBHOOK_SECRET_TOKEN` | ✅ | 없으면 웹훅을 전부 거부한다 |
 | `ZOOM_MEETING_ID` | | 기본 조회 대상 회의방 |
 | `CORS_ALLOWED_ORIGINS` | ✅ | 프론트 도메인. 비우면 모두 허용되므로 운영에서는 지정한다 |
 | `PORT` | | 기본 3000 |
 
-엔드포인트:
+#### DB 연결은 Internal URL 을 쓴다
+
+Dokploy 의 DB 서비스는 두 가지 주소를 준다.
+
+| | 어디서 접근 | 형태 |
+|---|---|---|
+| **Internal** | Dokploy 네트워크 안 (앱 컨테이너) | 호스트가 **서비스 이름**, 포트는 컨테이너 내부 포트 |
+| External | 인터넷 | 서버 IP + 외부 노출 포트. 기본은 닫혀 있다 |
+
+**앱에는 Internal 을 쓴다.** DB 를 인터넷에 노출할 필요가 없고,
+같은 호스트 내부 통신이라 왕복이 수 ms 로 떨어진다.
+
+이는 실질적인 차이를 만든다. 원격 DB 로 측정했을 때
+웹훅 1건 처리에 0.95~1.96초가 걸렸다(왕복 3회 × 지연).
+Zoom 의 3초 응답 요구에 여유가 없었다. 내부 연결이면 이 문제가 사라진다.
+
+주의: **앱에 도메인을 붙여야 Traefik 네트워크에 연결되어 DB 에 닿는다.**
+도메인 없이 배포하면 격리된 네트워크에 남는다.
+
+#### 마이그레이션
+
+컨테이너는 마이그레이션을 자동 실행하지 않는다.
+스키마 변경은 배포와 분리해 사람이 확인하고 적용한다.
+
+Dockerfile 이 devDependencies 와 `drizzle/` 를 포함하므로
+**컨테이너 안에서 실행할 수 있다.** DB 를 외부에 노출할 필요가 없다.
+
+Dokploy 앱의 Terminal 에서:
+
+```
+cd /app/apps/api && npx drizzle-kit migrate
+```
+
+컨테이너에 `DATABASE_URL` 이 Internal URL 로 이미 들어 있으므로 그대로 붙는다.
+
+#### 엔드포인트
 
 | 경로 | 용도 |
 |---|---|
@@ -441,23 +538,18 @@ Dokploy 설정:
 
 ### 배포 순서
 
-1. 백엔드를 먼저 올린다. 주소가 정해져야 프론트가 그걸 바라볼 수 있다
-2. `GET /health/db` 로 DB 연결을 확인한다
-3. 프론트의 `VITE_API_BASE` 에 백엔드 주소를 넣고 배포한다
-4. 백엔드의 `CORS_ALLOWED_ORIGINS` 에 프론트 도메인을 넣고 재배포한다
-5. Zoom Event Subscription 의 URL 을 `<백엔드 주소>/api/webhook` 으로 바꾼다
-6. 실제 회의로 6-A 의 항목을 다시 확인한다
+1. **백엔드를 먼저 올린다.** 주소가 정해져야 프론트가 그걸 바라볼 수 있다
+   - Domain 을 붙이고 HTTPS 를 켠다 (Traefik 네트워크 연결에도 필요하다)
+   - 환경변수를 넣는다. `DATABASE_URL` 은 Internal Connection URL
+   - Deploy
+2. **마이그레이션을 적용한다.** 컨테이너 Terminal 에서 `npx drizzle-kit migrate`
+3. `GET /health/db` 로 DB 연결을 확인한다
+4. 프론트의 `VITE_API_BASE` 에 백엔드 주소를 넣고 재배포한다
+5. 백엔드의 `CORS_ALLOWED_ORIGINS` 에 프론트 도메인을 넣고 재배포한다
+6. Zoom Event Subscription 의 URL 을 `<백엔드 주소>/api/webhook` 으로 바꾼다
+7. 실제 회의로 6-A 의 항목을 다시 확인한다
 
-### 마이그레이션
-
-컨테이너는 마이그레이션을 자동 실행하지 않는다.
-스키마 변경은 배포와 분리해 사람이 확인하고 적용한다.
-
-```
-cd apps/api && DATABASE_URL=<운영> npx drizzle-kit migrate
-```
-
-### 커넥션 풀링
+### 커넥션
 
 Dokploy 는 컨테이너가 계속 떠 있으므로 서버리스처럼 커넥션이 폭증하지 않는다.
 `postgres.js` 를 `max: 1` 로 쓰고 있어 컨테이너당 커넥션 1개다.
