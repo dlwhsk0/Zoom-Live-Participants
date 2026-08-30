@@ -2,8 +2,6 @@ import { getEnv } from "../src/config/env.ts";
 import { getDb } from "../src/db/client.ts";
 import { getPresenceSnapshot } from "../src/repository/query.ts";
 
-export const config = { runtime: "nodejs" } as const;
-
 function json(status: number, body: unknown): Response {
 	return new Response(JSON.stringify(body), {
 		status,

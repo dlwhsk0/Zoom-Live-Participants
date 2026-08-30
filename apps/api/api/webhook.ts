@@ -2,8 +2,6 @@ import { getEnv } from "../src/config/env.ts";
 import { getDb } from "../src/db/client.ts";
 import { handleWebhook } from "../src/webhook/handle.ts";
 
-export const config = { runtime: "nodejs" } as const;
-
 function toHeaderRecord(headers: Headers): Record<string, string> {
 	const out: Record<string, string> = {};
 	headers.forEach((value, key) => {

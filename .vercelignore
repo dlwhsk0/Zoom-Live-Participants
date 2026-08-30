@@ -1,0 +1,7 @@
+docs/
+logs/
+docker/
+docker-compose.yml
+apps/api/test/
+apps/api/scripts/
+apps/api/drizzle/
