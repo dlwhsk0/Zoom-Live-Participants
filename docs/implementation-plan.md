@@ -261,11 +261,51 @@ Zoom Marketplace → 해당 앱 → Feature → Event Subscriptions
 `.env` 의 `ZOOM_WEBHOOK_SECRET_TOKEN` 이 이 앱의 Secret Token 과 같아야 한다.
 다르면 서명 검증에서 401 로 거부된다.
 
-### 4. 회의를 열고 확인한다
+### 4. 검증 중 열어둘 화면
+
+| 용도 | 주소 | 설명 |
+|---|---|---|
+| 참가자 화면 | `http://<LAN IP>:5180` | 폰으로 볼 때. `pnpm dev --host` 출력의 Network 주소 |
+| 참가자 화면 | `http://localhost:5180` | PC 에서 볼 때 |
+| **들어온 요청 원문** | `http://localhost:4040` | **ngrok 인스펙터** |
+| DB | `http://localhost:5050` | pgAdmin |
+
+ngrok 인스펙터가 검증의 핵심 도구다.
+Zoom 이 보낸 요청의 헤더와 본문 전체를 요청별로 보여주고,
+Replay 버튼으로 같은 요청을 다시 보낼 수 있다.
+분류가 이상할 때 실제로 어떤 payload 가 왔는지 여기서 확인한다.
+
+프론트를 폰에서 열려면 `--host` 가 필요하다.
+
+```
+cd apps/web && API_ORIGIN=http://localhost:3000 npx vite --port 5180 --host
+```
+
+### 5. 서버 로그 읽는 법
+
+`pnpm dev` 는 웹훅이 들어올 때마다 두 줄씩 찍는다.
+
+```
+17:58:44  [200] participant_joined   조하나        uid=555       at=2026-08-30T08:58:43Z
+         puuid=LOG-1  {"ok":true,"applied":"joined"}
+17:58:44  [200] participant_joined   조하나        uid=555       at=2026-08-30T08:58:43Z
+         puuid=LOG-1  {"ok":true,"duplicate":true}
+17:58:44  [401] participant_left  {"ok":false,"reason":"missing signature headers"}
+```
+
+봐야 할 것:
+
+| 필드 | 의미 |
+|---|---|
+| `uid=` | 방을 이동하면 값이 바뀐다. `puuid` 는 그대로다 |
+| `at=` | 발생 시각. 방 이동이면 `left` 와 `joined` 의 이 값이 **같다** |
+| `reason=` | 실제로 오는 `leave_reason` 문자열. fixture 와 다르면 판정 규칙을 다시 봐야 한다 |
+| `applied` / `duplicate` | 반영됐는지, 재전송으로 걸러졌는지 |
+| `[401]` | 서명 검증 실패. Secret Token 불일치이거나 Zoom 이 아닌 요청 |
+
+### 6. 회의를 열고 확인한다
 
 `.env` 의 `ZOOM_MEETING_ID` 가 그 회의방 번호여야 조회 API 가 세션을 찾는다.
-
-확인할 것:
 
 | 동작 | 기대 |
 |---|---|
@@ -279,17 +319,34 @@ Zoom Marketplace → 해당 앱 → Feature → Event Subscriptions
 소회의실 이동에서 사람이 사라지지 않는 것이 이 프로젝트의 합격선이다.
 v1 이 실패한 지점이다.
 
-### 5. 실제 데이터 확인
+화면은 5초 폴링이므로 반영까지 최대 5초 걸린다.
 
-```
-cd apps/api && pnpm db:check
-```
+### 7. 자주 걸리는 것
 
-pgAdmin(http://localhost:5050)이나 SQL 로 `participant_events` 를 열어
+- **터널만 띄우고 API 를 안 띄운 경우.**
+  ngrok 은 살아 있어도 3000 포트가 죽어 있으면 Zoom 웹훅이 전부 실패한다.
+  `lsof -nP -iTCP:3000 -sTCP:LISTEN` 로 확인한다.
+- **ngrok 무료 플랜은 재시작할 때마다 주소가 바뀐다.**
+  터널을 다시 띄웠으면 Zoom Event Subscription 의 URL 도 다시 등록해야 한다.
+- **등록 URL 끝에 `/api/webhook` 이 빠진 경우.** 404 가 난다.
+- **Secret Token 불일치.** 401 과 함께 `signature mismatch` 가 찍힌다.
+  `.env` 의 `ZOOM_WEBHOOK_SECRET_TOKEN` 이 그 앱의 Secret Token 과 같아야 한다.
+  `ZOOM_WEBHOOK_VERIFICATION_TOKEN` 은 Zoom 이 2025년 6월에 폐기한 옛 방식이라 쓰지 않는다.
+
+### 8. 실제 데이터 확인
+
+pgAdmin 이나 SQL 로 `participant_events` 를 열어
 실제 `leave_reason` 값과 발생 시각 쌍이 fixture 와 같은 패턴인지 본다.
-다르다면 판정 규칙을 다시 봐야 한다.
 
-### 6. 검증 후 정리
+```sql
+-- 방 이동으로 보이는 쌍: 같은 참가자, 같은 발생 시각의 left + joined
+select participant_uuid, occurred_at, count(*), string_agg(event_type, '+' order by event_type)
+from participant_events
+group by participant_uuid, occurred_at
+having count(*) > 1;
+```
+
+### 9. 검증 후 정리
 
 ```
 cd apps/api && pnpm db:reset --yes
@@ -325,6 +382,14 @@ docker compose up -d
 |---|---|---|
 | `postgres` | `localhost:55432` | PostgreSQL 16 |
 | `pgadmin` | http://localhost:5050 | 브라우저 DB 클라이언트 |
+
+애플리케이션까지 띄우면 아래가 추가된다.
+
+| 용도 | 주소 |
+|---|---|
+| API | `http://localhost:3000` |
+| 프론트 | `http://localhost:5180` |
+| ngrok 인스펙터 (터널 사용 시) | `http://localhost:4040` |
 
 Postgres 포트가 5432 가 아닌 것은 로컬에 다른 Postgres 가 있어도 충돌하지 않게 하기 위해서다.
 데이터는 named volume 에 있어 컨테이너를 지워도 남는다.
@@ -368,6 +433,12 @@ node --env-file=../../.env scripts/db-check.mjs        # 연결/테이블 확인
 
 ```
 cd apps/web && API_ORIGIN=http://localhost:3000 pnpm dev
+```
+
+폰에서 열려면 `--host` 를 붙인다. 출력되는 Network 주소로 접속한다.
+
+```
+cd apps/web && API_ORIGIN=http://localhost:3000 npx vite --port 5180 --host
 ```
 
 DB 를 비우고 다시 시작하려면:

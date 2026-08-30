@@ -11,6 +11,42 @@ import webhookHandler from "../api/webhook.ts";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
+/** 들어온 웹훅을 한 줄로 요약한다. 실제 회의 검증 중에 눈으로 따라가기 위한 것. */
+function logWebhook(rawBody: string, status: number, result: unknown): void {
+	const time = new Date().toTimeString().slice(0, 8);
+
+	let body: {
+		event?: string;
+		payload?: { object?: { participant?: Record<string, string> } };
+	};
+	try {
+		body = JSON.parse(rawBody);
+	} catch {
+		console.log(`${time}  [${status}] 파싱 불가 본문 ${rawBody.length}자`);
+		return;
+	}
+
+	const event = (body.event ?? "?").replace("meeting.", "");
+	const p = body.payload?.object?.participant;
+	const outcome = JSON.stringify(result);
+
+	if (!p) {
+		console.log(`${time}  [${status}] ${event}  ${outcome}`);
+		return;
+	}
+
+	const when = p.join_time ?? p.leave_time ?? "";
+	const reason = p.leave_reason
+		? `  reason="${p.leave_reason.replace(/^.*Reason : /, "")}"`
+		: "";
+
+	console.log(
+		`${time}  [${status}] ${event.padEnd(20)} ${(p.user_name ?? "?").padEnd(12)}` +
+			` uid=${(p.user_id ?? "?").padEnd(9)} at=${when}${reason}`,
+	);
+	console.log(`         puuid=${p.participant_uuid ?? "?"}  ${outcome}`);
+}
+
 function toRequest(
 	method: string,
 	url: string,
@@ -53,6 +89,16 @@ const server = createServer((req, res) => {
 				toRequest(req.method ?? "GET", req.url ?? "/", req.headers, body),
 			);
 			const text = await response.text();
+
+			if (path === "/api/webhook") {
+				let parsed: unknown = text;
+				try {
+					parsed = JSON.parse(text);
+				} catch {
+					// 그대로 둔다
+				}
+				logWebhook(body, response.status, parsed);
+			}
 			const headers: Record<string, string> = {};
 			response.headers.forEach((v, k) => {
 				headers[k] = v;
@@ -71,4 +117,8 @@ server.listen(PORT, () => {
 	console.log(`api on http://localhost:${PORT}`);
 	console.log(`  GET  /api/participants`);
 	console.log(`  POST /api/webhook`);
+	console.log("");
+	console.log("웹훅이 들어오면 아래에 한 줄씩 찍힙니다.");
+	console.log("전체 요청 본문은 ngrok 인스펙터(http://localhost:4040)에서 볼 수 있습니다.");
+	console.log("");
 });
