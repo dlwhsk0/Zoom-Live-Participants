@@ -10,7 +10,7 @@
 import client from "prom-client";
 
 export const register = new client.Registry();
-register.setDefaultLabels({ app: "zoom-live-participants-api" });
+register.setDefaultLabels({ app: "techeer-up-api" });
 client.collectDefaultMetrics({ register });
 
 function counter(name: string, help: string, labelNames: string[] = []) {

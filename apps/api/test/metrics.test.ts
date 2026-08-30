@@ -18,7 +18,7 @@ describe("metrics", () => {
 	it("앱 라벨을 붙인다", async () => {
 		webhooksReceived.inc({ event: "participant_joined" });
 		const text = await register.metrics();
-		expect(text).toContain('app="zoom-live-participants-api"');
+		expect(text).toContain('app="techeer-up-api"');
 	});
 
 	it("웹훅 카운터를 이벤트별로 나눈다", async () => {

@@ -14,7 +14,7 @@ WORKDIR /app
 FROM base AS deps
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/api/package.json apps/api/
-RUN pnpm install --frozen-lockfile --filter @zoom-live-participants/api --prod=false
+RUN pnpm install --frozen-lockfile --filter @techeer-up/api --prod=false
 
 # ---- 실행 ----
 FROM base AS runtime
@@ -34,6 +34,15 @@ USER node
 # 3000 은 서비스, 9091 은 메트릭.
 # 메트릭 포트는 도메인에 연결하지 않는다. Prometheus 가 도커 네트워크 안에서만 긁는다.
 EXPOSE 3000 9091
+
+# 컨테이너 자체 헬스체크. Node 22 의 전역 fetch 를 쓴다.
+#
+# /health 를 쓰는 이유: DB 를 건드리지 않는다.
+# /health/db 로 잡으면 DB 장애 때 컨테이너가 재시작 루프에 빠진다.
+# DB 가 죽었을 때 필요한 건 컨테이너 재시작이 아니라 알림이다.
+# 그건 메트릭(zlp_db_up)이 담당한다.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
 # Node 22 의 타입 스트리핑으로 .ts 를 그대로 실행한다. 별도 빌드 단계가 없다.
 CMD ["node", "--experimental-strip-types", "apps/api/src/main.ts"]

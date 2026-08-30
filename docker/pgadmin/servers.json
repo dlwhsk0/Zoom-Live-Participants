@@ -1,7 +1,7 @@
 {
   "Servers": {
     "1": {
-      "Name": "zoom-live-participants (local)",
+      "Name": "techeer-up (local)",
       "Group": "Servers",
       "Host": "postgres",
       "Port": 5432,
