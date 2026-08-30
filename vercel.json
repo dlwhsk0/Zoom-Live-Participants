@@ -3,7 +3,8 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "buildCommand": "pnpm --filter @zoom-live-participants/web build",
   "outputDirectory": "apps/web/dist",
-  "rewrites": [
-    { "source": "/((?!api/).*)", "destination": "/index.html" }
-  ]
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "github": { "silent": true },
+  "ignoreCommand": "git diff --quiet HEAD^ HEAD -- apps/web pnpm-lock.yaml vercel.json"
 }

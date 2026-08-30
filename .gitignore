@@ -10,3 +10,5 @@ node_modules/
 dist/
 .vercel/
 .env.test
+.vercel
+.env*

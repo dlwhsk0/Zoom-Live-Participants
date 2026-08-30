@@ -1,7 +1,5 @@
+# 프론트만 배포한다. 백엔드는 Dokploy 로 따로 올린다.
+apps/api/
 docs/
-logs/
 docker/
 docker-compose.yml
-apps/api/test/
-apps/api/scripts/
-apps/api/drizzle/

@@ -1,0 +1,182 @@
+import { createServer, type Server } from "node:http";
+
+import { getEnv } from "../config/env.ts";
+import { closeDb, getDb } from "../db/client.ts";
+import { getPresenceSnapshot } from "../repository/query.ts";
+import { handleWebhook } from "../webhook/handle.ts";
+import { corsHeaders } from "./cors.ts";
+
+interface Reply {
+	status: number;
+	body: unknown;
+	headers?: Record<string, string>;
+}
+
+function toHeaderRecord(
+	headers: NodeJS.Dict<string | string[]>,
+): Record<string, string | string[] | undefined> {
+	const out: Record<string, string | string[] | undefined> = {};
+	for (const [key, value] of Object.entries(headers)) {
+		out[key.toLowerCase()] = value;
+	}
+	return out;
+}
+
+/** 웹훅을 한 줄로 요약해 남긴다. 실제 회의 검증 중에 눈으로 따라가기 위한 것. */
+function logWebhook(rawBody: string, status: number, result: unknown): void {
+	const time = new Date().toISOString();
+
+	let body: {
+		event?: string;
+		payload?: { object?: { participant?: Record<string, string> } };
+	};
+	try {
+		body = JSON.parse(rawBody);
+	} catch {
+		console.log(`${time} [${status}] 파싱 불가 본문 ${rawBody.length}자`);
+		return;
+	}
+
+	const event = (body.event ?? "?").replace("meeting.", "");
+	const p = body.payload?.object?.participant;
+	const outcome = JSON.stringify(result);
+
+	if (!p) {
+		console.log(`${time} [${status}] ${event} ${outcome}`);
+		return;
+	}
+
+	const when = p.join_time ?? p.leave_time ?? "";
+	const reason = p.leave_reason
+		? ` reason="${p.leave_reason.replace(/^.*Reason : /, "")}"`
+		: "";
+
+	console.log(
+		`${time} [${status}] ${event} name="${p.user_name ?? "?"}"` +
+			` uid=${p.user_id ?? "?"} puuid=${p.participant_uuid ?? "?"}` +
+			` at=${when}${reason} ${outcome}`,
+	);
+}
+
+async function route(
+	method: string,
+	path: string,
+	query: URLSearchParams,
+	headers: Record<string, string | string[] | undefined>,
+	rawBody: string,
+): Promise<Reply> {
+	// 컨테이너 헬스체크용. DB 를 건드리지 않는다.
+	if (method === "GET" && path === "/health") {
+		return { status: 200, body: { ok: true } };
+	}
+
+	// DB 까지 살아있는지 확인한다. 배포 직후 점검용.
+	if (method === "GET" && path === "/health/db") {
+		try {
+			await getPresenceSnapshot(getDb(), "__healthcheck__");
+			return { status: 200, body: { ok: true, db: "reachable" } };
+		} catch (error) {
+			console.error("[health/db]", error);
+			return { status: 503, body: { ok: false, db: "unreachable" } };
+		}
+	}
+
+	if (method === "GET" && path === "/api/participants") {
+		const meetingId =
+			query.get("meeting_id")?.trim() || getEnv().ZOOM_MEETING_ID || "";
+
+		if (!meetingId) {
+			return {
+				status: 400,
+				body: { ok: false, reason: "meeting_id is required (or set ZOOM_MEETING_ID)" },
+			};
+		}
+
+		const snapshot = await getPresenceSnapshot(getDb(), meetingId);
+		// 폴링이므로 캐시하면 안 된다
+		return { status: 200, body: snapshot, headers: { "cache-control": "no-store" } };
+	}
+
+	if (method === "POST" && path === "/api/webhook") {
+		const result = await handleWebhook({
+			db: getDb(),
+			secretToken: getEnv().ZOOM_WEBHOOK_SECRET_TOKEN,
+			headers,
+			rawBody,
+		});
+		logWebhook(rawBody, result.status, result.body);
+		return { status: result.status, body: result.body };
+	}
+
+	return { status: 404, body: { ok: false, reason: "not found" } };
+}
+
+export function createApiServer(): Server {
+	return createServer((req, res) => {
+		let rawBody = "";
+		req.setEncoding("utf8");
+		req.on("data", (chunk) => {
+			rawBody += chunk;
+		});
+
+		req.on("end", async () => {
+			const url = new URL(req.url ?? "/", "http://localhost");
+			const cors = corsHeaders(
+				typeof req.headers.origin === "string" ? req.headers.origin : null,
+			);
+
+			// 프리플라이트
+			if (req.method === "OPTIONS") {
+				res.writeHead(204, cors);
+				res.end();
+				return;
+			}
+
+			try {
+				const reply = await route(
+					req.method ?? "GET",
+					url.pathname,
+					url.searchParams,
+					toHeaderRecord(req.headers),
+					rawBody,
+				);
+
+				res.writeHead(reply.status, {
+					"content-type": "application/json; charset=utf-8",
+					...cors,
+					...reply.headers,
+				});
+				res.end(JSON.stringify(reply.body));
+			} catch (error) {
+				console.error("[unhandled]", error);
+				res.writeHead(500, {
+					"content-type": "application/json; charset=utf-8",
+					...cors,
+				});
+				res.end(JSON.stringify({ ok: false, reason: "internal error" }));
+			}
+		});
+	});
+}
+
+/** 컨테이너가 SIGTERM 을 보내면 진행 중인 요청을 마치고 커넥션을 닫는다. */
+export function installShutdownHandlers(server: Server): void {
+	let closing = false;
+
+	for (const signal of ["SIGTERM", "SIGINT"] as const) {
+		process.on(signal, () => {
+			if (closing) return;
+			closing = true;
+			console.log(`[${signal}] 종료 시작`);
+
+			server.close(() => {
+				closeDb()
+					.catch((error) => console.error("[shutdown] db", error))
+					.finally(() => process.exit(0));
+			});
+
+			// 요청이 안 끝나도 일정 시간 뒤에는 내려간다
+			setTimeout(() => process.exit(0), 10_000).unref();
+		});
+	}
+}

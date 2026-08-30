@@ -370,13 +370,98 @@ cd apps/api && pnpm db:reset --yes
 
 ## 6-B. 배포
 
-1. Vercel 프로젝트 연결 (`apps/api`, `apps/web`)
-2. 환경변수 등록 — `DATABASE_URL`, `ZOOM_WEBHOOK_SECRET_TOKEN`, `ZOOM_MEETING_ID`
-3. Zoom Event Subscription의 endpoint URL을 배포 주소로 교체
-4. 실제 회의를 열어 확인. **소회의실을 실제로 드나들며** 목록이 유지되는지 본다
+**프론트와 백엔드를 분리해서 올린다.**
 
-**완료 기준:** 실제 회의에서 소회의실 이동 시 사람이 사라지지 않는다.
-이게 v1이 실패했던 지점이고, 이 프로젝트의 합격선이다.
+| | 어디에 | 무엇을 |
+|---|---|---|
+| 프론트 | Vercel | `apps/web` 정적 빌드 |
+| 백엔드 | Dokploy | `apps/api` 도커 컨테이너 |
+
+도메인이 다르므로 CORS 가 필요하다. 백엔드가 `CORS_ALLOWED_ORIGINS` 로 프론트 도메인을 허용한다.
+
+### 프론트 (Vercel)
+
+`vercel.json` 이 설정을 담고 있다.
+
+- `buildCommand`: `pnpm --filter @zoom-live-participants/web build`
+- `outputDirectory`: `apps/web/dist`
+- `rewrites`: 모든 경로를 `index.html` 로 (SPA)
+- `ignoreCommand`: **`apps/web` 이 바뀌지 않은 커밋에서는 빌드를 건너뛴다.**
+  백엔드만 고친 커밋으로 프론트가 재배포되지 않는다
+
+환경변수 (Vercel 대시보드 또는 `vercel env add`):
+
+| 키 | 값 |
+|---|---|
+| `VITE_API_BASE` | 백엔드 주소. 예: `https://api.example.com` |
+| `VITE_MEETING_ID` | (선택) 회의방 번호. 비우면 백엔드 기본값 |
+
+**DB 자격증명이나 Zoom 시크릿을 Vercel 에 두지 않는다.** 프론트는 그 값이 필요 없다.
+
+### 백엔드 (Dokploy)
+
+`apps/api/Dockerfile` 로 빌드한다. 빌드 컨텍스트는 **저장소 루트**다.
+
+```
+docker build -f apps/api/Dockerfile -t zlp-api .
+```
+
+Dokploy 설정:
+
+- Build Type: Dockerfile
+- Dockerfile Path: `apps/api/Dockerfile`
+- Build Context: `.` (저장소 루트 — 워크스페이스 매니페스트가 필요하다)
+- Port: `3000`
+- Health Check Path: `/health`
+- Watch Paths: `apps/api/**` (이 경로가 바뀔 때만 재배포)
+
+환경변수:
+
+| 키 | 필수 | 설명 |
+|---|---|---|
+| `DATABASE_URL` | ✅ | PostgreSQL 연결 문자열 |
+| `ZOOM_WEBHOOK_SECRET_TOKEN` | ✅ | 없으면 웹훅을 전부 거부한다 |
+| `ZOOM_MEETING_ID` | | 기본 조회 대상 회의방 |
+| `CORS_ALLOWED_ORIGINS` | ✅ | 프론트 도메인. 비우면 모두 허용되므로 운영에서는 지정한다 |
+| `PORT` | | 기본 3000 |
+
+엔드포인트:
+
+| 경로 | 용도 |
+|---|---|
+| `GET /health` | 컨테이너 헬스체크. DB 를 건드리지 않는다 |
+| `GET /health/db` | DB 연결까지 확인. 배포 직후 점검용 |
+| `GET /api/participants` | 참가자 조회 |
+| `POST /api/webhook` | Zoom 웹훅 수신 |
+
+별도 빌드 단계가 없다. Node 22 의 타입 스트리핑으로 `.ts` 를 그대로 실행한다.
+
+`SIGTERM` 을 받으면 진행 중인 요청을 마치고 DB 커넥션을 닫는다.
+10초 안에 끝나지 않으면 강제 종료한다.
+
+### 배포 순서
+
+1. 백엔드를 먼저 올린다. 주소가 정해져야 프론트가 그걸 바라볼 수 있다
+2. `GET /health/db` 로 DB 연결을 확인한다
+3. 프론트의 `VITE_API_BASE` 에 백엔드 주소를 넣고 배포한다
+4. 백엔드의 `CORS_ALLOWED_ORIGINS` 에 프론트 도메인을 넣고 재배포한다
+5. Zoom Event Subscription 의 URL 을 `<백엔드 주소>/api/webhook` 으로 바꾼다
+6. 실제 회의로 6-A 의 항목을 다시 확인한다
+
+### 마이그레이션
+
+컨테이너는 마이그레이션을 자동 실행하지 않는다.
+스키마 변경은 배포와 분리해 사람이 확인하고 적용한다.
+
+```
+cd apps/api && DATABASE_URL=<운영> npx drizzle-kit migrate
+```
+
+### 커넥션 풀링
+
+Dokploy 는 컨테이너가 계속 떠 있으므로 서버리스처럼 커넥션이 폭증하지 않는다.
+`postgres.js` 를 `max: 1` 로 쓰고 있어 컨테이너당 커넥션 1개다.
+인스턴스를 여러 개로 늘릴 때 `max_connections` 를 다시 본다.
 
 ## 로컬 실행
 

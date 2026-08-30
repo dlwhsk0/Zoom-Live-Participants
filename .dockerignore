@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.github
+.vercel
+.env
+.env.*
+!.env.example
+apps/web
+docs
+docker
+docker-compose.yml
+logs
