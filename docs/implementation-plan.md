@@ -655,6 +655,32 @@ Prometheus 는 도커 네트워크 안에서 `http://<서비스>:9091/metrics` �
 - `participant_uuid` 를 라벨에 넣지 않는다. 시계열이 참가자 수만큼 늘어난다.
   경로는 `/api/participants/:uuid/status` 로 정규화한다.
 
+#### 무중단 배포
+
+기본 설정으로는 배포할 때마다 컨테이너가 교체되며 **그 사이 웹훅이 유실된다.**
+실제로 오늘 배포 중 참가자 3명의 입장 이벤트를 놓쳤다.
+
+Dokploy 의 **Advanced → Cluster Settings → Update Config** 에 넣는다.
+
+```json
+{
+  "Parallelism": 1,
+  "Delay": 10000000000,
+  "FailureAction": "rollback",
+  "Order": "start-first"
+}
+```
+
+- **`start-first`** 가 핵심이다. 기본값 `stop-first` 는 옛 컨테이너를 먼저 내려 공백을 만든다.
+  `start-first` 는 새 컨테이너가 **헬스체크를 통과한 뒤에** 옛 것을 내린다
+- Dockerfile 의 `HEALTHCHECK` 가 이때 판단 근거가 된다
+- `FailureAction: rollback` 은 새 버전이 뜨지 못하면 자동으로 되돌린다
+
+전환 중 잠깐 컨테이너가 둘이 된다. `dedupe_key` 로 중복이 걸러지고
+상태를 전부 DB 에 두었기 때문에 안전하다.
+
+상세와 다른 대책은 `docs/time-and-gaps.md` 참고.
+
 #### 겪은 사고와 대응
 
 배포하면서 실제로 겪은 것들이다. 같은 곳에서 다시 막히지 않도록 남긴다.
