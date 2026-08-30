@@ -3,6 +3,12 @@ import { z } from "zod";
 
 import { getEnv } from "../config/env.ts";
 import { closeDb, getDb } from "../db/client.ts";
+import {
+	httpRequests,
+	presenceQueryDuration,
+	statusUpdates,
+	webhookDuration,
+} from "../metrics.ts";
 import { setStatusMessage } from "../repository/ingest.ts";
 import { findCurrentSession, getPresenceSnapshot } from "../repository/query.ts";
 import { handleWebhook } from "../webhook/handle.ts";
@@ -17,6 +23,21 @@ const statusBodySchema = z.object({
 		.string()
 		.max(STATUS_MAX_LENGTH, `상태 메시지는 ${STATUS_MAX_LENGTH}자 이하로 적어주세요`),
 });
+
+/**
+ * 경로를 메트릭 라벨로 쓸 수 있게 정규화한다.
+ *
+ * participant_uuid 를 그대로 라벨에 넣으면 시계열이 참가자 수만큼 늘어난다.
+ */
+function normalizeRoute(pathname: string): string {
+	if (/^\/api\/participants\/[^/]+\/status$/.test(pathname)) {
+		return "/api/participants/:uuid/status";
+	}
+	if (pathname.startsWith("/api/") || pathname.startsWith("/health")) {
+		return pathname;
+	}
+	return "other";
+}
 
 interface Reply {
 	status: number;
@@ -112,7 +133,10 @@ async function route(
 			};
 		}
 
+		const stop = presenceQueryDuration.startTimer();
 		const snapshot = await getPresenceSnapshot(getDb(), meetingId);
+		stop();
+
 		// 폴링이므로 캐시하면 안 된다
 		return { status: 200, body: snapshot, headers: { "cache-control": "no-store" } };
 	}
@@ -161,16 +185,19 @@ async function route(
 			return { status: 404, body: { ok: false, reason: "participant not found" } };
 		}
 
+		statusUpdates.inc({ action: message ? "set" : "clear" });
 		return { status: 200, body: { ok: true, statusMessage: message } };
 	}
 
 	if (method === "POST" && path === "/api/webhook") {
+		const stop = webhookDuration.startTimer();
 		const result = await handleWebhook({
 			db: getDb(),
 			secretToken: getEnv().ZOOM_WEBHOOK_SECRET_TOKEN,
 			headers,
 			rawBody,
 		});
+		stop();
 		logWebhook(rawBody, result.status, result.body);
 		return { status: result.status, body: result.body };
 	}
@@ -207,6 +234,11 @@ export function createApiServer(): Server {
 					toHeaderRecord(req.headers),
 					rawBody,
 				);
+
+				httpRequests.inc({
+					route: normalizeRoute(url.pathname),
+					status: String(reply.status),
+				});
 
 				res.writeHead(reply.status, {
 					"content-type": "application/json; charset=utf-8",

@@ -576,6 +576,46 @@ cd apps/api && pnpm fingerprint
 빌드 로그에 `COPY apps/api/src ... CACHED` 로 찍히는데,
 그때는 배포가 반영되지 않는다. Clean Cache 를 켜면 해결된다.
 
+#### 모니터링 (Prometheus)
+
+메트릭을 **서비스 포트와 분리한 별도 포트**의 `/metrics` 로 노출한다.
+
+Traefik 은 도메인을 하나의 포트로만 라우팅하므로,
+메트릭 포트를 도메인에 연결하지 않으면 **외부에서 접근할 수 없다.**
+Prometheus 는 도커 네트워크 안에서 `http://<서비스>:9091/metrics` 로 긁는다.
+
+| 환경변수 | 기본 | 설명 |
+|---|---|---|
+| `METRICS_PORT` | `9091` | 메트릭 전용 포트 |
+| `METRICS_TOKEN` | (없음) | 설정하면 Bearer 헤더나 `?token=` 을 추가로 요구 |
+
+수집하는 것:
+
+| 메트릭 | 종류 | 왜 보는가 |
+|---|---|---|
+| `zlp_db_up` | 게이지 | **DB 도달 여부.** 컨테이너는 살아있는데 DB 만 죽는 상황을 잡는다 |
+| `zlp_participants_online` | 게이지 | 현재 접속자 수 |
+| `zlp_participants_session_total` | 게이지 | 세션 누적 참여 인원 |
+| `zlp_webhooks_received_total{event}` | 카운터 | 이벤트 종류별 수신량 |
+| `zlp_webhooks_rejected_total{reason}` | 카운터 | 서명 실패 등. 급증하면 설정 문제이거나 외부 스캔 |
+| `zlp_webhooks_duplicate_total` | 카운터 | 재전송으로 걸러진 수 |
+| `zlp_participant_events_total{event_type}` | 카운터 | 반영한 입퇴장 |
+| `zlp_room_moves_total` | 카운터 | **소회의실 이동 판정 수.** v1 이 틀렸던 지점이라 따로 센다 |
+| `zlp_status_updates_total{action}` | 카운터 | 상태 메시지 변경/삭제 |
+| `zlp_http_requests_total{route,status}` | 카운터 | 경로별 응답 코드 |
+| `zlp_webhook_duration_seconds` | 히스토그램 | **Zoom 은 3초 안에 응답을 요구한다.** 경계에 가까워지는지 본다 |
+| `zlp_presence_query_duration_seconds` | 히스토그램 | 조회 지연 |
+| `process_*`, `nodejs_*` | 기본 | CPU/메모리/이벤트루프 지연 |
+
+설계상 주의한 것:
+
+- 게이지는 스크레이프 시점에 DB 를 읽는다. 게이지 세 개가 각자 치지 않도록
+  2초 캐시를 두고, **각 게이지에 `collect()` 를 달아 등록 순서에 무관하게** 했다.
+  마지막 게이지에만 갱신을 걸면 앞의 게이지들이 이전 스크레이프 값을 읽는다.
+- DB 조회가 실패해도 `zlp_db_up` 만 0 이 되고 **나머지 메트릭은 계속 나간다.**
+- `participant_uuid` 를 라벨에 넣지 않는다. 시계열이 참가자 수만큼 늘어난다.
+  경로는 `/api/participants/:uuid/status` 로 정규화한다.
+
 #### 겪은 사고와 대응
 
 배포하면서 실제로 겪은 것들이다. 같은 곳에서 다시 막히지 않도록 남긴다.

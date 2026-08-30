@@ -1,5 +1,13 @@
 import type { getDb } from "../db/client.ts";
 import {
+	participantEventsApplied,
+	roomMoves,
+	webhooksDuplicate,
+	webhooksReceived,
+	webhooksRejected,
+} from "../metrics.ts";
+import {
+	hasOppositeEventAt,
 	insertParticipantEvent,
 	insertWebhookEvent,
 	markSessionEnded,
@@ -31,6 +39,30 @@ export interface HandleOutput {
 }
 
 /**
+ * 같은 참가자의 같은 발생 시각에 반대 종류의 이벤트가 이미 있는가.
+ *
+ * left 와 joined 가 동일 시각으로 짝을 이루면 소회의실 이동이다.
+ * 쌍의 뒤쪽이 도착했을 때만 1 을 세도록 반대 종류만 찾는다.
+ */
+async function isRoomMove(
+	db: Db,
+	event: NonNullable<ReturnType<typeof toParticipantEvent>>,
+): Promise<boolean> {
+	try {
+		return await hasOppositeEventAt(
+			db,
+			event.meetingUuid,
+			event.participantUuid,
+			event.occurredAt,
+			event.eventType === "joined" ? "left" : "joined",
+		);
+	} catch {
+		// 메트릭 때문에 웹훅 처리가 실패하면 안 된다
+		return false;
+	}
+}
+
+/**
  * 웹훅 처리.
  *
  * 순서:
@@ -51,6 +83,7 @@ export async function handleWebhook(
 
 	const verification = verifySignature(secretToken, headers, rawBody);
 	if (!verification.ok) {
+		webhooksRejected.inc({ reason: verification.reason });
 		return { status: 401, body: { ok: false, reason: verification.reason } };
 	}
 
@@ -58,6 +91,7 @@ export async function handleWebhook(
 	try {
 		parsed = JSON.parse(rawBody);
 	} catch {
+		webhooksRejected.inc({ reason: "invalid json" });
 		return { status: 400, body: { ok: false, reason: "invalid json" } };
 	}
 
@@ -65,8 +99,11 @@ export async function handleWebhook(
 	try {
 		body = parseWebhookBody(parsed);
 	} catch {
+		webhooksRejected.inc({ reason: "unexpected payload" });
 		return { status: 400, body: { ok: false, reason: "unexpected payload" } };
 	}
+
+	webhooksReceived.inc({ event: body.event.replace(/^meeting\./, "") });
 
 	if (body.event === URL_VALIDATION) {
 		const plainToken = body.payload.plainToken;
@@ -88,12 +125,22 @@ export async function handleWebhook(
 
 	if (!webhookEventId) {
 		// 이미 처리한 이벤트. Zoom 재전송이므로 정상 응답한다.
+		webhooksDuplicate.inc();
 		return { status: 200, body: { ok: true, duplicate: true } };
 	}
 
 	if (participantEvent) {
 		await insertParticipantEvent(db, webhookEventId, participantEvent);
 		await upsertParticipant(db, participantEvent);
+
+		participantEventsApplied.inc({ event_type: participantEvent.eventType });
+
+		// 같은 참가자의 같은 발생 시각에 반대 이벤트가 이미 있으면 방 이동이다.
+		// 판정 규칙의 핵심이라 얼마나 자주 일어나는지 따로 센다.
+		if (await isRoomMove(db, participantEvent)) {
+			roomMoves.inc();
+		}
+
 		return { status: 200, body: { ok: true, applied: participantEvent.eventType } };
 	}
 

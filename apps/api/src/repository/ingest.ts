@@ -153,3 +153,31 @@ export async function setStatusMessage(
 
 	return rows.length > 0;
 }
+
+/**
+ * 같은 참가자·같은 발생 시각에 특정 종류의 이벤트가 이미 있는지.
+ *
+ * 소회의실 이동 판정(동일 시각의 left + joined 쌍)을 세는 데 쓴다.
+ */
+export async function hasOppositeEventAt(
+	db: Db,
+	meetingUuid: string,
+	participantUuid: string,
+	occurredAt: Date,
+	eventType: "joined" | "left",
+): Promise<boolean> {
+	const rows = await db
+		.select({ id: participantEvents.id })
+		.from(participantEvents)
+		.where(
+			and(
+				eq(participantEvents.meetingUuid, meetingUuid),
+				eq(participantEvents.participantUuid, participantUuid),
+				eq(participantEvents.occurredAt, occurredAt),
+				eq(participantEvents.eventType, eventType),
+			),
+		)
+		.limit(1);
+
+	return rows.length > 0;
+}

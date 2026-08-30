@@ -31,7 +31,9 @@ COPY apps/api/drizzle.config.ts apps/api/
 # root 로 실행하지 않는다
 USER node
 
-EXPOSE 3000
+# 3000 은 서비스, 9091 은 메트릭.
+# 메트릭 포트는 도메인에 연결하지 않는다. Prometheus 가 도커 네트워크 안에서만 긁는다.
+EXPOSE 3000 9091
 
 # Node 22 의 타입 스트리핑으로 .ts 를 그대로 실행한다. 별도 빌드 단계가 없다.
 CMD ["node", "--experimental-strip-types", "apps/api/src/main.ts"]

@@ -44,6 +44,13 @@ const schema = z.object({
 	/** 서버 포트. */
 	PORT: z.coerce.number().int().positive().default(3000),
 	/**
+	 * 메트릭 전용 포트. 서비스 포트와 분리한다.
+	 * 이 포트를 도메인에 연결하지 않으면 /metrics 는 외부에 노출되지 않는다.
+	 */
+	METRICS_PORT: z.coerce.number().int().positive().default(9091),
+	/** 설정하면 /metrics 에 Bearer 토큰 또는 ?token= 을 추가로 요구한다. */
+	METRICS_TOKEN: z.string().default(""),
+	/**
 	 * CORS 허용 오리진 목록.
 	 *
 	 * 세 가지 표기를 모두 받는다.
