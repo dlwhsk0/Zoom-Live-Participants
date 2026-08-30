@@ -576,6 +576,22 @@ cd apps/api && pnpm fingerprint
 빌드 로그에 `COPY apps/api/src ... CACHED` 로 찍히는데,
 그때는 배포가 반영되지 않는다. Clean Cache 를 켜면 해결된다.
 
+#### 로그 화면
+
+`/logs?key=<LOGS_TOKEN>` 으로 입퇴장 이력을 본다.
+
+두 가지 모드가 있다.
+
+- 기본: 시각, 입/퇴장, 이름, 방 이동 여부, `leave_reason`, `user_id`, IP
+- **원본** 토글: 항목을 누르면 Zoom 이 보낸 payload 전체가 펼쳐진다
+
+**토큰 없이는 열리지 않는다.** 로그에는 참가자 이름과 공인 IP 가 그대로 담긴다.
+`LOGS_TOKEN` 을 설정하지 않으면 API 가 503 을 돌려준다.
+실수로 공개되는 것보다 안 열리는 편이 낫다는 판단이다.
+
+페이지네이션은 `occurred_at` 커서를 쓴다.
+방 이동 표시는 같은 페이지 안에서 같은 참가자·같은 발생 시각의 반대 이벤트를 찾아 붙인다.
+
 #### 모니터링 (Prometheus)
 
 메트릭을 **서비스 포트와 분리한 별도 포트**의 `/metrics` 로 노출한다.
@@ -695,6 +711,7 @@ cd /app/apps/api && npx drizzle-kit migrate
 | `GET /health` | 컨테이너 헬스체크. DB 를 건드리지 않는다. **실행 중인 소스 지문을 함께 준다** |
 | `GET /health/db` | DB 연결까지 확인. 배포 직후 점검용 |
 | `GET /api/participants` | 참가자 조회 |
+| `GET /api/logs` | 입퇴장 로그 조회. **`LOGS_TOKEN` 필요** |
 | `POST /api/webhook` | Zoom 웹훅 수신 |
 
 별도 빌드 단계가 없다. Node 22 의 타입 스트리핑으로 `.ts` 를 그대로 실행한다.

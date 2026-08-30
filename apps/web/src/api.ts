@@ -70,3 +70,53 @@ export async function saveStatusMessage(
 
 	return body.statusMessage ?? null;
 }
+
+export interface LogEntry {
+	id: string;
+	occurredAt: string;
+	receivedAt: string;
+	eventType: string;
+	displayName: string | null;
+	participantUuid: string;
+	userId: string | null;
+	publicIp: string | null;
+	leaveReason: string | null;
+	/** 같은 참가자·같은 발생 시각에 반대 이벤트가 있으면 소회의실 이동이다. */
+	isRoomMove: boolean;
+	payload?: unknown;
+}
+
+export interface LogPage {
+	meetingId: string;
+	meetingUuid: string | null;
+	entries: LogEntry[];
+	nextCursor: string | null;
+}
+
+export async function fetchLogs(params: {
+	key: string;
+	cursor?: string | null;
+	raw: boolean;
+	limit?: number;
+}): Promise<LogPage> {
+	const url = new URL(`${API_BASE}/api/logs`, window.location.origin);
+	url.searchParams.set("key", params.key);
+	url.searchParams.set("limit", String(params.limit ?? 50));
+	if (params.raw) url.searchParams.set("raw", "1");
+	if (params.cursor) url.searchParams.set("cursor", params.cursor);
+	if (MEETING_ID) url.searchParams.set("meeting_id", MEETING_ID);
+
+	const response = await fetch(url, { headers: { accept: "application/json" } });
+
+	if (response.status === 401) {
+		throw new Error("접근 키가 올바르지 않습니다");
+	}
+	if (!response.ok) {
+		const body = (await response.json().catch(() => null)) as
+			| { reason?: string }
+			| null;
+		throw new Error(body?.reason ?? `요청 실패 (${response.status})`);
+	}
+
+	return (await response.json()) as LogPage;
+}

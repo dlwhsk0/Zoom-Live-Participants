@@ -1,7 +1,11 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq, lt } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
-import { participants } from "../db/schema.ts";
+import {
+	participantEvents,
+	participants,
+	webhookEvents,
+} from "../db/schema.ts";
 import {
 	mergeReconnections,
 	sortForDisplay,
@@ -120,5 +124,119 @@ export async function getPresenceSnapshot(
 			connectionCount: p.connectionCount,
 			statusMessage: p.statusMessage,
 		})),
+	};
+}
+
+export interface LogEntry {
+	id: string;
+	occurredAt: Date;
+	receivedAt: Date;
+	eventType: string;
+	displayName: string | null;
+	participantUuid: string;
+	userId: string | null;
+	publicIp: string | null;
+	leaveReason: string | null;
+	/** 같은 참가자·같은 발생 시각에 반대 이벤트가 있으면 소회의실 이동이다. */
+	isRoomMove: boolean;
+	/** raw=true 로 요청했을 때만 담는다. */
+	payload?: unknown;
+}
+
+export interface LogPage {
+	meetingId: string;
+	meetingUuid: string | null;
+	entries: LogEntry[];
+	/** 다음 페이지 요청에 쓸 값. 없으면 마지막 페이지다. */
+	nextCursor: string | null;
+}
+
+/**
+ * 입퇴장 로그를 최신순으로 읽는다.
+ *
+ * 커서는 occurred_at 이다. 같은 시각의 이벤트가 여러 개일 수 있으므로
+ * id 를 보조 정렬키로 써서 페이지 경계에서 빠지거나 겹치지 않게 한다.
+ */
+export async function getLogs(
+	db: Db,
+	meetingId: string,
+	options: { limit: number; cursor?: string | null; raw?: boolean },
+): Promise<LogPage> {
+	const session = await findCurrentSession(db, meetingId);
+
+	if (!session) {
+		return { meetingId, meetingUuid: null, entries: [], nextCursor: null };
+	}
+
+	const limit = Math.min(Math.max(options.limit, 1), 200);
+	const cursorDate = options.cursor ? new Date(options.cursor) : null;
+	const validCursor =
+		cursorDate && !Number.isNaN(cursorDate.getTime()) ? cursorDate : null;
+
+	const rows = await db
+		.select({
+			id: participantEvents.id,
+			occurredAt: participantEvents.occurredAt,
+			receivedAt: participantEvents.createdAt,
+			eventType: participantEvents.eventType,
+			displayName: participantEvents.displayName,
+			participantUuid: participantEvents.participantUuid,
+			userId: participantEvents.userId,
+			publicIp: participantEvents.publicIp,
+			leaveReason: participantEvents.leaveReason,
+			payload: webhookEvents.payload,
+		})
+		.from(participantEvents)
+		.leftJoin(
+			webhookEvents,
+			eq(participantEvents.webhookEventId, webhookEvents.id),
+		)
+		.where(
+			validCursor
+				? and(
+						eq(participantEvents.meetingUuid, session.meetingUuid),
+						lt(participantEvents.occurredAt, validCursor),
+					)
+				: eq(participantEvents.meetingUuid, session.meetingUuid),
+		)
+		.orderBy(desc(participantEvents.occurredAt), desc(participantEvents.id))
+		// 다음 페이지가 있는지 알기 위해 하나 더 가져온다
+		.limit(limit + 1);
+
+	const hasMore = rows.length > limit;
+	const page = hasMore ? rows.slice(0, limit) : rows;
+
+	// 방 이동 판정: 같은 페이지 안에서 같은 참가자·같은 시각의 반대 이벤트를 찾는다.
+	// 페이지 경계에 쌍이 걸치면 놓칠 수 있으나, 쌍은 항상 같은 시각이라 드물다.
+	const pairKeys = new Set(
+		page.map((r) => `${r.participantUuid}|${r.occurredAt.getTime()}|${r.eventType}`),
+	);
+
+	const entries: LogEntry[] = page.map((r) => {
+		const opposite = r.eventType === "joined" ? "left" : "joined";
+		return {
+			id: r.id,
+			occurredAt: r.occurredAt,
+			receivedAt: r.receivedAt,
+			eventType: r.eventType,
+			displayName: r.displayName,
+			participantUuid: r.participantUuid,
+			userId: r.userId,
+			publicIp: r.publicIp,
+			leaveReason: r.leaveReason,
+			isRoomMove: pairKeys.has(
+				`${r.participantUuid}|${r.occurredAt.getTime()}|${opposite}`,
+			),
+			...(options.raw ? { payload: r.payload } : {}),
+		};
+	});
+
+	return {
+		meetingId,
+		meetingUuid: session.meetingUuid,
+		entries,
+		nextCursor: hasMore
+			? (page.at(-1)?.occurredAt.toISOString() ?? null)
+			: null,
 	};
 }

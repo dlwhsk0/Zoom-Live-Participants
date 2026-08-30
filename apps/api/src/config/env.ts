@@ -51,6 +51,12 @@ const schema = z.object({
 	/** 설정하면 /metrics 에 Bearer 토큰 또는 ?token= 을 추가로 요구한다. */
 	METRICS_TOKEN: z.string().default(""),
 	/**
+	 * 로그 조회 토큰.
+	 * 로그에는 참가자 이름과 IP 가 그대로 들어 있어 공개하면 안 된다.
+	 * 비워두면 로그 API 자체를 막는다(실수로 열리는 것보다 안 열리는 게 낫다).
+	 */
+	LOGS_TOKEN: z.string().default(""),
+	/**
 	 * CORS 허용 오리진 목록.
 	 *
 	 * 세 가지 표기를 모두 받는다.

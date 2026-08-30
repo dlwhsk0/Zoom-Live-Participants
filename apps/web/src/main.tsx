@@ -3,6 +3,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
 import App from "./App.tsx";
+import Logs from "./Logs.tsx";
 import "./styles.css";
 
 const queryClient = new QueryClient({
@@ -20,10 +21,13 @@ if (!container) {
 	throw new Error("#root not found");
 }
 
+// 화면이 둘뿐이라 라우터를 쓰지 않는다.
+const isLogs = window.location.pathname.replace(/\/+$/, "") === "/logs";
+
 createRoot(container).render(
 	<StrictMode>
 		<QueryClientProvider client={queryClient}>
-			<App />
+			{isLogs ? <Logs /> : <App />}
 		</QueryClientProvider>
 	</StrictMode>,
 );

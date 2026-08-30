@@ -10,7 +10,11 @@ import {
 	webhookDuration,
 } from "../metrics.ts";
 import { setStatusMessage } from "../repository/ingest.ts";
-import { findCurrentSession, getPresenceSnapshot } from "../repository/query.ts";
+import {
+	findCurrentSession,
+	getLogs,
+	getPresenceSnapshot,
+} from "../repository/query.ts";
 import { handleWebhook } from "../webhook/handle.ts";
 import { SOURCE_FINGERPRINT, STARTED_AT } from "../version.ts";
 import { corsHeaders } from "./cors.ts";
@@ -187,6 +191,44 @@ async function route(
 
 		statusUpdates.inc({ action: message ? "set" : "clear" });
 		return { status: 200, body: { ok: true, statusMessage: message } };
+	}
+
+	// 로그는 참가자 이름과 IP 를 그대로 담는다. 토큰 없이는 열지 않는다.
+	if (method === "GET" && path === "/api/logs") {
+		const token = getEnv().LOGS_TOKEN;
+
+		if (!token) {
+			return {
+				status: 503,
+				body: { ok: false, reason: "LOGS_TOKEN 이 설정되지 않았습니다" },
+			};
+		}
+
+		const provided =
+			query.get("key") ??
+			(headers.authorization === `Bearer ${token}` ? token : null);
+
+		if (provided !== token) {
+			return { status: 401, body: { ok: false, reason: "unauthorized" } };
+		}
+
+		const meetingId =
+			query.get("meeting_id")?.trim() || getEnv().ZOOM_MEETING_ID || "";
+
+		if (!meetingId) {
+			return {
+				status: 400,
+				body: { ok: false, reason: "meeting_id is required (or set ZOOM_MEETING_ID)" },
+			};
+		}
+
+		const page = await getLogs(getDb(), meetingId, {
+			limit: Number(query.get("limit") ?? 50),
+			cursor: query.get("cursor"),
+			raw: query.get("raw") === "1",
+		});
+
+		return { status: 200, body: page, headers: { "cache-control": "no-store" } };
 	}
 
 	if (method === "POST" && path === "/api/webhook") {

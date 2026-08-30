@@ -505,3 +505,151 @@ body {
 .toast {
 	transform: translate(-50%, 0);
 }
+
+/* ── 로그 화면 ─────────────────────────────── */
+
+.topbar__actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex: none;
+}
+
+.chip {
+	padding: 5px 10px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: transparent;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.chip:hover {
+	border-color: var(--line-strong);
+	color: var(--fg);
+}
+
+.chip--on {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: #ffffff;
+}
+
+.log {
+	padding: 10px 2px;
+	border-bottom: 1px solid var(--line);
+}
+
+.log__head {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	width: 100%;
+	padding: 0;
+	border: 0;
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.log__head:disabled {
+	cursor: default;
+}
+
+.log__time {
+	flex: none;
+	font-size: 12px;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.log__type {
+	flex: none;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--muted);
+}
+
+.log__type--in {
+	color: var(--online);
+}
+
+.log__name {
+	font-size: 14px;
+	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.log__tag {
+	flex: none;
+	margin-left: auto;
+	padding: 1px 6px;
+	border-radius: 4px;
+	background: var(--field);
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.log__meta {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px 10px;
+	margin-top: 3px;
+	font-size: 11px;
+	color: var(--muted-weak);
+}
+
+.log__reason {
+	color: var(--muted);
+}
+
+.log__mono {
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.log__raw {
+	margin: 8px 0 2px;
+	padding: 10px;
+	border-radius: 8px;
+	background: var(--field);
+	color: var(--fg);
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 11px;
+	line-height: 1.5;
+	/* 긴 payload 가 화면을 밀지 않도록 가로 스크롤을 준다 */
+	overflow-x: auto;
+	white-space: pre;
+}
+
+.more {
+	display: block;
+	width: 100%;
+	margin: 20px 0 32px;
+	padding: 11px;
+	border: 1px solid var(--line-strong);
+	border-radius: 9px;
+	background: transparent;
+	color: var(--fg);
+	font: inherit;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+}
+
+.more:hover {
+	background: var(--field);
+}
+
+.more:disabled {
+	color: var(--muted-weak);
+	cursor: default;
+}
