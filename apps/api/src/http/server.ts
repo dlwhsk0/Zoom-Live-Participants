@@ -6,6 +6,7 @@ import { closeDb, getDb } from "../db/client.ts";
 import { setStatusMessage } from "../repository/ingest.ts";
 import { findCurrentSession, getPresenceSnapshot } from "../repository/query.ts";
 import { handleWebhook } from "../webhook/handle.ts";
+import { SOURCE_FINGERPRINT, STARTED_AT } from "../version.ts";
 import { corsHeaders } from "./cors.ts";
 
 /** 한 줄에 들어가야 하므로 길이를 제한한다. */
@@ -77,8 +78,16 @@ async function route(
 	rawBody: string,
 ): Promise<Reply> {
 	// 컨테이너 헬스체크용. DB 를 건드리지 않는다.
+	// version 은 실행 중인 소스의 지문이다. 배포 반영 여부를 이걸로 확인한다.
 	if (method === "GET" && path === "/health") {
-		return { status: 200, body: { ok: true } };
+		return {
+			status: 200,
+			body: {
+				ok: true,
+				version: SOURCE_FINGERPRINT,
+				startedAt: STARTED_AT,
+			},
+		};
 	}
 
 	// DB 까지 살아있는지 확인한다. 배포 직후 점검용.

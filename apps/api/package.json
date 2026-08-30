@@ -14,7 +14,8 @@
     "db:replay": "node --env-file=../../.env.test --experimental-strip-types scripts/replay-fixture.ts",
     "db:seed": "node --env-file=../../.env.test --experimental-strip-types scripts/seed-live.ts",
     "dev": "node --env-file=../../.env --experimental-strip-types src/main.ts",
-    "start": "node --experimental-strip-types src/main.ts"
+    "start": "node --experimental-strip-types src/main.ts",
+    "fingerprint": "node scripts/print-fingerprint.mjs"
   },
   "dependencies": {
     "drizzle-orm": "^0.36.4",
