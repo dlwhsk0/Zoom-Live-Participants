@@ -106,6 +106,17 @@ export const participants = pgTable(
 		/** 회의 세션. 회의를 새로 열 때마다 바뀐다. */
 		meetingUuid: text("meeting_uuid").notNull(),
 		participantUuid: text("participant_uuid").notNull(),
+		/**
+		 * 이 회의 세션이 시작된 시각.
+		 *
+		 * Zoom 이 모든 웹훅 payload 의 object.start_time 으로 보내준다.
+		 * 세션(meeting_uuid)마다 고유하고 세션 안에서는 항상 같은 값이라,
+		 * 어느 행에서 읽어도 결과가 같다 — fixture 4세션 162건 전수 확인.
+		 *
+		 * meeting.started 웹훅을 못 받아도 알 수 있다는 것이 핵심이다.
+		 * 서버를 늦게 켜서 앞부분을 통째로 놓쳤어도 시작 시각은 정확하다.
+		 */
+		meetingStartedAt: timestamp("meeting_started_at", { withTimezone: true }),
 		/** 마지막으로 관측된 표시 이름 */
 		displayName: text("display_name"),
 		/** 재접속 판별용. 상세는 participant_events.public_ip 주석 참고. */

@@ -151,10 +151,12 @@ describe("dedupe_key", () => {
 		const base = {
 			meetingId: "m",
 			meetingUuid: "s",
+			meetingStartedAt: null,
 			participantUuid: "p",
 			occurredAt: new Date("2026-01-01T00:00:00Z"),
 			displayName: null,
 			userId: null,
+			publicIp: null,
 			leaveReason: null,
 		};
 		const leftKey = buildDedupeKey({ ...base, eventType: "left" });

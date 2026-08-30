@@ -21,11 +21,13 @@ function row(
 	return {
 		meetingId: "m1",
 		meetingUuid: "s1",
+		meetingStartedAt: null,
 		participantUuid: uuid,
 		displayName: "조하나",
 		publicIp: "203.0.113.1",
 		statusMessage: null,
 		statusUpdatedAt: null,
+		joinTimeUncertain: false,
 		isPresent: false,
 		lastEventType: "left",
 		firstJoinedAt: joinedMin === null ? null : new Date(BASE + joinedMin * 60_000),

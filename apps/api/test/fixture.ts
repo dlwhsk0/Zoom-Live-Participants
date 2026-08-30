@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import type { ParticipantEvent } from "../src/domain/presence.ts";
+import {
+	parseWebhookBody,
+	toParticipantEvent,
+} from "../src/webhook/normalize.ts";
 
 const FIXTURE_PATH = fileURLToPath(
 	new URL("./fixtures/webhook-events.ndjson", import.meta.url),
@@ -43,33 +47,20 @@ export function loadRawZoomBodies(): unknown[] {
 		.filter((raw): raw is unknown => raw !== undefined);
 }
 
-/** fixture 의 참가자 입퇴장 이벤트를 도메인 타입으로 변환한다. */
+/**
+ * fixture 의 참가자 입퇴장 이벤트를 도메인 타입으로 변환한다.
+ *
+ * 손으로 필드를 옮겨 담지 않고 실제 수신 경로(parseWebhookBody +
+ * toParticipantEvent)를 그대로 통과시킨다. 예전에는 여기서 직접 만들었는데,
+ * 도메인 타입에 필드가 늘어도 이 파일이 따라가지 않아 조용히 어긋났다.
+ * publicIp 가 실제로 그렇게 빠져 있었다.
+ */
 export function loadFixtureEvents(): ParticipantEvent[] {
 	const events: ParticipantEvent[] = [];
 
-	for (const row of loadFixtureRows()) {
-		const isJoin = row.event === "meeting.participant_joined";
-		const isLeft = row.event === "meeting.participant_left";
-		if (!isJoin && !isLeft) continue;
-
-		const occurredRaw = isJoin
-			? row.participant?.join_time
-			: row.participant?.leave_time;
-
-		if (!occurredRaw || !row.meeting_uuid || !row.participant?.participant_uuid) {
-			continue;
-		}
-
-		events.push({
-			meetingId: row.meeting_id ?? "",
-			meetingUuid: row.meeting_uuid,
-			participantUuid: row.participant.participant_uuid,
-			eventType: isJoin ? "joined" : "left",
-			occurredAt: new Date(occurredRaw),
-			displayName: row.participant.user_name ?? null,
-			userId: row.participant.user_id ?? null,
-			leaveReason: row.participant.leave_reason ?? null,
-		});
+	for (const raw of loadRawZoomBodies()) {
+		const event = toParticipantEvent(parseWebhookBody(raw));
+		if (event) events.push(event);
 	}
 
 	return events;

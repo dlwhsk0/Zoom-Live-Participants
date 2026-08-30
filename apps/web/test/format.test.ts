@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatAgo, formatElapsed } from "../src/format.ts";
+import { formatAgo, formatElapsed, formatSessionStart } from "../src/format.ts";
 
 const NOW = Date.parse("2026-08-28T12:00:00Z");
 
@@ -47,5 +47,22 @@ describe("formatAgo", () => {
 		expect(formatAgo(NOW - 30_000, NOW)).toBe("30초 전 기준");
 		expect(formatAgo(NOW - 5 * 60_000, NOW)).toBe("5분 전 기준");
 		expect(formatAgo(NOW - 2 * 3_600_000, NOW)).toBe("2시간 전 기준");
+	});
+});
+
+describe("formatSessionStart", () => {
+	it("날짜와 요일, 시각을 함께 보여준다", () => {
+		// 테스트는 TZ=Asia/Seoul 로 돈다. 07:23 UTC = 16:23 KST.
+		expect(formatSessionStart("2026-08-30T07:23:10Z")).toBe(
+			"8월 30일 (일) 오후 4:23",
+		);
+	});
+
+	it("값이 없으면 빈 문자열이다", () => {
+		expect(formatSessionStart(null)).toBe("");
+	});
+
+	it("날짜가 아니면 빈 문자열이다", () => {
+		expect(formatSessionStart("말도 안 되는 값")).toBe("");
 	});
 });

@@ -14,5 +14,5 @@
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts", "api/**/*.ts", "*.ts"]
+  "include": ["src/**/*.ts", "api/**/*.ts", "test/**/*.ts", "*.ts"]
 }

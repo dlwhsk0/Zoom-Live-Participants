@@ -30,6 +30,10 @@ export interface PresenceSnapshot {
 	count: number;
 	/** 이 세션에 한 번이라도 들어온 총 인원 */
 	totalCount: number;
+	/** 이 회의 세션이 시작된 시각. Zoom 이 모든 웹훅에 실어 보내는 값이다. */
+	startedAt: string | null;
+	/** startedAt 이 추정값인가. true 면 실제 시작보다 늦은 값이다. */
+	startedAtEstimated: boolean;
 	updatedAt: string | null;
 	participants: SessionParticipant[];
 }

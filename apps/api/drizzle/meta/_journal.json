@@ -29,6 +29,13 @@
       "when": 1788111272845,
       "tag": "0003_charming_bloodscream",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1788112686212,
+      "tag": "0004_striped_professor_monster",
+      "breakpoints": true
     }
   ]
 }

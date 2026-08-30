@@ -19,6 +19,8 @@ export type EventType = "joined" | "left";
 export interface ParticipantEvent {
 	meetingId: string;
 	meetingUuid: string;
+	/** 회의 세션 시작 시각. object.start_time 에서 온다. */
+	meetingStartedAt: Date | null;
 	participantUuid: string;
 	eventType: EventType;
 	/** join_time 또는 leave_time. 수신 시각이 아니다. */
@@ -33,6 +35,8 @@ export interface ParticipantEvent {
 export interface ParticipantState {
 	meetingId: string;
 	meetingUuid: string;
+	/** 회의 세션 시작 시각. 세션 안에서는 모든 참가자가 같은 값을 갖는다. */
+	meetingStartedAt: Date | null;
 	participantUuid: string;
 	displayName: string | null;
 	publicIp: string | null;
@@ -114,6 +118,9 @@ export function applyEvent(
 	return {
 		meetingId: incoming.meetingId,
 		meetingUuid: incoming.meetingUuid,
+		// 세션 상수지만, 혹시 빠진 웹훅이 있어도 한 번이라도 받았으면 유지한다.
+		meetingStartedAt:
+			incoming.meetingStartedAt ?? current?.meetingStartedAt ?? null,
 		participantUuid: incoming.participantUuid,
 		displayName: incoming.displayName,
 		publicIp: incoming.publicIp,
@@ -125,7 +132,10 @@ export function applyEvent(
 		isPresent: incoming.eventType === "joined",
 		lastEventType: incoming.eventType,
 		lastOccurredAt: incoming.occurredAt,
-		firstJoinedAt: earliest(current?.firstJoinedAt ?? null, incomingFirstJoined),
+		firstJoinedAt: earliest(
+			current?.firstJoinedAt ?? null,
+			incomingFirstJoined,
+		),
 	};
 }
 
@@ -292,7 +302,10 @@ function absorb(
 		publicIp: next.publicIp,
 		isPresent: next.isPresent,
 		statusMessage: laterStatus(
-			{ statusMessage: previous.statusMessage, statusUpdatedAt: previousStatusAt },
+			{
+				statusMessage: previous.statusMessage,
+				statusUpdatedAt: previousStatusAt,
+			},
 			next,
 		),
 		firstJoinedAt: earliest(previous.firstJoinedAt, next.firstJoinedAt),

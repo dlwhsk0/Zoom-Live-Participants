@@ -8,8 +8,8 @@ import {
 } from "../db/schema.ts";
 import {
 	mergeReconnections,
-	sortForDisplay,
 	type ParticipantState,
+	sortForDisplay,
 } from "../domain/presence.ts";
 
 type Db = ReturnType<typeof getDb>;
@@ -47,6 +47,20 @@ export interface PresenceSnapshot {
 	count: number;
 	/** 이 세션에 한 번이라도 들어온 총 인원 */
 	totalCount: number;
+	/**
+	 * 이 회의 세션이 시작된 시각.
+	 *
+	 * Zoom 이 모든 웹훅에 실어 보내는 object.start_time 이다.
+	 * 서버가 늦게 켜져 앞부분을 놓쳤어도 이 값은 정확하다.
+	 */
+	startedAt: Date | null;
+	/**
+	 * startedAt 이 추정값인가.
+	 *
+	 * start_time 을 한 번도 못 받은 옛 데이터에서만 true 다.
+	 * 이 경우 가장 이른 기록 시각으로 물러선다 — 실제 시작보다 늦다.
+	 */
+	startedAtEstimated: boolean;
 	updatedAt: Date | null;
 	/** 접속 중인 사람이 앞, 나간 사람이 뒤. 각 그룹 안에서는 최초 입장순. */
 	participants: SessionParticipant[];
@@ -88,6 +102,8 @@ export async function getPresenceSnapshot(
 			meetingUuid: null,
 			count: 0,
 			totalCount: 0,
+			startedAt: null,
+			startedAtEstimated: false,
 			updatedAt: null,
 			participants: [],
 		};
@@ -99,6 +115,7 @@ export async function getPresenceSnapshot(
 		.select({
 			meetingId: participants.meetingId,
 			meetingUuid: participants.meetingUuid,
+			meetingStartedAt: participants.meetingStartedAt,
 			participantUuid: participants.participantUuid,
 			displayName: participants.displayName,
 			publicIp: participants.publicIp,
@@ -137,6 +154,7 @@ export async function getPresenceSnapshot(
 		meetingUuid: session.meetingUuid,
 		count: people.filter((p) => p.isPresent).length,
 		totalCount: people.length,
+		...resolveSessionStart(states, people),
 		updatedAt: session.lastOccurredAt,
 		participants: people.map((p) => ({
 			participantUuid: p.participantUuid,
@@ -152,6 +170,33 @@ export async function getPresenceSnapshot(
 			isYou: youUuid !== null && p.participantUuid === youUuid,
 		})),
 	};
+}
+
+/**
+ * 세션 시작 시각을 정한다.
+ *
+ * start_time 은 세션 상수라 어느 행에서 읽어도 같다. 한 행만 있으면 충분하다.
+ * 그 값이 없는 것은 이 컬럼이 생기기 전에 쌓인 데이터뿐이고,
+ * 그때는 가장 이른 기록 시각으로 물러선다. 서버가 늦게 켜졌다면
+ * 이 추정값은 실제 시작보다 늦으므로 화면에 "부터 기록" 이라고 밝힌다.
+ */
+export function resolveSessionStart(
+	states: readonly ParticipantState[],
+	people: readonly { firstJoinedAt: Date | null; lastOccurredAt: Date }[],
+): { startedAt: Date | null; startedAtEstimated: boolean } {
+	for (const state of states) {
+		if (state.meetingStartedAt) {
+			return { startedAt: state.meetingStartedAt, startedAtEstimated: false };
+		}
+	}
+
+	let earliest: Date | null = null;
+	for (const person of people) {
+		const at = person.firstJoinedAt ?? person.lastOccurredAt;
+		if (!earliest || at.getTime() < earliest.getTime()) earliest = at;
+	}
+
+	return { startedAt: earliest, startedAtEstimated: earliest !== null };
 }
 
 export interface LogEntry {
@@ -236,7 +281,9 @@ export async function getLogs(
 	// 방 이동 판정: 같은 페이지 안에서 같은 참가자·같은 시각의 반대 이벤트를 찾는다.
 	// 페이지 경계에 쌍이 걸치면 놓칠 수 있으나, 쌍은 항상 같은 시각이라 드물다.
 	const pairKeys = new Set(
-		page.map((r) => `${r.participantUuid}|${r.occurredAt.getTime()}|${r.eventType}`),
+		page.map(
+			(r) => `${r.participantUuid}|${r.occurredAt.getTime()}|${r.eventType}`,
+		),
 	);
 
 	const entries: LogEntry[] = page.map((r) => {

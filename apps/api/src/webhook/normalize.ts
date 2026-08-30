@@ -28,6 +28,8 @@ const payloadSchema = z.object({
 			.object({
 				id: z.union([z.string(), z.number()]).optional(),
 				uuid: z.string().optional(),
+				/** 이 회의 세션이 시작된 시각. 세션 내 모든 웹훅에 같은 값이 실려온다. */
+				start_time: z.string().optional(),
 				participant: participantSchema.optional(),
 			})
 			.optional(),
@@ -69,6 +71,7 @@ export function toParticipantEvent(
 	return {
 		meetingId: object.id === undefined ? "" : String(object.id),
 		meetingUuid: object.uuid,
+		meetingStartedAt: parseDate(object.start_time),
 		participantUuid: participant.participant_uuid,
 		eventType: isJoin ? "joined" : "left",
 		occurredAt,
@@ -77,6 +80,13 @@ export function toParticipantEvent(
 		publicIp: participant.public_ip || null,
 		leaveReason: participant.leave_reason ?? null,
 	};
+}
+
+/** 파싱할 수 없는 값은 null 로 떨어뜨린다. 시작 시각은 없어도 되는 값이다. */
+function parseDate(raw: string | undefined): Date | null {
+	if (!raw) return null;
+	const at = new Date(raw);
+	return Number.isNaN(at.getTime()) ? null : at;
 }
 
 /**

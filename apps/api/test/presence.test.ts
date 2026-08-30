@@ -47,11 +47,13 @@ describe("shouldAdvance", () => {
 	const base: ParticipantEvent = {
 		meetingId: "m1",
 		meetingUuid: "s1",
+		meetingStartedAt: null,
 		participantUuid: "p1",
 		eventType: "left",
 		occurredAt: new Date("2026-01-01T00:00:00Z"),
 		displayName: null,
 		userId: null,
+		publicIp: null,
 		leaveReason: null,
 	};
 
@@ -117,8 +119,13 @@ describe("실측 시나리오", () => {
 				states.set(key, {
 					meetingId: event.meetingId,
 					meetingUuid: event.meetingUuid,
+					meetingStartedAt: event.meetingStartedAt,
 					participantUuid: event.participantUuid,
 					displayName: event.displayName,
+					publicIp: event.publicIp,
+					statusMessage: null,
+					statusUpdatedAt: null,
+					joinTimeUncertain: false,
 					isPresent: event.eventType === "joined",
 					lastEventType: event.eventType,
 					lastOccurredAt: event.occurredAt,
@@ -217,11 +224,13 @@ describe("meeting.ended", () => {
 			{
 				meetingId: "m1",
 				meetingUuid: "s1",
+				meetingStartedAt: null,
 				participantUuid: "p1",
 				eventType: "joined",
 				occurredAt: now,
 				displayName: "테스터",
 				userId: null,
+				publicIp: null,
 				leaveReason: null,
 			},
 		]);

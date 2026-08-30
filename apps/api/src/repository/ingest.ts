@@ -68,6 +68,7 @@ export async function upsertParticipant(
 		.values({
 			meetingId: event.meetingId,
 			meetingUuid: event.meetingUuid,
+			meetingStartedAt: event.meetingStartedAt,
 			participantUuid: event.participantUuid,
 			displayName: event.displayName,
 			publicIp: event.publicIp,
@@ -79,6 +80,8 @@ export async function upsertParticipant(
 		.onConflictDoUpdate({
 			target: [participants.meetingUuid, participants.participantUuid],
 			set: {
+				// 세션 상수라 덮어써도 같은 값이지만, 빈 값으로 지워지지는 않게 한다.
+				meetingStartedAt: sql`coalesce(${participants.meetingStartedAt}, excluded.meeting_started_at)`,
 				displayName: sql`excluded.display_name`,
 				publicIp: sql`excluded.public_ip`,
 				isPresent: sql`excluded.is_present`,

@@ -46,3 +46,23 @@ export function formatLeftAgo(at: string | null, now: number): string {
 	const hours = Math.floor(minutes / 60);
 	return `${hours}시간 전 퇴장`;
 }
+
+/**
+ * 회의 시작 시각을 "8월 30일 (일) 오후 4:23" 으로.
+ *
+ * 보는 사람의 시간대로 표시한다. 서버는 UTC 로 내려준다.
+ */
+export function formatSessionStart(at: string | null): string {
+	if (!at) return "";
+
+	const started = new Date(at);
+	if (Number.isNaN(started.getTime())) return "";
+
+	return started.toLocaleString("ko-KR", {
+		month: "long",
+		day: "numeric",
+		weekday: "short",
+		hour: "numeric",
+		minute: "2-digit",
+	});
+}

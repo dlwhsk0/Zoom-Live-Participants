@@ -31,6 +31,8 @@ const snapshot: PresenceSnapshot = {
 	meetingUuid: "TESTUUID0004==",
 	count: 3,
 	totalCount: 4,
+	startedAt: "2026-08-30T07:23:10Z",
+	startedAtEstimated: false,
 	updatedAt: new Date(now - 3000).toISOString(),
 	participants: [
 		{
@@ -167,6 +169,24 @@ describe("App", () => {
 		expect(html).toContain("지금까지 4명이 참여");
 		// 헤더의 큰 숫자보다 위에 온다
 		expect(html.indexOf("topbar__total")).toBeLessThan(html.indexOf("header__count"));
+	});
+
+	it("회의가 시작된 날짜와 시각을 보여준다", () => {
+		const html = render(snapshot);
+		expect(html).toContain("topbar__started");
+		expect(html).toContain("8월 30일");
+		expect(html).toContain("시작");
+	});
+
+	it("추정값이면 시작이라고 단정하지 않는다", () => {
+		// 서버가 늦게 켜졌다면 실제 시작은 이 시각보다 이르다.
+		const html = render({ ...snapshot, startedAtEstimated: true });
+		expect(html).toContain("부터 기록");
+	});
+
+	it("시작 시각을 모르면 아예 그리지 않는다", () => {
+		const html = render({ ...snapshot, startedAt: null });
+		expect(html).not.toContain("topbar__started");
 	});
 
 	it("나간 사람이 없으면 오프라인 구역을 그리지 않는다", () => {

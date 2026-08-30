@@ -7,7 +7,12 @@ import {
 	saveStatusMessage,
 	type SessionParticipant,
 } from "./api.ts";
-import { formatAgo, formatElapsed, formatLeftAgo } from "./format.ts";
+import {
+	formatAgo,
+	formatElapsed,
+	formatLeftAgo,
+	formatSessionStart,
+} from "./format.ts";
 import StatusMessage from "./StatusMessage.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 import Toast, { type ToastState, type ToastTone } from "./Toast.tsx";
@@ -166,6 +171,9 @@ export default function App() {
 	const offline = data?.participants.filter((p) => !p.isPresent) ?? [];
 	const loading = isPending && !data;
 
+	// 값이 없으면 빈 문자열이 와서 아래 렌더가 통째로 빠진다.
+	const sessionStart = formatSessionStart(data?.startedAt ?? null);
+
 	return (
 		<main className="screen">
 			<Toast toast={toast} onDismiss={dismissToast} />
@@ -177,11 +185,21 @@ export default function App() {
 			)}
 
 			<div className="topbar">
-				<p className="topbar__total">
-					{loading || (data?.totalCount ?? 0) === 0
-						? " "
-						: `이 회의에 지금까지 ${data?.totalCount}명이 참여했습니다`}
-				</p>
+				<div className="topbar__meta">
+					<p className="topbar__total">
+						{loading || (data?.totalCount ?? 0) === 0
+							? " "
+							: `이 회의에 지금까지 ${data?.totalCount}명이 참여했습니다`}
+					</p>
+					{sessionStart && (
+						<p className="topbar__started">
+							{sessionStart}
+							{/* 추정값이면 시작 시각이라고 단정하지 않는다.
+							    서버가 늦게 켜졌다면 실제 시작은 이보다 이르다. */}
+							{data?.startedAtEstimated ? "부터 기록" : " 시작"}
+						</p>
+					)}
+				</div>
 				<ThemeToggle />
 			</div>
 
