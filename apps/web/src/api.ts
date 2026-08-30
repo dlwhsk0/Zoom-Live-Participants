@@ -1,15 +1,22 @@
-export interface PresentParticipant {
+export interface SessionParticipant {
 	participantUuid: string;
 	displayName: string | null;
 	firstJoinedAt: string | null;
+	/** 현재 접속 중인지 */
+	isPresent: boolean;
+	/** 마지막 이벤트 시각. 퇴장자의 경우 나간 시각이다. */
+	lastOccurredAt: string;
 }
 
 export interface PresenceSnapshot {
 	meetingId: string;
 	meetingUuid: string | null;
+	/** 현재 접속 중인 인원 */
 	count: number;
+	/** 이 세션에 한 번이라도 들어온 총 인원 */
+	totalCount: number;
 	updatedAt: string | null;
-	participants: PresentParticipant[];
+	participants: SessionParticipant[];
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";

@@ -24,26 +24,42 @@ function render(snapshot: PresenceSnapshot | undefined): string {
 	);
 }
 
+const now = Date.now();
+
 const snapshot: PresenceSnapshot = {
 	meetingId: "10000000001",
 	meetingUuid: "TESTUUID0004==",
-	count: 12,
-	updatedAt: new Date(Date.now() - 3000).toISOString(),
+	count: 3,
+	totalCount: 4,
+	updatedAt: new Date(now - 3000).toISOString(),
 	participants: [
 		{
 			participantUuid: "p1",
 			displayName: "조하나",
-			firstJoinedAt: new Date(Date.now() - 72 * 60_000).toISOString(),
+			firstJoinedAt: new Date(now - 72 * 60_000).toISOString(),
+			isPresent: true,
+			lastOccurredAt: new Date(now - 60_000).toISOString(),
 		},
 		{
 			participantUuid: "p2",
 			displayName: "참가자02",
-			firstJoinedAt: new Date(Date.now() - 4 * 60_000).toISOString(),
+			firstJoinedAt: new Date(now - 4 * 60_000).toISOString(),
+			isPresent: true,
+			lastOccurredAt: new Date(now - 30_000).toISOString(),
 		},
 		{
 			participantUuid: "p3",
 			displayName: null,
-			firstJoinedAt: new Date().toISOString(),
+			firstJoinedAt: new Date(now).toISOString(),
+			isPresent: true,
+			lastOccurredAt: new Date(now).toISOString(),
+		},
+		{
+			participantUuid: "p4",
+			displayName: "김동현",
+			firstJoinedAt: new Date(now - 40 * 60_000).toISOString(),
+			isPresent: false,
+			lastOccurredAt: new Date(now - 12 * 60_000).toISOString(),
 		},
 	],
 };
@@ -53,8 +69,31 @@ describe("App", () => {
 
 	it("접속 인원수를 보여준다", () => {
 		expect(html).toContain("접속 중");
-		expect(html).toContain("12");
+		expect(html).toContain("3");
 		expect(html).toContain("명");
+	});
+
+	it("나간 사람을 별도 구역에 보여준다", () => {
+		expect(html).toContain("나간 사람");
+		expect(html).toContain("김동현");
+		expect(html).toContain("12분 전 퇴장");
+	});
+
+	it("나간 사람에게 offline 스타일을 준다", () => {
+		expect(html).toContain("row--offline");
+	});
+
+	it("세션 총 참여 인원을 보여준다", () => {
+		expect(html).toContain("지금까지 4명이 참여");
+	});
+
+	it("나간 사람이 없으면 그 구역을 그리지 않는다", () => {
+		const onlyOnline = render({
+			...snapshot,
+			totalCount: 3,
+			participants: snapshot.participants.filter((p) => p.isPresent),
+		});
+		expect(onlyOnline).not.toContain("나간 사람");
 	});
 
 	it("참가자 이름을 보여준다", () => {
@@ -76,9 +115,20 @@ describe("App", () => {
 		expect(html).toContain("기준");
 	});
 
-	it("아무도 없으면 빈 상태 문구를 보여준다", () => {
-		const empty = render({ ...snapshot, count: 0, participants: [] });
+	it("접속 중인 사람이 없으면 빈 상태 문구를 보여준다", () => {
+		const empty = render({ ...snapshot, count: 0, totalCount: 0, participants: [] });
 		expect(empty).toContain("접속 중인 사람이 없습니다");
+	});
+
+	it("전원 퇴장이면 빈 상태와 나간 사람 목록이 함께 보인다", () => {
+		const allLeft = render({
+			...snapshot,
+			count: 0,
+			participants: snapshot.participants.map((p) => ({ ...p, isPresent: false })),
+		});
+		expect(allLeft).toContain("접속 중인 사람이 없습니다");
+		expect(allLeft).toContain("나간 사람");
+		expect(allLeft).toContain("조하나");
 	});
 
 	it("데이터가 없으면 로딩 문구를 보여준다", () => {

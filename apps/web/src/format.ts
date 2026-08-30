@@ -29,3 +29,20 @@ export function formatAgo(at: number | null, now: number): string {
 
 	return `${Math.floor(minutes / 60)}시간 전 기준`;
 }
+
+/** 퇴장 시각을 "N분 전 퇴장" 으로. */
+export function formatLeftAgo(at: string | null, now: number): string {
+	if (!at) return "퇴장";
+
+	const left = Date.parse(at);
+	if (Number.isNaN(left)) return "퇴장";
+
+	const seconds = Math.max(0, Math.floor((now - left) / 1000));
+	if (seconds < 60) return "방금 퇴장";
+
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes}분 전 퇴장`;
+
+	const hours = Math.floor(minutes / 60);
+	return `${hours}시간 전 퇴장`;
+}

@@ -2,6 +2,7 @@
 	--bg: #ffffff;
 	--fg: #111318;
 	--muted: #6b7280;
+	--muted-weak: #9aa1ac;
 	--line: #e8eaed;
 	--accent: #1a73e8;
 	--warn-bg: #fff4e5;
@@ -123,6 +124,40 @@ body {
 	font-size: 14px;
 	color: var(--muted);
 	font-variant-numeric: tabular-nums;
+}
+
+.section {
+	margin-top: 32px;
+}
+
+.section__title {
+	margin: 0 0 4px;
+	font-size: 14px;
+	font-weight: 600;
+	color: var(--muted);
+	letter-spacing: 0.01em;
+}
+
+.section__count {
+	font-weight: 400;
+	font-variant-numeric: tabular-nums;
+}
+
+/* 나간 사람은 기록으로만 남기므로 눈에 덜 띄게 */
+.row--offline .row__name {
+	color: var(--muted);
+	font-weight: 400;
+}
+
+.row--offline .row__time {
+	color: var(--muted-weak);
+}
+
+.footnote {
+	margin: 28px 0 32px;
+	font-size: 13px;
+	color: var(--muted-weak);
+	text-align: center;
 }
 
 .empty {

@@ -1,22 +1,30 @@
-import { and, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
 import { participants } from "../db/schema.ts";
 
 type Db = ReturnType<typeof getDb>;
 
-export interface PresentParticipant {
+export interface SessionParticipant {
 	participantUuid: string;
 	displayName: string | null;
 	firstJoinedAt: Date | null;
+	/** 현재 접속 중인지 */
+	isPresent: boolean;
+	/** 마지막으로 반영된 이벤트 시각. 퇴장자의 경우 나간 시각이다. */
+	lastOccurredAt: Date;
 }
 
 export interface PresenceSnapshot {
 	meetingId: string;
 	meetingUuid: string | null;
+	/** 현재 접속 중인 인원 */
 	count: number;
+	/** 이 세션에 한 번이라도 들어온 총 인원 */
+	totalCount: number;
 	updatedAt: Date | null;
-	participants: PresentParticipant[];
+	/** 접속 중인 사람이 앞, 나간 사람이 뒤. 각 그룹 안에서는 최초 입장순. */
+	participants: SessionParticipant[];
 }
 
 /**
@@ -53,30 +61,34 @@ export async function getPresenceSnapshot(
 			meetingId,
 			meetingUuid: null,
 			count: 0,
+			totalCount: 0,
 			updatedAt: null,
 			participants: [],
 		};
 	}
 
+	// 세션에 한 번이라도 들어온 사람을 전부 가져온다.
+	// 나간 사람도 회의가 끝날 때까지 기록으로 남는다.
 	const rows = await db
 		.select({
 			participantUuid: participants.participantUuid,
 			displayName: participants.displayName,
 			firstJoinedAt: participants.firstJoinedAt,
+			isPresent: participants.isPresent,
+			lastOccurredAt: participants.lastOccurredAt,
 		})
 		.from(participants)
-		.where(
-			and(
-				eq(participants.meetingUuid, session.meetingUuid),
-				eq(participants.isPresent, true),
-			),
-		)
-		.orderBy(participants.firstJoinedAt);
+		.where(eq(participants.meetingUuid, session.meetingUuid))
+		.orderBy(
+			desc(participants.isPresent),
+			participants.firstJoinedAt,
+		);
 
 	return {
 		meetingId,
 		meetingUuid: session.meetingUuid,
-		count: rows.length,
+		count: rows.filter((r) => r.isPresent).length,
+		totalCount: rows.length,
 		updatedAt: session.lastOccurredAt,
 		participants: rows,
 	};
