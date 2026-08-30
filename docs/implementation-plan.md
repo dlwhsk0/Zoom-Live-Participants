@@ -688,9 +688,13 @@ curl https://techeerzoom.techeer.cloud-yaho.cloud/health
 도메인이나 Traefik 을 거치지 않는다.
 
 ```dockerfile
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||3000)+'/health')…"
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget -q -O /dev/null "http://127.0.0.1:${PORT:-3000}/health" || exit 1
 ```
+
+`node -e` 로 fetch 를 돌리다가 busybox `wget` 으로 바꿨다.
+5초마다 Node 프로세스를 새로 띄우면 기동 비용이 계속 드는데 wget 은 그렇지 않다.
+`node:22-alpine` 에 기본으로 들어 있다.
 
 ##### `/health/db` 를 쓰지 않는 이유
 
@@ -770,14 +774,27 @@ Swarm Settings 는 JSON 이 아니라 폼이다.
 자동 배포는 푸시 후 기동까지 약 2분 걸린다. 30초 만에 `/health` 를 찍어 보고
 "자동 배포가 안 된다" 고 판단한 적이 있는데, 그냥 이르게 본 것이었다.
 
-##### 남은 개선 여지
+##### 헬스체크 간격이 교체 속도를 정한다
+
+`interval` 은 그냥 감시 주기가 아니다. `start-first` 가 옛 컨테이너를 내리는
+시점을 이 값이 정한다. 새 컨테이너는 헬스체크를 통과해야 healthy 가 되고,
+그 전까지는 컨테이너가 둘인 채로 기다린다.
+
+처음엔 `--interval=30s --start-period=10s` 였다. 끊기지는 않지만 준비 신호가
+최대 30초 늦게 떠서 교체가 그만큼 길어졌다. 5초로 줄였다.
+
+**로컬에서 이미지를 빌드해 확인한 것:**
 
 ```
-HEALTHCHECK --interval=30s --start-period=10s
++2s   starting
++4s   starting
++6s   starting
++8s   healthy      ← 헬스체크 실행 18:17:04, :09, :14 로 5초 간격
 ```
 
-`interval=30s` 라 새 컨테이너가 준비됐다는 신호가 최대 30초 늦게 뜬다.
-끊기지는 않지만 교체가 그만큼 느려진다. `--interval=5s --start-period=5s` 가 낫다.
+DB 에 닿지 않는 주소를 주고 띄웠는데도 healthy 가 됐다.
+`/health` 는 DB 를 건드리지 않는다는 설계가 실제로 그렇게 동작한다는 뜻이다.
+같은 컨테이너에서 `/health/db` 는 503 을 준다.
 
 상세와 다른 대책은 `docs/time-and-gaps.md` 참고.
 
