@@ -27,6 +27,44 @@ function Row({
 	);
 }
 
+function Section({
+	title,
+	tone,
+	people,
+	now,
+	emptyText,
+}: {
+	title: string;
+	tone: "online" | "offline";
+	people: SessionParticipant[];
+	now: number;
+	emptyText?: string;
+}) {
+	if (people.length === 0 && !emptyText) {
+		return null;
+	}
+
+	return (
+		<section className={`section section--${tone}`}>
+			<h2 className="section__title">
+				<span className={`section__dot section__dot--${tone}`} aria-hidden="true" />
+				{title}
+				<span className="section__count">{`${people.length}명`}</span>
+			</h2>
+
+			{people.length === 0 ? (
+				<p className="section__empty">{emptyText}</p>
+			) : (
+				<ul className="list">
+					{people.map((p) => (
+						<Row key={p.participantUuid} participant={p} now={now} />
+					))}
+				</ul>
+			)}
+		</section>
+	);
+}
+
 export default function App() {
 	// 경과 시간 표시를 1초마다 다시 그린다 (데이터 요청과 무관)
 	const [now, setNow] = useState(() => Date.now());
@@ -77,34 +115,27 @@ export default function App() {
 
 			{loading ? (
 				<p className="empty">불러오는 중…</p>
-			) : online.length === 0 ? (
-				<p className="empty">접속 중인 사람이 없습니다</p>
 			) : (
-				<ul className="list">
-					{online.map((p) => (
-						<Row key={p.participantUuid} participant={p} now={now} />
-					))}
-				</ul>
-			)}
-
-			{offline.length > 0 && (
-				<section className="section">
-					<h2 className="section__title">
-						나간 사람{" "}
-						<span className="section__count">{`${offline.length}명`}</span>
-					</h2>
-					<ul className="list">
-						{offline.map((p) => (
-							<Row key={p.participantUuid} participant={p} now={now} />
-						))}
-					</ul>
-				</section>
-			)}
-
-			{!loading && (data?.totalCount ?? 0) > 0 && (
-				<p className="footnote">
-					{`이 회의에 지금까지 ${data?.totalCount}명이 참여했습니다`}
-				</p>
+				<>
+					<Section
+						title="온라인"
+						tone="online"
+						people={online}
+						now={now}
+						emptyText="접속 중인 사람이 없습니다"
+					/>
+					<Section
+						title="오프라인"
+						tone="offline"
+						people={offline}
+						now={now}
+					/>
+					{(data?.totalCount ?? 0) > 0 && (
+						<p className="footnote">
+							{`이 회의에 지금까지 ${data?.totalCount}명이 참여했습니다`}
+						</p>
+					)}
+				</>
 			)}
 		</main>
 	);

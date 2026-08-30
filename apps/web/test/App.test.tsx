@@ -73,8 +73,20 @@ describe("App", () => {
 		expect(html).toContain("명");
 	});
 
-	it("나간 사람을 별도 구역에 보여준다", () => {
-		expect(html).toContain("나간 사람");
+	it("온라인과 오프라인 구역을 나눠 보여준다", () => {
+		expect(html).toContain("온라인");
+		expect(html).toContain("오프라인");
+		expect(html).toContain("section--online");
+		expect(html).toContain("section--offline");
+	});
+
+	it("온라인 구역이 오프라인 구역보다 위에 온다", () => {
+		expect(html.indexOf("section--online")).toBeLessThan(
+			html.indexOf("section--offline"),
+		);
+	});
+
+	it("나간 사람을 오프라인 구역에 보여준다", () => {
 		expect(html).toContain("김동현");
 		expect(html).toContain("12분 전 퇴장");
 	});
@@ -87,13 +99,14 @@ describe("App", () => {
 		expect(html).toContain("지금까지 4명이 참여");
 	});
 
-	it("나간 사람이 없으면 그 구역을 그리지 않는다", () => {
+	it("나간 사람이 없으면 오프라인 구역을 그리지 않는다", () => {
 		const onlyOnline = render({
 			...snapshot,
 			totalCount: 3,
 			participants: snapshot.participants.filter((p) => p.isPresent),
 		});
-		expect(onlyOnline).not.toContain("나간 사람");
+		expect(onlyOnline).toContain("section--online");
+		expect(onlyOnline).not.toContain("section--offline");
 	});
 
 	it("참가자 이름을 보여준다", () => {
@@ -120,14 +133,14 @@ describe("App", () => {
 		expect(empty).toContain("접속 중인 사람이 없습니다");
 	});
 
-	it("전원 퇴장이면 빈 상태와 나간 사람 목록이 함께 보인다", () => {
+	it("전원 퇴장이면 온라인 구역은 빈 문구, 오프라인 구역에 전원이 남는다", () => {
 		const allLeft = render({
 			...snapshot,
 			count: 0,
 			participants: snapshot.participants.map((p) => ({ ...p, isPresent: false })),
 		});
 		expect(allLeft).toContain("접속 중인 사람이 없습니다");
-		expect(allLeft).toContain("나간 사람");
+		expect(allLeft).toContain("section--offline");
 		expect(allLeft).toContain("조하나");
 	});
 
