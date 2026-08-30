@@ -114,6 +114,7 @@ body {
 	font-size: 17px;
 	font-weight: 500;
 	/* 긴 이름이 시간 표시를 밀어내지 않게 */
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;

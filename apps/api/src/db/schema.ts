@@ -62,6 +62,11 @@ export const participantEvents = pgTable(
 		displayName: text("display_name"),
 		/** 방 세션마다 새로 발급된다. 디버깅 참고용. */
 		userId: text("user_id"),
+		/**
+		 * 공인 IP. 재접속 판별에 쓴다.
+		 * participant_uuid 는 접속마다 새로 발급되지만 public_ip 는 유지된다.
+		 */
+		publicIp: text("public_ip"),
 		/** 원문 보존. 판정에 쓰지 않는다. */
 		leaveReason: text("leave_reason"),
 		createdAt: timestamp("created_at", { withTimezone: true })
@@ -103,6 +108,8 @@ export const participants = pgTable(
 		participantUuid: text("participant_uuid").notNull(),
 		/** 마지막으로 관측된 표시 이름 */
 		displayName: text("display_name"),
+		/** 재접속 판별용. 상세는 participant_events.public_ip 주석 참고. */
+		publicIp: text("public_ip"),
 		/** 현재 접속 여부. lastEventType 에서 파생되지만 조회 편의를 위해 둔다. */
 		isPresent: boolean("is_present").notNull(),
 		/** joined | left */

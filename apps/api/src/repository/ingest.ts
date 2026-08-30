@@ -44,6 +44,7 @@ export async function insertParticipantEvent(
 		occurredAt: event.occurredAt,
 		displayName: event.displayName,
 		userId: event.userId,
+		publicIp: event.publicIp,
 		leaveReason: event.leaveReason,
 	});
 }
@@ -69,6 +70,7 @@ export async function upsertParticipant(
 			meetingUuid: event.meetingUuid,
 			participantUuid: event.participantUuid,
 			displayName: event.displayName,
+			publicIp: event.publicIp,
 			isPresent,
 			lastEventType: event.eventType,
 			lastOccurredAt: event.occurredAt,
@@ -78,6 +80,7 @@ export async function upsertParticipant(
 			target: [participants.meetingUuid, participants.participantUuid],
 			set: {
 				displayName: sql`excluded.display_name`,
+				publicIp: sql`excluded.public_ip`,
 				isPresent: sql`excluded.is_present`,
 				lastEventType: sql`excluded.last_event_type`,
 				lastOccurredAt: sql`excluded.last_occurred_at`,

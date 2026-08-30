@@ -12,6 +12,7 @@ const participantSchema = z.object({
 	participant_uuid: z.string().min(1),
 	user_id: z.string().optional(),
 	user_name: z.string().optional(),
+	public_ip: z.string().optional(),
 	join_time: z.string().optional(),
 	leave_time: z.string().optional(),
 	leave_reason: z.string().optional(),
@@ -73,6 +74,7 @@ export function toParticipantEvent(
 		occurredAt,
 		displayName: participant.user_name ?? null,
 		userId: participant.user_id ?? null,
+		publicIp: participant.public_ip || null,
 		leaveReason: participant.leave_reason ?? null,
 	};
 }

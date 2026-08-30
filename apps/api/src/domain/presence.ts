@@ -25,6 +25,8 @@ export interface ParticipantEvent {
 	occurredAt: Date;
 	displayName: string | null;
 	userId: string | null;
+	/** 공인 IP. 재접속 판별에 쓴다. */
+	publicIp: string | null;
 	leaveReason: string | null;
 }
 
@@ -33,6 +35,7 @@ export interface ParticipantState {
 	meetingUuid: string;
 	participantUuid: string;
 	displayName: string | null;
+	publicIp: string | null;
 	isPresent: boolean;
 	lastEventType: EventType;
 	lastOccurredAt: Date;
@@ -91,6 +94,7 @@ export function applyEvent(
 		meetingUuid: incoming.meetingUuid,
 		participantUuid: incoming.participantUuid,
 		displayName: incoming.displayName,
+		publicIp: incoming.publicIp,
 		isPresent: incoming.eventType === "joined",
 		lastEventType: incoming.eventType,
 		lastOccurredAt: incoming.occurredAt,
@@ -165,4 +169,147 @@ export function latestMeetingUuid(
 	}
 
 	return best?.meetingUuid ?? null;
+}
+
+/* ------------------------------------------------------------------ *
+ * 재접속 합치기
+ *
+ * participant_uuid 는 접속(connection) 단위 식별자다.
+ * 회의를 나갔다 다시 들어오면 새 값이 발급되므로 같은 사람이 여러 행으로 쪼개진다.
+ *
+ * 실측 근거 (docs/webhook-data-reference.md):
+ * 세션 내 재접속 7건 전부에서 public_ip 가 그대로 유지됐다.
+ * 와이파이 끊김(Client Close.) 케이스도 포함된다.
+ * 반면 user_id 는 방을 옮길 때마다 바뀌고, email 과 participant_user_id 는 거의 비어 있다.
+ * ------------------------------------------------------------------ */
+
+export interface MergedParticipant {
+	/** 대표 participant_uuid. 가장 최근 접속의 값이다. */
+	participantUuid: string;
+	meetingId: string;
+	meetingUuid: string;
+	displayName: string | null;
+	isPresent: boolean;
+	/** 가장 이른 입장 시각. 재접속해도 경과 시간이 이어진다. */
+	firstJoinedAt: Date | null;
+	/** 가장 늦은 이벤트 시각. */
+	lastOccurredAt: Date;
+	/** 몇 번 접속했는지. 1보다 크면 재접속한 사람이다. */
+	connectionCount: number;
+}
+
+function toMerged(state: ParticipantState): MergedParticipant {
+	return {
+		participantUuid: state.participantUuid,
+		meetingId: state.meetingId,
+		meetingUuid: state.meetingUuid,
+		displayName: state.displayName,
+		isPresent: state.isPresent,
+		firstJoinedAt: state.firstJoinedAt,
+		lastOccurredAt: state.lastOccurredAt,
+		connectionCount: 1,
+	};
+}
+
+/**
+ * 두 행을 같은 사람의 연속된 접속으로 볼 수 있는가.
+ *
+ * 앞 행이 이미 퇴장했고, 뒤 행이 그 이후에 시작했어야 한다.
+ * 활동 구간이 겹치면 한 사람이 동시에 두 곳에 있다는 뜻이므로 다른 사람이다.
+ * 같은 네트워크(NAT) 뒤의 동명이인이 이 경우에 해당한다.
+ */
+function isContinuation(
+	previous: MergedParticipant,
+	next: ParticipantState,
+): boolean {
+	if (previous.isPresent) {
+		return false;
+	}
+
+	const nextStart = (next.firstJoinedAt ?? next.lastOccurredAt).getTime();
+	return nextStart >= previous.lastOccurredAt.getTime();
+}
+
+function absorb(
+	previous: MergedParticipant,
+	next: ParticipantState,
+): MergedParticipant {
+	return {
+		// 대표값은 최근 접속 쪽을 쓴다. 이름도 마지막 것으로 갱신된다.
+		participantUuid: next.participantUuid,
+		meetingId: next.meetingId,
+		meetingUuid: next.meetingUuid,
+		displayName: next.displayName,
+		isPresent: next.isPresent,
+		firstJoinedAt: earliest(previous.firstJoinedAt, next.firstJoinedAt),
+		lastOccurredAt:
+			next.lastOccurredAt.getTime() >= previous.lastOccurredAt.getTime()
+				? next.lastOccurredAt
+				: previous.lastOccurredAt,
+		connectionCount: previous.connectionCount + 1,
+	};
+}
+
+/** 같은 사람으로 묶을 후보인지. public_ip 가 없으면 묶지 않는다. */
+function identityKey(state: ParticipantState): string | null {
+	if (!state.publicIp || !state.displayName) {
+		return null;
+	}
+	return `${state.meetingUuid}|${state.displayName}|${state.publicIp}`;
+}
+
+/**
+ * 재접속으로 쪼개진 행들을 한 사람으로 합친다.
+ *
+ * 입력 순서에 의존하지 않는다. 내부에서 시간순으로 정렬한 뒤 처리한다.
+ */
+export function mergeReconnections(
+	rows: readonly ParticipantState[],
+): MergedParticipant[] {
+	const ordered = [...rows].sort((a, b) => {
+		const aStart = (a.firstJoinedAt ?? a.lastOccurredAt).getTime();
+		const bStart = (b.firstJoinedAt ?? b.lastOccurredAt).getTime();
+		if (aStart !== bStart) return aStart - bStart;
+		// 시작 시각이 같으면 결과가 흔들리지 않도록 uuid 로 고정한다
+		return a.participantUuid.localeCompare(b.participantUuid);
+	});
+
+	const merged: MergedParticipant[] = [];
+	/** 합칠 후보를 빠르게 찾기 위한 인덱스. 값은 merged 의 위치다. */
+	const openSlot = new Map<string, number>();
+
+	for (const state of ordered) {
+		const key = identityKey(state);
+
+		if (key !== null) {
+			const slot = openSlot.get(key);
+			if (slot !== undefined) {
+				const previous = merged[slot];
+				if (previous && isContinuation(previous, state)) {
+					merged[slot] = absorb(previous, state);
+					continue;
+				}
+			}
+		}
+
+		merged.push(toMerged(state));
+		if (key !== null) {
+			// 같은 키로 다음에 오는 행은 방금 넣은 것과 이어붙일지 판단한다
+			openSlot.set(key, merged.length - 1);
+		}
+	}
+
+	return merged;
+}
+
+/** 접속 중인 사람이 앞, 각 그룹 안에서는 최초 입장순. */
+export function sortForDisplay(
+	people: readonly MergedParticipant[],
+): MergedParticipant[] {
+	return [...people].sort((a, b) => {
+		if (a.isPresent !== b.isPresent) return a.isPresent ? -1 : 1;
+		const at = a.firstJoinedAt?.getTime() ?? a.lastOccurredAt.getTime();
+		const bt = b.firstJoinedAt?.getTime() ?? b.lastOccurredAt.getTime();
+		return at - bt;
+	});
 }

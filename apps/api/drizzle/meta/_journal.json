@@ -8,6 +8,13 @@
       "when": 1787849231623,
       "tag": "0000_green_fixer",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788082328468,
+      "tag": "0001_stormy_scalphunter",
+      "breakpoints": true
     }
   ]
 }

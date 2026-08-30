@@ -5,7 +5,11 @@
  * "fixture 를 로컬 서버에 밀어 넣었을 때 participants 조회 결과가
  *  1단계 테스트와 일치한다"
  *
- * 실행: node --env-file=../../.env.local --experimental-strip-types scripts/replay-fixture.ts
+ * 이 스크립트는 fixture 를 DB 에 실제로 밀어 넣는다.
+ * 실제 회의 데이터가 들어있는 DB 에 돌리면 테스트 데이터가 섞인다.
+ * 반드시 비어 있는 DB(로컬 도커)에 돌린다.
+ *
+ * 실행: node --env-file=../../.env.test --experimental-strip-types scripts/replay-fixture.ts
  */
 import { createHmac } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -74,6 +78,21 @@ const rows: Row[] = readFileSync(FIXTURE, "utf8")
 const bodies = rows.map((r) => r.raw).filter((r) => r !== undefined);
 const db = getDb();
 const secret = getEnv().ZOOM_WEBHOOK_SECRET_TOKEN;
+
+// 실제 데이터가 있는 DB 에 테스트 데이터를 섞지 않도록 막는다.
+const [existing] = await db
+	.select({ n: sql<number>`count(*)::int` })
+	.from(webhookEvents);
+
+if ((existing?.n ?? 0) > 0 && !process.argv.includes("--force")) {
+	console.error(
+		`중단: webhook_events 에 이미 ${existing?.n}행이 있습니다.\n` +
+			"이 스크립트는 fixture 를 실제로 저장하므로 비어 있는 DB 에서만 돌려야 합니다.\n" +
+			"로컬 검증용 DB 를 쓰거나(--env-file=../../.env.test), pnpm db:reset --yes 로 비운 뒤 실행하세요.",
+	);
+	await closeDb();
+	process.exit(1);
+}
 
 console.log(`fixture ${bodies.length}건 재생 시작`);
 

@@ -11,8 +11,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:check": "node --env-file=../../.env scripts/db-check.mjs",
     "db:reset": "node --env-file=../../.env --experimental-strip-types scripts/reset-db.ts",
-    "db:replay": "node --env-file=../../.env --experimental-strip-types scripts/replay-fixture.ts",
-    "db:seed": "node --env-file=../../.env --experimental-strip-types scripts/seed-live.ts",
+    "db:replay": "node --env-file=../../.env.test --experimental-strip-types scripts/replay-fixture.ts",
+    "db:seed": "node --env-file=../../.env.test --experimental-strip-types scripts/seed-live.ts",
     "dev": "node --env-file=../../.env --experimental-strip-types scripts/dev-server.ts"
   },
   "dependencies": {

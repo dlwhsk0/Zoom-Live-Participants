@@ -126,6 +126,63 @@
 
 157건 전수 기준. `plan.md`는 첫 번째를 채택한다 (재전송 시에도 값이 불변).
 
+## 재접속 시 식별자 거동
+
+`participant_uuid` 는 접속 단위다. 회의를 나갔다 다시 들어오면 새 값이 발급된다.
+
+fixture 에서 **같은 `meeting_uuid` 안의 uuid 전환 = 6건**(= 세션 내 재접속):
+
+| 간격 | 직전 `leave_reason` | `public_ip` |
+|---|---|---|
+| 9.6초 | left the meeting | 동일 |
+| 16.6초 | **Client Close.** | 동일 |
+| 28.1초 | left the meeting | 동일 |
+| 109.8초 | left the meeting | 동일 |
+| 18.2분 | left the meeting | 동일 |
+| 32.4분 | left the meeting | 동일 |
+
+실제 회의(2026-08-30)에서도 1건 관측: 8분 36초 후 새 uuid, `public_ip` 와 `private_ip` 모두 동일.
+
+**세션 내 재접속 7건 전부 `public_ip` 가 유지됐다.**
+
+다른 `meeting_uuid` 로의 전환은 간격이 354분 이상이라 세션 내 재접속과 겹치지 않는다.
+
+### `leave_reason` 으로는 끊김을 판별할 수 없다
+
+- 세션 내 재접속 6건 중 `Client Close.` 는 1건뿐. 나머지 5건은 평범한 `left the meeting`
+- 반대로 `Client Close.` 3건 중 2건은 재접속하지 않았다
+
+### 식별자 후보별 채움 비율
+
+| 필드 | `joined` | `left` | 비고 |
+|---|---|---|---|
+| `participant_uuid` | 100% | 100% | 접속 단위 |
+| `public_ip` | 100% | 100% | **재접속해도 유지** |
+| `user_id` | 100% | 100% | 방 이동마다 바뀜. 한 세션 9개 |
+| `user_name` | 100% | 100% | 변경 가능 |
+| `private_ip` | **필드 없음** | 100% | `left` 에만 존재 |
+| `participant_user_id` | 2% | 1% | 사실상 못 씀 |
+| `id` | 2% | 1% | 사실상 못 씀 |
+| `email` | **0%** | **0%** | 소회의실 이벤트에서만 일부 |
+
+## 소회의실 전용 이벤트 (fixture 에 없음)
+
+실제 회의에서 확인된, fixture 에 없던 이벤트 2종.
+
+- `meeting.participant_joined_breakout_room`
+- `meeting.participant_left_breakout_room` (`leave_reason: "Leave breakout room."`)
+
+현재 구현은 원본만 저장하고 판정에 쓰지 않는다.
+**이 이벤트 없이도 판정이 정확하다는 것이 실제 회의에서 확인됐다.**
+
+주의할 점:
+
+- 이 이벤트의 `user_id` 는 형식이 다르다. 예: `"167782402026-08-30 09:00:49:000"`
+  (숫자 뒤에 타임스탬프가 붙는다). 일반 `joined`/`left` 의 `user_id` 와 같은 네임스페이스가 아니다.
+  대신 `parent_user_id` 가 일반 이벤트의 `user_id` 와 매칭된다.
+- `email` 이 채워지기도 하지만 참가자가 아니라 **방 단위** 패턴이다. 신뢰할 수 없다.
+- 일반 `left`/`joined` 와 도착 순서가 뒤바뀌기도 한다.
+
 ## fixture 익명화
 
 원본에는 실명·이메일·공인 IP가 포함되어 있어 **커밋 전 익명화했다.**

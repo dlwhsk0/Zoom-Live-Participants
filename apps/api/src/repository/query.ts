@@ -2,6 +2,11 @@ import { desc, eq } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
 import { participants } from "../db/schema.ts";
+import {
+	mergeReconnections,
+	sortForDisplay,
+	type ParticipantState,
+} from "../domain/presence.ts";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -13,6 +18,8 @@ export interface SessionParticipant {
 	isPresent: boolean;
 	/** 마지막으로 반영된 이벤트 시각. 퇴장자의 경우 나간 시각이다. */
 	lastOccurredAt: Date;
+	/** 몇 번 접속했는지. 1보다 크면 재접속한 사람이다. */
+	connectionCount: number;
 }
 
 export interface PresenceSnapshot {
@@ -71,25 +78,42 @@ export async function getPresenceSnapshot(
 	// 나간 사람도 회의가 끝날 때까지 기록으로 남는다.
 	const rows = await db
 		.select({
+			meetingId: participants.meetingId,
+			meetingUuid: participants.meetingUuid,
 			participantUuid: participants.participantUuid,
 			displayName: participants.displayName,
+			publicIp: participants.publicIp,
 			firstJoinedAt: participants.firstJoinedAt,
 			isPresent: participants.isPresent,
+			lastEventType: participants.lastEventType,
 			lastOccurredAt: participants.lastOccurredAt,
 		})
 		.from(participants)
-		.where(eq(participants.meetingUuid, session.meetingUuid))
-		.orderBy(
-			desc(participants.isPresent),
-			participants.firstJoinedAt,
-		);
+		.where(eq(participants.meetingUuid, session.meetingUuid));
+
+	// event_type 은 text 컬럼이라 넓은 타입으로 돌아온다. 도메인 타입으로 좁힌다.
+	const states: ParticipantState[] = rows.map((row) => ({
+		...row,
+		lastEventType: row.lastEventType === "joined" ? "joined" : "left",
+	}));
+
+	// participant_uuid 는 접속마다 새로 발급되므로 같은 사람이 여러 행으로 쪼개진다.
+	// 조회 시점에 합친다. 상세는 presence.ts 의 mergeReconnections 주석 참고.
+	const people = sortForDisplay(mergeReconnections(states));
 
 	return {
 		meetingId,
 		meetingUuid: session.meetingUuid,
-		count: rows.filter((r) => r.isPresent).length,
-		totalCount: rows.length,
+		count: people.filter((p) => p.isPresent).length,
+		totalCount: people.length,
 		updatedAt: session.lastOccurredAt,
-		participants: rows,
+		participants: people.map((p) => ({
+			participantUuid: p.participantUuid,
+			displayName: p.displayName,
+			firstJoinedAt: p.firstJoinedAt,
+			isPresent: p.isPresent,
+			lastOccurredAt: p.lastOccurredAt,
+			connectionCount: p.connectionCount,
+		})),
 	};
 }
