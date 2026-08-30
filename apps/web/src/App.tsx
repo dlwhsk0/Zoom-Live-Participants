@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
 	fetchPresence,
@@ -10,6 +10,7 @@ import {
 import { formatAgo, formatElapsed, formatLeftAgo } from "./format.ts";
 import StatusMessage from "./StatusMessage.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
+import Toast, { type ToastState, type ToastTone } from "./Toast.tsx";
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -99,6 +100,13 @@ export default function App() {
 	}, []);
 
 	const queryClient = useQueryClient();
+	const [toast, setToast] = useState<ToastState | null>(null);
+
+	const showToast = useCallback((tone: ToastTone, message: string) => {
+		setToast({ key: Date.now(), tone, message });
+	}, []);
+
+	const dismissToast = useCallback(() => setToast(null), []);
 
 	const { data, isPending, isError, isFetching } = useQuery({
 		queryKey: ["presence"],
@@ -112,7 +120,14 @@ export default function App() {
 	const statusMutation = useMutation({
 		mutationFn: ({ uuid, message }: { uuid: string; message: string }) =>
 			saveStatusMessage(uuid, message),
+		onError: (error) => {
+			showToast(
+				"error",
+				error instanceof Error ? error.message : "상태 메시지를 저장하지 못했습니다",
+			);
+		},
 		onSuccess: (saved, { uuid }) => {
+			showToast("success", saved ? "상태 메시지를 저장했습니다" : "상태 메시지를 지웠습니다");
 			// 다음 폴링을 기다리지 않고 바로 반영한다
 			queryClient.setQueryData<PresenceSnapshot>(["presence"], (prev) =>
 				prev
@@ -138,6 +153,8 @@ export default function App() {
 
 	return (
 		<main className="screen">
+			<Toast toast={toast} onDismiss={dismissToast} />
+
 			{isError && data && (
 				<div className="banner" role="status">
 					연결 끊김 · 마지막 정보를 보여주는 중

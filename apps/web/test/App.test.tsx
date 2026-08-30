@@ -111,6 +111,10 @@ describe("App", () => {
 		expect(html).not.toContain("본인입니까");
 	});
 
+	it("알림은 처음에 떠 있지 않다", () => {
+		expect(html).not.toContain("toast--");
+	});
+
 	it("테마 토글이 있다", () => {
 		expect(html).toContain("theme-toggle");
 		expect(html).toContain("화면 테마");

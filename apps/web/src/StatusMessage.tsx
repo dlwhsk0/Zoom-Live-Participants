@@ -20,7 +20,6 @@ export default function StatusMessage({ value, dimmed, onSave }: Props) {
 	const [asking, setAsking] = useState(false);
 	const [draft, setDraft] = useState(value ?? "");
 	const [saving, setSaving] = useState(false);
-	const [error, setError] = useState<string | null>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 
 	useEffect(() => {
@@ -29,7 +28,6 @@ export default function StatusMessage({ value, dimmed, onSave }: Props) {
 
 	function beginEdit() {
 		setDraft(value ?? "");
-		setError(null);
 		setEditing(true);
 	}
 
@@ -53,8 +51,8 @@ export default function StatusMessage({ value, dimmed, onSave }: Props) {
 		try {
 			await onSave(next);
 			setEditing(false);
-		} catch (cause) {
-			setError(cause instanceof Error ? cause.message : "저장 실패");
+		} catch {
+			// 실패 사유는 toast 가 알린다. 입력한 내용을 잃지 않도록 편집 상태를 유지한다.
 		} finally {
 			setSaving(false);
 		}
@@ -96,7 +94,6 @@ export default function StatusMessage({ value, dimmed, onSave }: Props) {
 						if (event.key === "Escape") setEditing(false);
 					}}
 				/>
-				{error && <span className="status__error">{error}</span>}
 			</span>
 		);
 	}
