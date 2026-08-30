@@ -14,6 +14,8 @@
   - **v2 계획서.** 범위, 식별자 결정, 접속 판정 규칙, 데이터 모델, 진행 순서
 - `docs/implementation-plan.md`
   - 백/프론트/DB 연결 실행 계획과 단계별 완료 기준
+- `docs/time-and-gaps.md`
+  - 시각 컬럼들의 역할과 수집 공백 대응. Report API 로 사후 보정하는 방법
 - `docs/webhook-data-reference.md`
   - 위 결정의 근거가 되는 fixture 실측 수치
 
