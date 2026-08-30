@@ -39,9 +39,22 @@ function Row({
 					}
 				/>
 			</div>
-			<span className="row__time">
+			<span
+				className={
+					participant.joinTimeUncertain && participant.isPresent
+						? "row__time row__time--unknown"
+						: "row__time"
+				}
+				title={
+					participant.joinTimeUncertain && participant.isPresent
+						? "서버가 입장 이벤트를 받지 못해 접속 시각을 알 수 없습니다"
+						: undefined
+				}
+			>
 				{participant.isPresent
-					? formatElapsed(participant.firstJoinedAt, now)
+					? participant.joinTimeUncertain
+						? "시각 불명"
+						: formatElapsed(participant.firstJoinedAt, now)
 					: formatLeftAgo(participant.lastOccurredAt, now)}
 			</span>
 		</li>

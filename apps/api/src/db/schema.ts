@@ -126,6 +126,16 @@ export const participants = pgTable(
 			withTimezone: true,
 		}).notNull(),
 		firstJoinedAt: timestamp("first_joined_at", { withTimezone: true }),
+		/**
+		 * 우리가 이 참가자를 처음 인지한 시각.
+		 *
+		 * first_joined_at(Zoom 기준 입장)과 크게 차이나면
+		 * 그동안 웹훅을 못 받고 있었다는 뜻이다.
+		 * 수집 공백을 사후에 알아낼 유일한 단서다.
+		 */
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
 		updatedAt: timestamp("updated_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),

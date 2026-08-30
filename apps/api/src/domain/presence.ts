@@ -38,6 +38,14 @@ export interface ParticipantState {
 	publicIp: string | null;
 	statusMessage: string | null;
 	statusUpdatedAt: Date | null;
+	/**
+	 * first_joined_at 을 믿을 수 없는가.
+	 *
+	 * 이 참가자의 가장 이른 이벤트에 left 가 있으면 true 다.
+	 * left 만 있으면 입장을 못 봤고, 같은 시각에 left + joined 면(방 이동)
+	 * 이미 회의에 있었다는 뜻이다. 어느 쪽이든 실제 입장은 더 이르다.
+	 */
+	joinTimeUncertain: boolean;
 	isPresent: boolean;
 	lastEventType: EventType;
 	lastOccurredAt: Date;
@@ -77,6 +85,18 @@ export function shouldAdvance(
 	return incomingAt === currentAt && incoming.eventType === "joined";
 }
 
+/** 더 이른 시각을 가진 쪽의 플래그를 고른다. */
+function earlierWins(
+	aAt: Date | null,
+	aFlag: boolean,
+	bAt: Date | null,
+	bFlag: boolean,
+): boolean {
+	if (!aAt) return bAt ? bFlag : aFlag || bFlag;
+	if (!bAt) return aFlag;
+	return aAt.getTime() <= bAt.getTime() ? aFlag : bFlag;
+}
+
 /** 가장 이른 시각을 고른다. null 은 무시한다 (SQL의 LEAST와 같은 동작). */
 function earliest(a: Date | null, b: Date | null): Date | null {
 	if (!a) return b;
@@ -100,6 +120,8 @@ export function applyEvent(
 		// 상태 메시지는 웹훅으로 오지 않는다. 별도 API 로만 바뀐다.
 		statusMessage: current?.statusMessage ?? null,
 		statusUpdatedAt: current?.statusUpdatedAt ?? null,
+		// 로그 전체를 봐야 알 수 있다. 조회 시점에 채운다.
+		joinTimeUncertain: current?.joinTimeUncertain ?? false,
 		isPresent: incoming.eventType === "joined",
 		lastEventType: incoming.eventType,
 		lastOccurredAt: incoming.occurredAt,
@@ -205,6 +227,8 @@ export interface MergedParticipant {
 	connectionCount: number;
 	/** 참가자가 적은 상태 메시지. 재접속해도 이어진다. */
 	statusMessage: string | null;
+	/** firstJoinedAt 을 믿을 수 없으면 true. 화면에서 경과 시간을 숨긴다. */
+	joinTimeUncertain: boolean;
 }
 
 function toMerged(state: ParticipantState): MergedParticipant {
@@ -219,6 +243,7 @@ function toMerged(state: ParticipantState): MergedParticipant {
 		lastOccurredAt: state.lastOccurredAt,
 		connectionCount: 1,
 		statusMessage: state.statusMessage,
+		joinTimeUncertain: state.joinTimeUncertain,
 	};
 }
 
@@ -271,6 +296,13 @@ function absorb(
 			next,
 		),
 		firstJoinedAt: earliest(previous.firstJoinedAt, next.firstJoinedAt),
+		// firstJoinedAt 은 더 이른 쪽이 이긴다. 불확실 여부도 그 쪽을 따라간다.
+		joinTimeUncertain: earlierWins(
+			previous.firstJoinedAt,
+			previous.joinTimeUncertain,
+			next.firstJoinedAt,
+			next.joinTimeUncertain,
+		),
 		lastOccurredAt:
 			next.lastOccurredAt.getTime() >= previous.lastOccurredAt.getTime()
 				? next.lastOccurredAt

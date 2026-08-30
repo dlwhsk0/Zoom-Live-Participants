@@ -1,4 +1,4 @@
-import { and, desc, eq, lt } from "drizzle-orm";
+import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
 import {
@@ -26,6 +26,11 @@ export interface SessionParticipant {
 	connectionCount: number;
 	/** 참가자가 적은 상태 메시지 */
 	statusMessage: string | null;
+	/**
+	 * firstJoinedAt 을 믿을 수 없는가.
+	 * 서버가 꺼져 있어 입장 이벤트를 놓친 경우다. 화면은 경과 시간을 숨긴다.
+	 */
+	joinTimeUncertain: boolean;
 	/**
 	 * 요청한 브라우저의 IP 와 이 참가자의 Zoom 접속 IP 가 같은가.
 	 *
@@ -107,10 +112,13 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
+	const uncertain = await findUncertainJoinTimes(db, session.meetingUuid);
+
 	// event_type 은 text 컬럼이라 넓은 타입으로 돌아온다. 도메인 타입으로 좁힌다.
 	const states: ParticipantState[] = rows.map((row) => ({
 		...row,
 		lastEventType: row.lastEventType === "joined" ? "joined" : "left",
+		joinTimeUncertain: uncertain.has(row.participantUuid),
 	}));
 
 	// participant_uuid 는 접속마다 새로 발급되므로 같은 사람이 여러 행으로 쪼개진다.
@@ -138,6 +146,8 @@ export async function getPresenceSnapshot(
 			lastOccurredAt: p.lastOccurredAt,
 			connectionCount: p.connectionCount,
 			statusMessage: p.statusMessage,
+			// firstJoinedAt 이 null 이어도 알 수 없는 것은 마찬가지다
+			joinTimeUncertain: p.joinTimeUncertain || p.firstJoinedAt === null,
 			// publicIp 는 응답에 넣지 않는다. 일치 여부만 알린다.
 			isYou: youUuid !== null && p.participantUuid === youUuid,
 		})),
@@ -256,4 +266,37 @@ export async function getLogs(
 			? (page.at(-1)?.occurredAt.toISOString() ?? null)
 			: null,
 	};
+}
+
+/**
+ * 입장 시각을 믿을 수 없는 참가자를 찾는다.
+ *
+ * 규칙: 그 참가자의 **가장 이른 이벤트에 `left` 가 포함되면** 불확실하다.
+ *
+ * - `left` 만 있다 → 입장을 못 봤다
+ * - 같은 시각에 `left` + `joined` → 방 이동이다. 이미 회의에 있었다는 뜻
+ * - `joined` 만 있다 → 정확하다
+ *
+ * 둘 다 실제 입장은 우리가 아는 시각보다 이르다.
+ */
+async function findUncertainJoinTimes(
+	db: Db,
+	meetingUuid: string,
+): Promise<Set<string>> {
+	const rows = await db.execute<{ participant_uuid: string }>(sql`
+		select participant_uuid
+		from (
+			select
+				participant_uuid,
+				event_type,
+				occurred_at,
+				min(occurred_at) over (partition by participant_uuid) as first_at
+			from participant_events
+			where meeting_uuid = ${meetingUuid}
+		) t
+		where occurred_at = first_at and event_type = 'left'
+		group by participant_uuid
+	`);
+
+	return new Set(rows.map((r) => r.participant_uuid));
 }

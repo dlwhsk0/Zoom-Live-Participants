@@ -41,6 +41,7 @@ const snapshot: PresenceSnapshot = {
 			lastOccurredAt: new Date(now - 60_000).toISOString(),
 			statusMessage: "집중 중",
 			isYou: true,
+			joinTimeUncertain: false,
 		},
 		{
 			participantUuid: "p2",
@@ -50,6 +51,7 @@ const snapshot: PresenceSnapshot = {
 			lastOccurredAt: new Date(now - 30_000).toISOString(),
 			statusMessage: null,
 			isYou: false,
+			joinTimeUncertain: false,
 		},
 		{
 			participantUuid: "p3",
@@ -59,6 +61,7 @@ const snapshot: PresenceSnapshot = {
 			lastOccurredAt: new Date(now).toISOString(),
 			statusMessage: null,
 			isYou: false,
+			joinTimeUncertain: false,
 		},
 		{
 			participantUuid: "p4",
@@ -68,6 +71,7 @@ const snapshot: PresenceSnapshot = {
 			lastOccurredAt: new Date(now - 12 * 60_000).toISOString(),
 			statusMessage: null,
 			isYou: false,
+			joinTimeUncertain: false,
 		},
 	],
 };
@@ -113,6 +117,29 @@ describe("App", () => {
 			participants: snapshot.participants.map((p) => ({ ...p, isYou: false })),
 		});
 		expect(none).not.toContain("row__me");
+	});
+
+	it("입장 시각을 모르면 경과 시간 대신 '시각 불명' 을 보여준다", () => {
+		const unknown = render({
+			...snapshot,
+			participants: snapshot.participants.map((p) =>
+				p.participantUuid === "p1" ? { ...p, joinTimeUncertain: true } : p,
+			),
+		});
+		expect(unknown).toContain("시각 불명");
+		expect(unknown).toContain("row__time--unknown");
+	});
+
+	it("나간 사람은 시각 불명이어도 퇴장 시각을 보여준다", () => {
+		const unknown = render({
+			...snapshot,
+			participants: snapshot.participants.map((p) => ({
+				...p,
+				joinTimeUncertain: true,
+			})),
+		});
+		// 오프라인 항목(김동현)은 퇴장 기준이라 그대로 나온다
+		expect(unknown).toContain("12분 전 퇴장");
 	});
 
 	it("상태 메시지를 보여준다", () => {

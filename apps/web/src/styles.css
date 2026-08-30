@@ -291,6 +291,13 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
+/* 입장 이벤트를 놓쳐 경과 시간을 계산할 수 없는 경우.
+   틀린 숫자를 보여주느니 모른다고 하는 편이 낫다. */
+.row__time--unknown {
+	color: var(--muted-weak);
+	font-style: italic;
+}
+
 /* 나간 사람은 기록으로만 남기므로 눈에 덜 띄게 */
 .row--offline .row__name {
 	color: var(--muted);

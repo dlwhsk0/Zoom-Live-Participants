@@ -9,6 +9,11 @@ export interface SessionParticipant {
 	/** 참가자가 적은 상태 메시지 */
 	statusMessage: string | null;
 	/**
+	 * 입장 시각을 믿을 수 없는가. 서버가 꺼져 있어 입장 이벤트를 놓친 경우다.
+	 * true 면 경과 시간 대신 "접속 시각 불명" 을 보여준다.
+	 */
+	joinTimeUncertain: boolean;
+	/**
 	 * 내 브라우저 IP 와 이 참가자의 Zoom 접속 IP 가 같은가.
 	 * 권한이 아니라 힌트다. 맞으면 확인창을 건너뛴다.
 	 */
