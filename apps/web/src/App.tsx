@@ -28,10 +28,12 @@ function Row({
 			<div className="row__main">
 				<span className="row__name">
 					{participant.displayName ?? "이름 없음"}
+					{participant.isYou && <span className="row__me">나</span>}
 				</span>
 				<StatusMessage
 					value={participant.statusMessage}
 					dimmed={!participant.isPresent}
+					isYou={participant.isYou}
 					onSave={(message) =>
 						onSaveStatus(participant.participantUuid, message)
 					}

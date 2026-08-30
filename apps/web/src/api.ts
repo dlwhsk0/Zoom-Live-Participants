@@ -8,6 +8,11 @@ export interface SessionParticipant {
 	lastOccurredAt: string;
 	/** 참가자가 적은 상태 메시지 */
 	statusMessage: string | null;
+	/**
+	 * 내 브라우저 IP 와 이 참가자의 Zoom 접속 IP 가 같은가.
+	 * 권한이 아니라 힌트다. 맞으면 확인창을 건너뛴다.
+	 */
+	isYou: boolean;
 }
 
 /** 한 줄에 들어가야 하므로 길이를 제한한다. 서버와 같은 값이다. */

@@ -12,10 +12,12 @@ let confirmedOnce = false;
 interface Props {
 	value: string | null;
 	dimmed: boolean;
+	/** IP 로 추정한 본인 여부. 맞으면 확인창을 건너뛴다. */
+	isYou: boolean;
 	onSave: (message: string) => Promise<void>;
 }
 
-export default function StatusMessage({ value, dimmed, onSave }: Props) {
+export default function StatusMessage({ value, dimmed, isYou, onSave }: Props) {
 	const [editing, setEditing] = useState(false);
 	const [asking, setAsking] = useState(false);
 	const [draft, setDraft] = useState(value ?? "");
@@ -32,7 +34,8 @@ export default function StatusMessage({ value, dimmed, onSave }: Props) {
 	}
 
 	function startEditing() {
-		if (confirmedOnce) {
+		// 본인으로 추정되면 묻지 않는다. 확인창은 남의 것을 건드릴 때를 위한 것이다.
+		if (isYou || confirmedOnce) {
 			beginEdit();
 			return;
 		}

@@ -26,6 +26,13 @@ export interface SessionParticipant {
 	connectionCount: number;
 	/** 참가자가 적은 상태 메시지 */
 	statusMessage: string | null;
+	/**
+	 * 요청한 브라우저의 IP 와 이 참가자의 Zoom 접속 IP 가 같은가.
+	 *
+	 * 같은 IP 를 여러 명이 쓰면(같은 사무실/집) 아무에게도 표시하지 않는다.
+	 * 권한이 아니라 힌트다. 상세는 http/client-ip.ts 주석 참고.
+	 */
+	isYou: boolean;
 }
 
 export interface PresenceSnapshot {
@@ -66,6 +73,7 @@ export async function findCurrentSession(
 export async function getPresenceSnapshot(
 	db: Db,
 	meetingId: string,
+	clientIp?: string | null,
 ): Promise<PresenceSnapshot> {
 	const session = await findCurrentSession(db, meetingId);
 
@@ -109,6 +117,13 @@ export async function getPresenceSnapshot(
 	// 조회 시점에 합친다. 상세는 presence.ts 의 mergeReconnections 주석 참고.
 	const people = sortForDisplay(mergeReconnections(states));
 
+	// IP 가 정확히 한 명과 일치할 때만 "당신"으로 본다.
+	// 같은 네트워크를 여러 명이 쓰면 누구인지 특정할 수 없다.
+	const ipMatches = clientIp
+		? people.filter((p) => p.publicIp && p.publicIp === clientIp)
+		: [];
+	const youUuid = ipMatches.length === 1 ? ipMatches[0]?.participantUuid : null;
+
 	return {
 		meetingId,
 		meetingUuid: session.meetingUuid,
@@ -123,6 +138,8 @@ export async function getPresenceSnapshot(
 			lastOccurredAt: p.lastOccurredAt,
 			connectionCount: p.connectionCount,
 			statusMessage: p.statusMessage,
+			// publicIp 는 응답에 넣지 않는다. 일치 여부만 알린다.
+			isYou: youUuid !== null && p.participantUuid === youUuid,
 		})),
 	};
 }

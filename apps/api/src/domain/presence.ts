@@ -194,6 +194,8 @@ export interface MergedParticipant {
 	meetingId: string;
 	meetingUuid: string;
 	displayName: string | null;
+	/** 내부용. API 응답에는 넣지 않는다. */
+	publicIp: string | null;
 	isPresent: boolean;
 	/** 가장 이른 입장 시각. 재접속해도 경과 시간이 이어진다. */
 	firstJoinedAt: Date | null;
@@ -211,6 +213,7 @@ function toMerged(state: ParticipantState): MergedParticipant {
 		meetingId: state.meetingId,
 		meetingUuid: state.meetingUuid,
 		displayName: state.displayName,
+		publicIp: state.publicIp,
 		isPresent: state.isPresent,
 		firstJoinedAt: state.firstJoinedAt,
 		lastOccurredAt: state.lastOccurredAt,
@@ -261,6 +264,7 @@ function absorb(
 		meetingId: next.meetingId,
 		meetingUuid: next.meetingUuid,
 		displayName: next.displayName,
+		publicIp: next.publicIp,
 		isPresent: next.isPresent,
 		statusMessage: laterStatus(
 			{ statusMessage: previous.statusMessage, statusUpdatedAt: previousStatusAt },

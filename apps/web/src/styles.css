@@ -272,6 +272,18 @@ body {
 	white-space: nowrap;
 }
 
+/* IP 로 추정한 본인 표시. 확정이 아니므로 조용하게 둔다. */
+.row__me {
+	margin-left: 5px;
+	padding: 1px 5px;
+	border-radius: 4px;
+	background: var(--accent);
+	color: #ffffff;
+	font-size: 10px;
+	font-weight: 700;
+	vertical-align: 1px;
+}
+
 .row__time {
 	flex: none;
 	font-size: 12px;

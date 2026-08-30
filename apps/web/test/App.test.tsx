@@ -40,6 +40,7 @@ const snapshot: PresenceSnapshot = {
 			isPresent: true,
 			lastOccurredAt: new Date(now - 60_000).toISOString(),
 			statusMessage: "집중 중",
+			isYou: true,
 		},
 		{
 			participantUuid: "p2",
@@ -48,6 +49,7 @@ const snapshot: PresenceSnapshot = {
 			isPresent: true,
 			lastOccurredAt: new Date(now - 30_000).toISOString(),
 			statusMessage: null,
+			isYou: false,
 		},
 		{
 			participantUuid: "p3",
@@ -56,6 +58,7 @@ const snapshot: PresenceSnapshot = {
 			isPresent: true,
 			lastOccurredAt: new Date(now).toISOString(),
 			statusMessage: null,
+			isYou: false,
 		},
 		{
 			participantUuid: "p4",
@@ -64,6 +67,7 @@ const snapshot: PresenceSnapshot = {
 			isPresent: false,
 			lastOccurredAt: new Date(now - 12 * 60_000).toISOString(),
 			statusMessage: null,
+			isYou: false,
 		},
 	],
 };
@@ -97,6 +101,18 @@ describe("App", () => {
 
 	it("나간 사람에게 offline 스타일을 준다", () => {
 		expect(html).toContain("row--offline");
+	});
+
+	it("본인으로 추정되면 '나' 표시를 붙인다", () => {
+		expect(html).toContain("row__me");
+	});
+
+	it("본인이 아닌 사람에게는 표시가 없다", () => {
+		const none = render({
+			...snapshot,
+			participants: snapshot.participants.map((p) => ({ ...p, isYou: false })),
+		});
+		expect(none).not.toContain("row__me");
 	});
 
 	it("상태 메시지를 보여준다", () => {

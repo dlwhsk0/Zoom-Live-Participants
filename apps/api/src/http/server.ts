@@ -17,6 +17,7 @@ import {
 } from "../repository/query.ts";
 import { handleWebhook } from "../webhook/handle.ts";
 import { SOURCE_FINGERPRINT, STARTED_AT } from "../version.ts";
+import { clientIpFrom } from "./client-ip.ts";
 import { corsHeaders } from "./cors.ts";
 
 /** 한 줄에 들어가야 하므로 길이를 제한한다. */
@@ -138,7 +139,11 @@ async function route(
 		}
 
 		const stop = presenceQueryDuration.startTimer();
-		const snapshot = await getPresenceSnapshot(getDb(), meetingId);
+		const snapshot = await getPresenceSnapshot(
+			getDb(),
+			meetingId,
+			clientIpFrom(headers),
+		);
 		stop();
 
 		// 폴링이므로 캐시하면 안 된다
