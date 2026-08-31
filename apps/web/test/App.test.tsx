@@ -174,22 +174,11 @@ describe("App", () => {
 		);
 	});
 
-	it("전문을 말풍선으로 띄우기 위해 data-full 에 담는다", () => {
-		// 타일 폭이 좁아 잘리므로 호버할 때 전체를 보여준다
-		expect(withStatus("이번주까지 논문 마감이라 정신이 없음")).toContain(
-			'data-full="이번주까지 논문 마감이라 정신이 없음"',
-		);
-	});
-
-	it("상태 메시지가 없으면 말풍선을 걸지 않는다", () => {
-		const none = render({
-			...snapshot,
-			participants: snapshot.participants.map((p) => ({
-				...p,
-				statusMessage: null,
-			})),
-		});
-		expect(none).not.toContain("data-full");
+	it("긴 상태 메시지도 타일 안에서 줄바꿈으로 받는다", () => {
+		// 호버 말풍선은 두지 않는다. 잘리면 잘린 채로 둔다.
+		const long = withStatus("이번주까지 논문 마감이라 정신이 없음");
+		expect(long).toContain("이번주까지 논문 마감이라 정신이 없음");
+		expect(long).not.toContain("data-full");
 	});
 
 	it("확인 창은 처음에 떠 있지 않다", () => {

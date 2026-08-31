@@ -103,6 +103,7 @@ function Card({
 			</span>
 
 			<StatusMessage
+				name={participant.displayName ?? "이름 없음"}
 				value={participant.statusMessage}
 				dimmed={!participant.isPresent}
 				isYou={participant.isYou}

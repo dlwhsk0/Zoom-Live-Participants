@@ -90,14 +90,22 @@ export function totalOnlineSeconds(
 	return participant.onlineSeconds + Math.max(0, (now - since) / 1000);
 }
 
-/** 누적 시간을 "4시간 06분" / "23분" 으로. */
+/**
+ * 누적 시간을 "4시간 06분" / "23분" 으로.
+ *
+ * 1분이 안 되면 "0분" 대신 "방금 전". 방금 들어온 사람에게
+ * 0 을 보여주면 기록이 안 잡힌 것처럼 읽힌다.
+ */
 export function formatDuration(seconds: number): string {
 	const total = Math.max(0, Math.floor(seconds / 60));
+	if (total === 0) return "방금 전";
+
 	const hours = Math.floor(total / 60);
 	const minutes = total % 60;
 
 	if (hours === 0) return `${minutes}분`;
-	return `${hours}시간 ${String(minutes).padStart(2, "0")}분`;
+	if (minutes === 0) return `${hours}시간`;
+	return `${hours}시간 ${minutes}분`;
 }
 
 /**

@@ -110,16 +110,27 @@ describe("totalOnlineSeconds", () => {
 describe("formatDuration", () => {
 	it("한 시간 미만은 분만 보여준다", () => {
 		expect(formatDuration(23 * 60)).toBe("23분");
-		expect(formatDuration(0)).toBe("0분");
+		expect(formatDuration(60)).toBe("1분");
 	});
 
-	it("한 시간을 넘기면 분을 두 자리로 맞춘다", () => {
-		expect(formatDuration(3600)).toBe("1시간 00분");
-		expect(formatDuration(4 * 3600 + 6 * 60)).toBe("4시간 06분");
+	it("1분이 안 되면 방금 전이다", () => {
+		// 0 을 보여주면 기록이 안 잡힌 것처럼 읽힌다
+		expect(formatDuration(0)).toBe("방금 전");
+		expect(formatDuration(59)).toBe("방금 전");
 	});
 
-	it("음수는 0분이다", () => {
-		expect(formatDuration(-100)).toBe("0분");
+	it("분이 0 이면 시간만 보여준다", () => {
+		expect(formatDuration(3600)).toBe("1시간");
+		expect(formatDuration(3 * 3600)).toBe("3시간");
+	});
+
+	it("시간과 분을 함께 보여준다", () => {
+		expect(formatDuration(4 * 3600 + 6 * 60)).toBe("4시간 6분");
+		expect(formatDuration(2 * 3600 + 54 * 60)).toBe("2시간 54분");
+	});
+
+	it("음수도 방금 전이다", () => {
+		expect(formatDuration(-100)).toBe("방금 전");
 	});
 });
 
