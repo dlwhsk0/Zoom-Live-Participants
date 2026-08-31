@@ -245,7 +245,7 @@ export default function App() {
 							    단정하지 않는다. 실제 시작은 이보다 이르다. */}
 							{`${data?.startedAtEstimated ? "기록 시작" : "회의 시작"}: ${sessionStart}`}
 							{data?.openedBy && (
-								<span className="topbar__opener">{`${data.openedBy} START~`}</span>
+								<span className="topbar__opener">{`${data.openedBy} start~`}</span>
 							)}
 						</p>
 					)}
