@@ -167,3 +167,31 @@ export const participants = pgTable(
 		),
 	}),
 );
+
+/**
+ * 어드민이 손으로 고친 기록.
+ *
+ * 사람을 합치거나 떼어내는 일은 되돌릴 수 있어야 하고,
+ * 누가 언제 무엇을 바꿨는지 남아야 한다. 원본(webhook_events,
+ * participant_events)은 건드리지 않으므로 여기에 before 를 담아두면
+ * 언제든 되돌릴 수 있다.
+ */
+export const adminActions = pgTable(
+	"admin_actions",
+	{
+		id: uuid("id").defaultRandom().primaryKey(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		/** 무엇을 했는가. 지금은 rename 하나뿐이다. */
+		action: text("action").notNull(),
+		meetingUuid: text("meeting_uuid"),
+		/** { targets: [{ participantUuid, before }], after } */
+		detail: jsonb("detail").notNull(),
+		/** 토큰만으로 여는 화면이라 누구인지는 모른다. IP 라도 남긴다. */
+		clientIp: text("client_ip"),
+	},
+	(table) => ({
+		createdAtIdx: index("idx_admin_actions_created_at").on(table.createdAt),
+	}),
+);

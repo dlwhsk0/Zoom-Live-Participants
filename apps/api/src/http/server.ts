@@ -9,6 +9,12 @@ import {
 	statusUpdates,
 	webhookDuration,
 } from "../metrics.ts";
+import {
+	listAdminActions,
+	listIdentities,
+	renameParticipants,
+	undoAction,
+} from "../repository/admin.ts";
 import { setStatusMessage } from "../repository/ingest.ts";
 import {
 	findCurrentSession,
@@ -27,6 +33,21 @@ const statusBodySchema = z.object({
 	message: z
 		.string()
 		.max(STATUS_MAX_LENGTH, `상태 메시지는 ${STATUS_MAX_LENGTH}자 이하로 적어주세요`),
+});
+
+/** 어드민이 사람을 합치거나 떼어낼 때 보내는 것. */
+const renameSchema = z.object({
+	meetingUuid: z.string().min(1),
+	participantUuids: z.array(z.string().min(1)).min(1, "행을 하나 이상 고르세요"),
+	displayName: z
+		.string()
+		.trim()
+		.min(1, "이름을 비울 수 없습니다")
+		.max(80, "이름이 너무 깁니다"),
+});
+
+const undoSchema = z.object({
+	actionId: z.string().uuid(),
 });
 
 /**
@@ -94,6 +115,42 @@ function logWebhook(rawBody: string, status: number, result: unknown): void {
 			` uid=${p.user_id ?? "?"} puuid=${p.participant_uuid ?? "?"}` +
 			` at=${when}${reason} ${outcome}`,
 	);
+}
+
+/**
+ * 로그·어드민 화면의 열쇠.
+ *
+ * 참가자 이름과 IP 를 그대로 다루는 곳이라 토큰 없이는 열지 않는다.
+ * 쿼리스트링과 Authorization 헤더 둘 다 받는다. 브라우저에서 링크로
+ * 여는 것도, curl 로 부르는 것도 되어야 한다.
+ */
+function checkToken(
+	query: URLSearchParams,
+	headers: Record<string, string | string[] | undefined>,
+): Reply | null {
+	const token = getEnv().LOGS_TOKEN;
+
+	if (!token) {
+		return {
+			status: 503,
+			body: { ok: false, reason: "LOGS_TOKEN 이 설정되지 않았습니다" },
+		};
+	}
+
+	const provided =
+		query.get("key") ??
+		(headers.authorization === `Bearer ${token}` ? token : null);
+
+	if (provided !== token) {
+		return { status: 401, body: { ok: false, reason: "unauthorized" } };
+	}
+
+	return null;
+}
+
+/** 어드민이 다루는 회의방. 지정이 없으면 환경변수의 방을 쓴다. */
+function resolveMeetingId(query: URLSearchParams): string {
+	return query.get("meeting_id")?.trim() || getEnv().ZOOM_MEETING_ID || "";
 }
 
 async function route(
@@ -200,25 +257,10 @@ async function route(
 
 	// 로그는 참가자 이름과 IP 를 그대로 담는다. 토큰 없이는 열지 않는다.
 	if (method === "GET" && path === "/api/logs") {
-		const token = getEnv().LOGS_TOKEN;
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
 
-		if (!token) {
-			return {
-				status: 503,
-				body: { ok: false, reason: "LOGS_TOKEN 이 설정되지 않았습니다" },
-			};
-		}
-
-		const provided =
-			query.get("key") ??
-			(headers.authorization === `Bearer ${token}` ? token : null);
-
-		if (provided !== token) {
-			return { status: 401, body: { ok: false, reason: "unauthorized" } };
-		}
-
-		const meetingId =
-			query.get("meeting_id")?.trim() || getEnv().ZOOM_MEETING_ID || "";
+		const meetingId = resolveMeetingId(query);
 
 		if (!meetingId) {
 			return {
@@ -234,6 +276,108 @@ async function route(
 		});
 
 		return { status: 200, body: page, headers: { "cache-control": "no-store" } };
+	}
+
+	// ── 어드민 ──────────────────────────────────
+	// 사람을 합치고 떼어내는 곳. 로그와 같은 토큰으로 막는다.
+
+	if (method === "GET" && path === "/api/admin/identities") {
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
+
+		const meetingId = resolveMeetingId(query);
+		if (!meetingId) {
+			return {
+				status: 400,
+				body: { ok: false, reason: "meeting_id is required (or set ZOOM_MEETING_ID)" },
+			};
+		}
+
+		const result = await listIdentities(getDb(), meetingId);
+		return {
+			status: 200,
+			body: result,
+			headers: { "cache-control": "no-store" },
+		};
+	}
+
+	/**
+	 * 고른 행의 이름을 하나로 맞춘다.
+	 *
+	 * 합치기와 떼어내기가 같은 동작이다. 병합이 이름으로만 판단하므로
+	 * 이름을 같게 하면 합쳐지고 다르게 하면 떨어진다.
+	 */
+	if (method === "POST" && path === "/api/admin/rename") {
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "본문이 JSON 이 아닙니다" } };
+		}
+
+		const input = renameSchema.safeParse(parsed);
+		if (!input.success) {
+			return {
+				status: 400,
+				body: {
+					ok: false,
+					reason: input.error.issues[0]?.message ?? "잘못된 요청입니다",
+				},
+			};
+		}
+
+		const result = await renameParticipants(getDb(), {
+			meetingUuid: input.data.meetingUuid,
+			participantUuids: input.data.participantUuids,
+			displayName: input.data.displayName,
+			clientIp: clientIpFrom(headers),
+		});
+
+		if (result.changed === 0) {
+			return { status: 404, body: { ok: false, reason: "대상 행을 찾지 못했습니다" } };
+		}
+
+		return { status: 200, body: { ok: true, ...result } };
+	}
+
+	if (method === "GET" && path === "/api/admin/actions") {
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
+
+		const actions = await listAdminActions(getDb(), Number(query.get("limit") ?? 50));
+		return {
+			status: 200,
+			body: { actions },
+			headers: { "cache-control": "no-store" },
+		};
+	}
+
+	if (method === "POST" && path === "/api/admin/undo") {
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "본문이 JSON 이 아닙니다" } };
+		}
+
+		const input = undoSchema.safeParse(parsed);
+		if (!input.success) {
+			return { status: 400, body: { ok: false, reason: "잘못된 요청입니다" } };
+		}
+
+		const result = await undoAction(
+			getDb(),
+			input.data.actionId,
+			clientIpFrom(headers),
+		);
+
+		return { status: result.ok ? 200 : 400, body: result };
 	}
 
 	if (method === "POST" && path === "/api/webhook") {

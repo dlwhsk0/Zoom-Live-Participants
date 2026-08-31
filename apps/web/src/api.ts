@@ -142,3 +142,109 @@ export async function fetchLogs(params: {
 
 	return (await response.json()) as LogPage;
 }
+
+// ── 어드민 ──────────────────────────────────
+
+export interface Identity {
+	participantUuid: string;
+	displayName: string | null;
+	publicIp: string | null;
+	isPresent: boolean;
+	firstJoinedAt: string | null;
+	lastOccurredAt: string;
+}
+
+export interface IdentityList {
+	meetingUuid: string | null;
+	identities: Identity[];
+}
+
+export interface AdminAction {
+	id: string;
+	createdAt: string;
+	action: string;
+	meetingUuid: string | null;
+	detail: {
+		after?: string;
+		targets?: { participantUuid: string; before: string | null }[];
+		undid?: string;
+		restored?: { participantUuid: string; before: string | null }[];
+	};
+	clientIp: string | null;
+}
+
+function adminUrl(path: string, key: string): URL {
+	const url = new URL(`${API_BASE}${path}`, window.location.origin);
+	url.searchParams.set("key", key);
+	if (MEETING_ID) url.searchParams.set("meeting_id", MEETING_ID);
+	return url;
+}
+
+async function readOrThrow<T>(response: Response): Promise<T> {
+	if (response.status === 401) {
+		throw new Error("접근 키가 올바르지 않습니다");
+	}
+
+	const body = (await response.json().catch(() => null)) as
+		| (T & { reason?: string })
+		| null;
+
+	if (!response.ok) {
+		throw new Error(body?.reason ?? `요청 실패 (${response.status})`);
+	}
+
+	if (body === null) throw new Error("응답을 읽지 못했습니다");
+	return body;
+}
+
+/** 합치기 전의 원본 행. 어느 행을 고칠지 고르려면 이쪽을 봐야 한다. */
+export async function fetchIdentities(key: string): Promise<IdentityList> {
+	const response = await fetch(adminUrl("/api/admin/identities", key), {
+		headers: { accept: "application/json" },
+	});
+	return readOrThrow<IdentityList>(response);
+}
+
+/**
+ * 고른 행의 이름을 하나로 맞춘다.
+ *
+ * 합치기와 떼어내기가 같은 동작이다. 병합이 이름으로만 판단하므로
+ * 이름을 같게 하면 합쳐지고 다르게 하면 떨어진다.
+ */
+export async function renameIdentities(params: {
+	key: string;
+	meetingUuid: string;
+	participantUuids: string[];
+	displayName: string;
+}): Promise<{ changed: number }> {
+	const response = await fetch(adminUrl("/api/admin/rename", params.key), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({
+			meetingUuid: params.meetingUuid,
+			participantUuids: params.participantUuids,
+			displayName: params.displayName,
+		}),
+	});
+	return readOrThrow<{ changed: number }>(response);
+}
+
+export async function fetchAdminActions(key: string): Promise<AdminAction[]> {
+	const response = await fetch(adminUrl("/api/admin/actions", key), {
+		headers: { accept: "application/json" },
+	});
+	const body = await readOrThrow<{ actions: AdminAction[] }>(response);
+	return body.actions;
+}
+
+export async function undoAdminAction(params: {
+	key: string;
+	actionId: string;
+}): Promise<{ restored: number }> {
+	const response = await fetch(adminUrl("/api/admin/undo", params.key), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ actionId: params.actionId }),
+	});
+	return readOrThrow<{ restored: number }>(response);
+}

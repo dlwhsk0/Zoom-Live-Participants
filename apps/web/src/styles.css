@@ -771,3 +771,191 @@ body {
 	color: var(--muted-weak);
 	cursor: default;
 }
+
+/* ── 어드민 ─────────────────────────────────── */
+
+.tabs {
+	display: flex;
+	gap: 4px;
+	margin: 10px 0 14px;
+	padding: 3px;
+	border-radius: 10px;
+	background: var(--field);
+}
+
+.tab {
+	flex: 1;
+	padding: 7px 0;
+	border: 0;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--muted);
+	font: inherit;
+	font-size: 13px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.tab--on {
+	background: var(--bg);
+	color: var(--fg);
+	box-shadow: 0 1px 3px rgb(0 0 0 / 14%);
+}
+
+.admin__hint {
+	margin: 0 0 12px;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--muted);
+}
+
+.admin__toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	margin-bottom: 10px;
+}
+
+.admin__group {
+	margin-bottom: 16px;
+}
+
+.admin__groupName {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin: 0 0 5px;
+	font-size: 13px;
+	font-weight: 700;
+}
+
+.admin__count {
+	padding: 1px 6px;
+	border-radius: 5px;
+	background: var(--field);
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 500;
+}
+
+.admin__rows {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.admin__row,
+.admin__action {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 7px 2px;
+	border-bottom: 1px solid var(--line);
+	font-size: 12px;
+}
+
+/* 체크박스와 구간을 한 덩어리로 묶어 누르는 면을 넓힌다 */
+.admin__pick {
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	flex: 1;
+	min-width: 0;
+	cursor: pointer;
+}
+
+.admin__dot {
+	width: 6px;
+	height: 6px;
+	flex: none;
+	border-radius: 50%;
+	background: var(--muted-weak);
+}
+
+.admin__dot--on {
+	background: var(--online);
+}
+
+.admin__span {
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+
+.admin__mono {
+	flex: none;
+	color: var(--muted-weak);
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 11px;
+}
+
+.admin__desc {
+	flex: 1;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+
+/* 고른 행이 있을 때만 뜨는 하단 바 */
+.admin__bar {
+	position: sticky;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+	gap: 7px;
+	margin-top: 14px;
+	padding: 10px 2px;
+	background: var(--bg);
+	border-top: 2px solid var(--line-strong);
+}
+
+.admin__picked {
+	flex: none;
+	font-size: 12px;
+	font-weight: 600;
+	white-space: nowrap;
+}
+
+.admin__input {
+	flex: 1;
+	min-width: 0;
+	padding: 7px 9px;
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	background: var(--field);
+	color: var(--fg);
+	font: inherit;
+	font-size: 13px;
+}
+
+.admin__input:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+.admin__apply,
+.admin__cancel,
+.admin__undo {
+	flex: none;
+	padding: 7px 11px;
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	background: transparent;
+	color: var(--fg);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.admin__apply {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: #ffffff;
+	font-weight: 600;
+}
+
+.admin__apply:disabled,
+.admin__undo:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
