@@ -314,7 +314,7 @@ body {
 /* 1~3시간. 불이 노트북 앞, 오른쪽에 작게 올라온다 */
 .card__flame {
 	position: absolute;
-	right: 2px;
+	right: -7px;
 	bottom: -1px;
 	z-index: 2;
 	font-size: 19px;
