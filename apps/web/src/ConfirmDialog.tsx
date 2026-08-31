@@ -24,15 +24,22 @@ export default function ConfirmDialog({
 }: Props) {
 	const confirmRef = useRef<HTMLButtonElement>(null);
 
+	// 열릴 때 한 번만. 의존성에 onCancel 을 두면 매 렌더 다시 돌아
+	// 사용자가 옮겨 놓은 초점을 1초마다 빼앗는다.
 	useEffect(() => {
 		confirmRef.current?.focus();
+	}, []);
 
+	const cancelRef = useRef(onCancel);
+	cancelRef.current = onCancel;
+
+	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
-			if (event.key === "Escape") onCancel();
+			if (event.key === "Escape") cancelRef.current();
 		}
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [onCancel]);
+	}, []);
 
 	return (
 		<div

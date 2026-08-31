@@ -157,6 +157,10 @@ export default function Admin() {
 	const [tab, setTab] = useState<Tab>("people");
 	const [toast, setToast] = useState<ToastState | null>(null);
 
+	// 인라인 화살표로 넘기면 매 렌더 새 함수가 되어 Toast 의 자동 닫힘
+	// 타이머가 계속 초기화된다. 고정해서 넘긴다.
+	const dismissToast = useCallback(() => setToast(null), []);
+
 	const onToast = useCallback((message: string, ok: boolean) => {
 		// key 를 매번 새로 줘야 같은 문구가 연달아 떠도 다시 보인다
 		setToast({ key: Date.now(), message, tone: ok ? "success" : "error" });
@@ -174,7 +178,7 @@ export default function Admin() {
 
 	return (
 		<main className="screen">
-			<Toast toast={toast} onDismiss={() => setToast(null)} />
+			<Toast toast={toast} onDismiss={dismissToast} />
 
 			<div className="topbar">
 				<p className="topbar__total">어드민</p>

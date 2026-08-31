@@ -26,16 +26,32 @@ export default function StatusDialog({
 	const [draft, setDraft] = useState(value ?? "");
 	const inputRef = useRef<HTMLInputElement>(null);
 
+	// 창이 열릴 때 한 번만 커서를 잡는다.
+	//
+	// 예전에는 이 안에서 select() 까지 하고 의존성에 onCancel 을 두었다.
+	// onCancel 은 매 렌더 새로 만들어지는 함수라 효과가 매번 다시 돌았고,
+	// 목록이 1초마다 리렌더되므로 1초마다 전체 선택이 걸렸다.
+	// 그 상태에서 한 글자를 치면 적던 내용이 통째로 날아갔다.
 	useEffect(() => {
-		inputRef.current?.focus();
-		inputRef.current?.select();
+		const input = inputRef.current;
+		if (!input) return;
 
+		input.focus();
+		// 전체 선택 대신 끝으로 보낸다. 이어 적는 것이 지우는 것보다 흔하다.
+		input.setSelectionRange(input.value.length, input.value.length);
+	}, []);
+
+	// 리스너도 한 번만 건다. 최신 onCancel 은 ref 로 집는다.
+	const cancelRef = useRef(onCancel);
+	cancelRef.current = onCancel;
+
+	useEffect(() => {
 		function onKey(event: KeyboardEvent) {
-			if (event.key === "Escape") onCancel();
+			if (event.key === "Escape") cancelRef.current();
 		}
 		window.addEventListener("keydown", onKey);
 		return () => window.removeEventListener("keydown", onKey);
-	}, [onCancel]);
+	}, []);
 
 	const left = STATUS_MAX_LENGTH - draft.length;
 
