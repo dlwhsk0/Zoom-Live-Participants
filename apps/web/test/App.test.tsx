@@ -113,8 +113,9 @@ describe("App", () => {
 		expect(html).toContain("card--offline");
 	});
 
-	it("본인으로 추정되면 '나' 표시를 붙인다", () => {
+	it("본인으로 추정되면 '(나)' 를 붙인다", () => {
 		expect(html).toContain("card__me");
+		expect(html).toContain("(나)");
 	});
 
 	it("본인이 아닌 사람에게는 표시가 없다", () => {

@@ -86,7 +86,7 @@ function Card({
 
 			<span className="card__name">
 				{participant.displayName ?? "이름 없음"}
-				{participant.isYou && <span className="card__me">나</span>}
+				{participant.isYou && <span className="card__me">(나)</span>}
 			</span>
 
 			<span

@@ -352,16 +352,13 @@ body {
 	white-space: nowrap;
 }
 
-/* IP 로 추정한 본인 표시. 확정이 아니므로 조용하게 둔다. */
+/* IP 로 추정한 본인 표시. 확정이 아니므로 조용하게 둔다.
+   배지로 두니 이름보다 눈에 띄어서 그냥 글자로 바꿨다. */
 .card__me {
-	margin-left: 4px;
-	padding: 0 4px;
-	border-radius: 4px;
-	background: var(--accent);
-	color: #ffffff;
-	font-size: 9px;
-	font-weight: 700;
-	vertical-align: 1px;
+	margin-left: 3px;
+	color: var(--muted);
+	font-size: 11px;
+	font-weight: 400;
 }
 
 .card__time {
