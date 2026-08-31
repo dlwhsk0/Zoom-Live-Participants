@@ -243,10 +243,7 @@ export default function App() {
 						<p className="topbar__started">
 							{/* 시작 시각을 못 받아 추정한 경우에는 회의 시작이라고
 							    단정하지 않는다. 실제 시작은 이보다 이르다. */}
-							<span className="topbar__label">
-								{data?.startedAtEstimated ? "기록 시작" : "회의 시작"}
-							</span>
-							{sessionStart}
+							{`${data?.startedAtEstimated ? "기록 시작" : "회의 시작"}: ${sessionStart}`}
 						</p>
 					)}
 					<p className="topbar__total">
