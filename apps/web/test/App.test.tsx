@@ -220,7 +220,7 @@ describe("App", () => {
 	});
 
 	it("회의를 연 사람을 함께 보여준다", () => {
-		expect(html).toContain("현승곤 START");
+		expect(html).toContain("현승곤 START~");
 	});
 
 	it("문 연 사람을 모르면 그 부분을 그리지 않는다", () => {
