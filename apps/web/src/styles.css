@@ -124,6 +124,16 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
+/* 문 연 사람. 시각보다 한 단계 뒤로 물린다 */
+.topbar__opener::before {
+	content: " · ";
+	color: var(--muted-weak);
+}
+
+.topbar__opener {
+	color: var(--muted-weak);
+}
+
 .theme-toggle {
 	flex: none;
 	width: 28px;

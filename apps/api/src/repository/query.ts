@@ -65,6 +65,13 @@ export interface PresenceSnapshot {
 	 */
 	startedAt: Date | null;
 	/**
+	 * 회의를 연 사람.
+	 *
+	 * 시작 시각에 처음 들어온 사람이다. 그 시각에 아무도 못 봤으면 null 이다
+	 * (서버가 늦게 켜져 앞부분을 놓친 경우).
+	 */
+	openedBy: string | null;
+	/**
 	 * startedAt 이 추정값인가.
 	 *
 	 * start_time 을 한 번도 못 받은 옛 데이터에서만 true 다.
@@ -127,6 +134,7 @@ export async function getPresenceSnapshot(
 			totalCount: 0,
 			startedAt: null,
 			startedAtEstimated: false,
+			openedBy: null,
 			updatedAt: null,
 			participants: [],
 		};
@@ -152,10 +160,11 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
-	const [uncertain, onlineSeconds, aliases] = await Promise.all([
+	const [uncertain, onlineSeconds, aliases, firstJoin] = await Promise.all([
 		findUncertainJoinTimes(db, session.meetingUuid),
 		findOnlineSeconds(db, session.meetingUuid),
 		loadAliasMap(db),
+		findFirstJoin(db, session.meetingUuid),
 	]);
 
 	// event_type 은 text 컬럼이라 넓은 타입으로 돌아온다. 도메인 타입으로 좁힌다.
@@ -190,6 +199,7 @@ export async function getPresenceSnapshot(
 		count: people.filter((p) => p.isPresent).length,
 		totalCount: people.length,
 		...resolveSessionStart(states, people),
+		openedBy: resolveOpener(states, firstJoin, aliases),
 		updatedAt: session.lastOccurredAt,
 		participants: people.map((p) => ({
 			participantUuid: p.participantUuid,
@@ -206,6 +216,65 @@ export async function getPresenceSnapshot(
 			isYou: youUuid !== null && p.participantUuid === youUuid,
 		})),
 	};
+}
+
+/**
+ * 세션에서 가장 이른 입장 이벤트.
+ *
+ * 회의를 연 사람을 찾는 데 쓴다. 같은 시각에 여럿이면 아무나 하나다.
+ */
+async function findFirstJoin(
+	db: Db,
+	meetingUuid: string,
+): Promise<{ displayName: string | null; occurredAt: Date } | null> {
+	const rows = await db
+		.select({
+			displayName: participantEvents.displayName,
+			occurredAt: participantEvents.occurredAt,
+		})
+		.from(participantEvents)
+		.where(
+			and(
+				eq(participantEvents.meetingUuid, meetingUuid),
+				eq(participantEvents.eventType, "joined"),
+			),
+		)
+		.orderBy(participantEvents.occurredAt)
+		.limit(1);
+
+	return rows[0] ?? null;
+}
+
+/** 회의를 연 사람과 시작 시각 사이에 허용하는 간격. */
+const OPENER_WINDOW_MS = 60_000;
+
+/**
+ * 회의를 연 사람을 정한다.
+ *
+ * 시작 시각 무렵에 처음 들어온 사람이다. 실측에서 둘은 같은 초였다.
+ *
+ * `host_id` 는 쓸 수 없다. 회의방을 소유한 계정이라 방마다 고정이고
+ * 참가자의 user_id 와 이어지지 않는다. 오늘 누가 문을 열었는지는
+ * 그 값으로 알 수 없다.
+ *
+ * 시작 시각을 모르거나(추정) 첫 입장이 시작보다 한참 뒤면 null 이다.
+ * 서버가 늦게 켜져 진짜 첫 사람을 놓친 경우이므로, 그때 목록의 첫
+ * 사람을 문 연 사람이라고 부르면 틀린 사람을 지목하게 된다.
+ */
+function resolveOpener(
+	states: readonly ParticipantState[],
+	firstJoin: { displayName: string | null; occurredAt: Date } | null,
+	aliases: Map<string, string>,
+): string | null {
+	if (!firstJoin?.displayName) return null;
+
+	const startedAt = states.find((s) => s.meetingStartedAt)?.meetingStartedAt;
+	if (!startedAt) return null;
+
+	const gap = firstJoin.occurredAt.getTime() - startedAt.getTime();
+	if (gap > OPENER_WINDOW_MS) return null;
+
+	return aliases.get(firstJoin.displayName) ?? firstJoin.displayName;
 }
 
 /**

@@ -42,6 +42,8 @@ export interface PresenceSnapshot {
 	startedAt: string | null;
 	/** startedAt 이 추정값인가. true 면 실제 시작보다 늦은 값이다. */
 	startedAtEstimated: boolean;
+	/** 회의를 연 사람. 시작 시각에 처음 들어온 사람을 못 봤으면 null. */
+	openedBy: string | null;
 	updatedAt: string | null;
 	participants: SessionParticipant[];
 }

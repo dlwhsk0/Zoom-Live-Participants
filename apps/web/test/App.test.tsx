@@ -33,6 +33,7 @@ const snapshot: PresenceSnapshot = {
 	totalCount: 4,
 	startedAt: "2026-08-30T07:23:10Z",
 	startedAtEstimated: false,
+	openedBy: "현승곤",
 	updatedAt: new Date(now - 3000).toISOString(),
 	participants: [
 		{
@@ -216,6 +217,17 @@ describe("App", () => {
 
 	it("정확한 값이면 회의 시작이라고 적는다", () => {
 		expect(html).toContain("회의 시작");
+	});
+
+	it("회의를 연 사람을 함께 보여준다", () => {
+		expect(html).toContain("현승곤 님이 엶");
+	});
+
+	it("문 연 사람을 모르면 그 부분을 그리지 않는다", () => {
+		// 서버가 늦게 켜져 첫 입장을 놓친 경우다. 목록의 첫 사람을
+		// 문 연 사람이라고 부르면 틀린 사람을 지목하게 된다.
+		const unknown = render({ ...snapshot, openedBy: null });
+		expect(unknown).not.toContain("님이 엶");
 	});
 
 	it("시작 시각을 모르면 아예 그리지 않는다", () => {
