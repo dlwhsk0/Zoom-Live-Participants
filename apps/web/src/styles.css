@@ -254,7 +254,8 @@ body {
 }
 
 .grid {
-	margin: 0;
+	/* 제목이 sticky 라 붙어 보인다. 첫 줄이 제목에 닿지 않게 띄운다 */
+	margin: 10px 0 0;
 	padding: 0;
 	list-style: none;
 	display: grid;
