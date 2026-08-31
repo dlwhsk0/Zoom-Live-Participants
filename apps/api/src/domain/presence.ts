@@ -345,12 +345,28 @@ function absorb(
 	};
 }
 
-/** 같은 사람으로 묶을 후보인지. public_ip 가 없으면 묶지 않는다. */
+/**
+ * 같은 사람으로 묶을 후보인지.
+ *
+ * 이름만 본다. 예전에는 `이름 + public_ip` 였는데, 네트워크를 옮겨
+ * 다시 들어오면 IP 가 바뀌어 한 사람이 두 명으로 쪼개졌다.
+ * 누적 접속 시간까지 나뉘어 불꽃 단계가 실제보다 낮게 나왔다.
+ *
+ * IP 를 뺀다고 동명이인이 뭉치지는 않는다. isContinuation 의
+ * **시간 겹침 안전장치**가 남아 있어서, 같은 이름 두 사람이 실제로
+ * 같이 있으면 합쳐지지 않는다. 한 사람이 동시에 두 곳에 있을 수 없다.
+ *
+ * 운영 데이터 9세션 전수 확인: 이름이 같은 2행 이상이 8건, 그중
+ * 시간이 겹쳐 동명이인으로 의심되는 경우는 0건이었다.
+ *
+ * 남는 위험은 동명이인 두 사람이 서로 한 번도 같이 있지 않은 경우뿐이다.
+ * 그때는 어드민에서 손으로 떼어낼 수 있어야 한다.
+ */
 function identityKey(state: ParticipantState): string | null {
-	if (!state.publicIp || !state.displayName) {
+	if (!state.displayName) {
 		return null;
 	}
-	return `${state.meetingUuid}|${state.displayName}|${state.publicIp}`;
+	return `${state.meetingUuid}|${state.displayName}`;
 }
 
 /**

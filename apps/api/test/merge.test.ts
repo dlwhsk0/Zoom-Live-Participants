@@ -77,10 +77,22 @@ describe("mergeReconnections", () => {
 		expect(merged).toHaveLength(2);
 	});
 
-	it("이름이 같아도 IP 가 다르면 합치지 않는다", () => {
+	it("IP 가 달라도 이름이 같고 시간이 안 겹치면 합친다", () => {
+		// 네트워크를 옮겨 다시 들어온 경우다. 예전에는 두 명으로 쪼개졌다.
 		const merged = mergeReconnections([
 			row({ uuid: "A", joinedMin: 0, lastMin: 6 }),
 			row({ uuid: "B", joinedMin: 15, lastMin: 15, publicIp: "203.0.113.2" }),
+		]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.connectionCount).toBe(2);
+	});
+
+	it("이름이 같아도 시간이 겹치면 합치지 않는다 — 동명이인", () => {
+		// 한 사람이 동시에 두 곳에 있을 수 없다. IP 를 빼도 이 안전장치는 남는다.
+		const merged = mergeReconnections([
+			row({ uuid: "A", joinedMin: 0, lastMin: 20, publicIp: "203.0.113.1" }),
+			row({ uuid: "B", joinedMin: 10, lastMin: 30, publicIp: "203.0.113.2" }),
 		]);
 
 		expect(merged).toHaveLength(2);
@@ -95,13 +107,14 @@ describe("mergeReconnections", () => {
 		expect(merged).toHaveLength(2);
 	});
 
-	it("public_ip 가 없으면 합치지 않는다 — 보수적으로 처리", () => {
+	it("public_ip 가 없어도 이름으로 합친다", () => {
+		// IP 는 더 이상 판단에 쓰지 않는다.
 		const merged = mergeReconnections([
 			row({ uuid: "A", joinedMin: 0, lastMin: 6, publicIp: null }),
 			row({ uuid: "B", joinedMin: 15, lastMin: 15, publicIp: null }),
 		]);
 
-		expect(merged).toHaveLength(2);
+		expect(merged).toHaveLength(1);
 	});
 
 	it("표시 이름이 없으면 합치지 않는다", () => {
