@@ -195,7 +195,7 @@ describe("App", () => {
 	});
 
 	it("세션 총 참여 인원을 최상단에 보여준다", () => {
-		expect(html).toContain("지금까지 4명이 참여");
+		expect(html).toContain("누적 4명");
 		// 헤더의 큰 숫자보다 위에 온다
 		expect(html.indexOf("topbar__total")).toBeLessThan(html.indexOf("header__count"));
 	});
@@ -207,10 +207,15 @@ describe("App", () => {
 		expect(html).toContain("시작");
 	});
 
-	it("추정값이면 시작이라고 단정하지 않는다", () => {
+	it("추정값이면 회의 시작이라고 단정하지 않는다", () => {
 		// 서버가 늦게 켜졌다면 실제 시작은 이 시각보다 이르다.
 		const html = render({ ...snapshot, startedAtEstimated: true });
-		expect(html).toContain("부터 기록");
+		expect(html).toContain("기록 시작");
+		expect(html).not.toContain("회의 시작");
+	});
+
+	it("정확한 값이면 회의 시작이라고 적는다", () => {
+		expect(html).toContain("회의 시작");
 	});
 
 	it("시작 시각을 모르면 아예 그리지 않는다", () => {
