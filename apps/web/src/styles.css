@@ -270,7 +270,8 @@ body {
 	flex-direction: column;
 	align-items: center;
 	gap: 3px;
-	padding: 12px 4px;
+	/* 아래는 비우지 않는다. 상태 메시지가 타일의 마지막 줄이다 */
+	padding: 12px 4px 0;
 	min-width: 0;
 	border-radius: 12px;
 }
@@ -381,19 +382,51 @@ body {
 
 /* ── 상태 메시지 ────────────────────────────── */
 
-.status {
+/* 말풍선의 기준점. 버튼과 달리 잘리지 않는다 */
+.status-wrap {
+	position: relative;
+	display: block;
+	width: 100%;
 	min-width: 0;
-	padding: 2px 0;
+}
+
+.status {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	/* 세 줄까지 보여주고 그 뒤는 자른다 */
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	width: 100%;
+	padding: 1px 2px;
 	border: 0;
 	background: none;
 	color: var(--muted);
 	font: inherit;
-	font-size: 13px;
-	text-align: left;
+	font-size: 12px;
+	line-height: 1.32;
+	text-align: center;
 	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
+	/* 넘치면 줄을 바꾼다. 타일 밖으로 나가지 않는 것이 먼저다 */
+	white-space: normal;
+	overflow-wrap: anywhere;
 	cursor: pointer;
+}
+
+/* 길어질수록 조금씩 줄인다. 그래도 세 줄을 넘기면 잘린다 */
+.status--len1 {
+	font-size: 12px;
+}
+
+.status--len2 {
+	font-size: 11px;
+}
+
+.status--len3 {
+	font-size: 10px;
+}
+
+.status--len4 {
+	font-size: 9px;
 }
 
 .status:hover {
@@ -410,30 +443,69 @@ body {
 	transition: opacity 0.12s;
 }
 
-/* 빈 상태는 평소엔 감췄다가 행에 손이 갈 때만 보인다 */
-.row:hover .status__empty,
+/* 빈 상태는 평소엔 감췄다가 타일에 손이 갈 때만 보인다 */
+.card:hover .status__empty,
 .status:focus-visible .status__empty {
 	opacity: 1;
+}
+
+/* 잘린 상태 메시지를 호버하면 전문을 말풍선으로 보여준다 */
+.card:hover .status-wrap[data-full]::after,
+.status-wrap[data-full]:focus-within::after {
+	content: attr(data-full);
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 7px);
+	z-index: 20;
+	transform: translateX(-50%);
+	padding: 6px 9px;
+	width: max-content;
+	max-width: 150px;
+	border-radius: 8px;
+	background: var(--toast-bg);
+	color: var(--toast-fg);
+	font-size: 11px;
+	line-height: 1.35;
+	text-align: left;
+	white-space: normal;
+	overflow-wrap: anywhere;
+	box-shadow: 0 4px 14px rgb(0 0 0 / 28%);
+	pointer-events: none;
+}
+
+/* 말풍선 꼬리 */
+.card:hover .status-wrap[data-full]::before,
+.status-wrap[data-full]:focus-within::before {
+	content: "";
+	position: absolute;
+	left: 50%;
+	bottom: calc(100% + 2px);
+	z-index: 20;
+	transform: translateX(-50%);
+	border: 5px solid transparent;
+	border-top-color: var(--toast-bg);
+	pointer-events: none;
 }
 
 .status--editing {
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	flex: 1;
+	width: 100%;
 	min-width: 0;
 }
 
+/* 타일 한 칸이 좁으므로 폭을 다 쓰고 글자도 작게 둔다 */
 .status__input {
-	flex: 1;
+	width: 100%;
 	min-width: 0;
-	padding: 3px 7px;
+	padding: 2px 4px;
 	border: 1px solid var(--accent);
 	border-radius: 6px;
 	background: var(--field);
 	color: var(--fg);
 	font: inherit;
-	font-size: 13px;
+	font-size: 11px;
+	text-align: center;
 }
 
 .status__input:disabled {

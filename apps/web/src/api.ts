@@ -28,8 +28,8 @@ export interface SessionParticipant {
 	isYou: boolean;
 }
 
-/** 한 줄에 들어가야 하므로 길이를 제한한다. 서버와 같은 값이다. */
-export const STATUS_MAX_LENGTH = 60;
+/** 타일 한 칸에 들어가야 하므로 길이를 제한한다. 서버와 같은 값이다. */
+export const STATUS_MAX_LENGTH = 20;
 
 export interface PresenceSnapshot {
 	meetingId: string;

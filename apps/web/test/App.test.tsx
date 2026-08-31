@@ -156,6 +156,41 @@ describe("App", () => {
 		expect(html).toContain("+ 상태");
 	});
 
+	const withStatus = (message: string) =>
+		render({
+			...snapshot,
+			participants: snapshot.participants.map((p) =>
+				p.participantUuid === "p1" ? { ...p, statusMessage: message } : p,
+			),
+		});
+
+	it("상태 메시지가 길어질수록 글자를 줄인다", () => {
+		expect(withStatus("집중")).toContain("status--len1");
+		expect(withStatus("이번주까지 마감")).toContain("status--len2");
+		expect(withStatus("이번주까지 논문 마감이라")).toContain("status--len3");
+		expect(withStatus("이번주까지 논문 마감이라 정신이 없음")).toContain(
+			"status--len4",
+		);
+	});
+
+	it("전문을 말풍선으로 띄우기 위해 data-full 에 담는다", () => {
+		// 타일 폭이 좁아 잘리므로 호버할 때 전체를 보여준다
+		expect(withStatus("이번주까지 논문 마감이라 정신이 없음")).toContain(
+			'data-full="이번주까지 논문 마감이라 정신이 없음"',
+		);
+	});
+
+	it("상태 메시지가 없으면 말풍선을 걸지 않는다", () => {
+		const none = render({
+			...snapshot,
+			participants: snapshot.participants.map((p) => ({
+				...p,
+				statusMessage: null,
+			})),
+		});
+		expect(none).not.toContain("data-full");
+	});
+
 	it("확인 창은 처음에 떠 있지 않다", () => {
 		expect(html).not.toContain("본인입니까");
 	});

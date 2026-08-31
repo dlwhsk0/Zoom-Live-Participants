@@ -104,6 +104,19 @@ export default function StatusMessage({ value, dimmed, isYou, onSave }: Props) {
 	return <StatusButton value={value} dimmed={dimmed} onClick={startEditing} />;
 }
 
+/**
+ * 길어질수록 글자를 줄인다.
+ *
+ * 타일 한 칸이 90px 남짓이라 한글 대여섯 자면 한 줄이 찬다.
+ * 줄이고 줄바꿈해도 두 줄을 넘기면 잘리고, 전체는 호버할 때 말풍선으로 보여준다.
+ */
+function lengthStep(value: string): 1 | 2 | 3 | 4 {
+	if (value.length <= 5) return 1;
+	if (value.length <= 10) return 2;
+	if (value.length <= 15) return 3;
+	return 4;
+}
+
 function StatusButton({
 	value,
 	dimmed,
@@ -113,14 +126,22 @@ function StatusButton({
 	dimmed: boolean;
 	onClick: () => void;
 }) {
+	const classes = ["status"];
+	if (dimmed) classes.push("status--dim");
+	if (value) classes.push(`status--len${lengthStep(value)}`);
+
+	// 말풍선은 바깥 껍데기가 그린다. 버튼 자신은 넘치는 글자를 잘라내야 해서
+	// overflow: hidden 이고, 그 안에 두면 말풍선까지 같이 잘린다.
 	return (
-		<button
-			type="button"
-			className={dimmed ? "status status--dim" : "status"}
-			onClick={onClick}
-			title="상태 메시지 수정"
-		>
-			{value ? value : <span className="status__empty">+ 상태</span>}
-		</button>
+		<span className="status-wrap" {...(value ? { "data-full": value } : {})}>
+			<button
+				type="button"
+				className={classes.join(" ")}
+				onClick={onClick}
+				{...(value ? {} : { title: "상태 메시지 수정" })}
+			>
+				{value ? value : <span className="status__empty">+ 상태</span>}
+			</button>
+		</span>
 	);
 }
