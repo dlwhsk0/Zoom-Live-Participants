@@ -326,19 +326,20 @@ body {
 .card__blaze {
 	position: absolute;
 	left: 50%;
-	top: 52%;
+	/* 이름을 덮지 않도록 아이콘 쪽으로 붙여 올린다 */
+	top: 38%;
 	z-index: 0;
 	transform: translate(-50%, -50%);
-	font-size: 52px;
+	font-size: 42px;
 	line-height: 1;
-	opacity: 0.5;
+	opacity: 0.75;
 }
 
 /* 5시간. 더 뜨거운 불은 파랗다.
    이모지에 색을 입힐 방법이 hue-rotate 뿐이라 이렇게 돌린다 */
 .card__icon--tier4 .card__blaze {
-	font-size: 58px;
-	opacity: 0.6;
+	font-size: 46px;
+	opacity: 0.85;
 	filter: hue-rotate(178deg) saturate(1.5) brightness(1.15);
 }
 
