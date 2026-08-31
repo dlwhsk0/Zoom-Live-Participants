@@ -169,6 +169,8 @@ export interface AdminAction {
 		targets?: { participantUuid: string; before: string | null }[];
 		undid?: string;
 		restored?: { participantUuid: string; before: string | null }[];
+		alias?: string;
+		canonical?: string;
 	};
 	clientIp: string | null;
 }
@@ -247,4 +249,42 @@ export async function undoAdminAction(params: {
 		body: JSON.stringify({ actionId: params.actionId }),
 	});
 	return readOrThrow<{ restored: number }>(response);
+}
+
+export interface NameAlias {
+	alias: string;
+	canonical: string;
+	createdAt: string;
+}
+
+export async function fetchAliases(key: string): Promise<NameAlias[]> {
+	const response = await fetch(adminUrl("/api/admin/aliases", key), {
+		headers: { accept: "application/json" },
+	});
+	const body = await readOrThrow<{ aliases: NameAlias[] }>(response);
+	return body.aliases;
+}
+
+/** 고정 닉네임을 대표 이름에 잇는다. 예: Chloe → 이도경. */
+export async function putAlias(params: {
+	key: string;
+	alias: string;
+	canonical: string;
+}): Promise<{ ok: boolean }> {
+	const response = await fetch(adminUrl("/api/admin/aliases", params.key), {
+		method: "POST",
+		headers: { "content-type": "application/json" },
+		body: JSON.stringify({ alias: params.alias, canonical: params.canonical }),
+	});
+	return readOrThrow<{ ok: boolean }>(response);
+}
+
+export async function deleteAlias(params: {
+	key: string;
+	alias: string;
+}): Promise<{ ok: boolean }> {
+	const url = adminUrl("/api/admin/aliases", params.key);
+	url.searchParams.set("alias", params.alias);
+	const response = await fetch(url, { method: "DELETE" });
+	return readOrThrow<{ ok: boolean }>(response);
 }

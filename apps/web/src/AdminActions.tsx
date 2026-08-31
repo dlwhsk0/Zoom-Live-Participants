@@ -20,6 +20,14 @@ function describe(action: AdminAction): string {
 		return `되돌림 · ${n}행`;
 	}
 
+	if (action.action === "alias.put") {
+		return `별칭 ${action.detail.alias} → ${action.detail.canonical}`;
+	}
+
+	if (action.action === "alias.delete") {
+		return `별칭 지움 ${action.detail.alias} → ${action.detail.canonical}`;
+	}
+
 	const targets = action.detail.targets ?? [];
 	const before = [...new Set(targets.map((t) => t.before ?? "(이름 없음)"))];
 	return `${before.join(", ")} → ${action.detail.after ?? "?"}`;

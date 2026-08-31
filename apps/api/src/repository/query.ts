@@ -2,6 +2,7 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
 import {
+	nameAliases,
 	participantEvents,
 	participants,
 	webhookEvents,
@@ -81,6 +82,19 @@ export interface PresenceSnapshot {
  * meeting_uuid 는 회의를 새로 열 때마다 바뀌므로,
  * 가장 최근 이벤트가 속한 세션이 현재 세션이다.
  */
+/**
+ * 별칭을 전부 읽어 이름 치환표로 만든다.
+ *
+ * 조회 경로가 매 요청 부른다. 별칭은 몇십 개를 넘지 않으므로 통째로 읽는다.
+ */
+export async function loadAliasMap(db: Db): Promise<Map<string, string>> {
+	const rows = await db
+		.select({ alias: nameAliases.alias, canonical: nameAliases.canonical })
+		.from(nameAliases);
+
+	return new Map(rows.map((r) => [r.alias, r.canonical]));
+}
+
 export async function findCurrentSession(
 	db: Db,
 	meetingId: string,
@@ -138,14 +152,22 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
-	const [uncertain, onlineSeconds] = await Promise.all([
+	const [uncertain, onlineSeconds, aliases] = await Promise.all([
 		findUncertainJoinTimes(db, session.meetingUuid),
 		findOnlineSeconds(db, session.meetingUuid),
+		loadAliasMap(db),
 	]);
 
 	// event_type 은 text 컬럼이라 넓은 타입으로 돌아온다. 도메인 타입으로 좁힌다.
+	//
+	// 별칭은 여기서 이름을 갈아 끼운다. 병합이 이름으로 판단하므로,
+	// 합치기 전에 대표 이름으로 바꿔 두면 그대로 한 사람이 된다.
+	// 원본 행은 그대로다 — 바뀌는 것은 이 조회의 결과뿐이다.
 	const states: ParticipantState[] = rows.map((row) => ({
 		...row,
+		displayName: row.displayName
+			? (aliases.get(row.displayName) ?? row.displayName)
+			: row.displayName,
 		lastEventType: row.lastEventType === "joined" ? "joined" : "left",
 		joinTimeUncertain: uncertain.has(row.participantUuid),
 		onlineSeconds: onlineSeconds.get(row.participantUuid) ?? 0,

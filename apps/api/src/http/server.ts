@@ -10,8 +10,11 @@ import {
 	webhookDuration,
 } from "../metrics.ts";
 import {
+	deleteAlias,
 	listAdminActions,
+	listAliases,
 	listIdentities,
+	putAlias,
 	renameParticipants,
 	undoAction,
 } from "../repository/admin.ts";
@@ -48,6 +51,12 @@ const renameSchema = z.object({
 
 const undoSchema = z.object({
 	actionId: z.string().uuid(),
+});
+
+/** 고정 닉네임을 대표 이름에 잇는다. 예: Chloe → 이도경. */
+const aliasSchema = z.object({
+	alias: z.string().trim().min(1).max(80),
+	canonical: z.string().trim().min(1).max(80),
 });
 
 /**
@@ -378,6 +387,61 @@ async function route(
 		);
 
 		return { status: result.ok ? 200 : 400, body: result };
+	}
+
+	if (method === "GET" && path === "/api/admin/aliases") {
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
+
+		const aliases = await listAliases(getDb());
+		return {
+			status: 200,
+			body: { aliases },
+			headers: { "cache-control": "no-store" },
+		};
+	}
+
+	if (method === "POST" && path === "/api/admin/aliases") {
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "본문이 JSON 이 아닙니다" } };
+		}
+
+		const input = aliasSchema.safeParse(parsed);
+		if (!input.success) {
+			return {
+				status: 400,
+				body: {
+					ok: false,
+					reason: input.error.issues[0]?.message ?? "잘못된 요청입니다",
+				},
+			};
+		}
+
+		const result = await putAlias(getDb(), {
+			alias: input.data.alias,
+			canonical: input.data.canonical,
+			clientIp: clientIpFrom(headers),
+		});
+
+		return { status: result.ok ? 200 : 400, body: result };
+	}
+
+	if (method === "DELETE" && path === "/api/admin/aliases") {
+		const denied = checkToken(query, headers);
+		if (denied) return denied;
+
+		const alias = query.get("alias")?.trim();
+		if (!alias) {
+			return { status: 400, body: { ok: false, reason: "alias 가 필요합니다" } };
+		}
+
+		return { status: 200, body: await deleteAlias(getDb(), alias, clientIpFrom(headers)) };
 	}
 
 	if (method === "POST" && path === "/api/webhook") {

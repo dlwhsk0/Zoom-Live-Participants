@@ -2,6 +2,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import AdminActions from "./AdminActions.tsx";
+import Aliases from "./Aliases.tsx";
 import { fetchLogs, type LogEntry } from "./api.ts";
 import People from "./People.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
@@ -136,10 +137,11 @@ function LogList({ accessKey: key }: { accessKey: string }) {
 	);
 }
 
-type Tab = "people" | "logs" | "history";
+type Tab = "people" | "aliases" | "logs" | "history";
 
 const TABS: { id: Tab; label: string }[] = [
 	{ id: "people", label: "사람" },
+	{ id: "aliases", label: "별칭" },
 	{ id: "logs", label: "로그" },
 	{ id: "history", label: "기록" },
 ];
@@ -195,6 +197,7 @@ export default function Admin() {
 			</nav>
 
 			{tab === "people" && <People accessKey={key} onToast={onToast} />}
+			{tab === "aliases" && <Aliases accessKey={key} onToast={onToast} />}
 			{tab === "logs" && <LogList accessKey={key} />}
 			{tab === "history" && <AdminActions accessKey={key} onToast={onToast} />}
 		</main>

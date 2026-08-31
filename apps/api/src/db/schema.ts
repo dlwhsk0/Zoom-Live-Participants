@@ -195,3 +195,29 @@ export const adminActions = pgTable(
 		createdAtIdx: index("idx_admin_actions_created_at").on(table.createdAt),
 	}),
 );
+
+/**
+ * 표시 이름 별칭.
+ *
+ * 고정 닉네임을 쓰는 사람을 한 명으로 묶는다. 예: Chloe = 이도경.
+ *
+ * 어드민이 손으로 선언한다. 자동으로 만들지 않는다. 이름→이름 매핑을
+ * 기계가 추론하면 여러 사람이 이름을 바꿀 때 서로 엉킨다. 선언은
+ * 목록으로 보이고 언제든 지울 수 있으므로 그런 일이 없다.
+ *
+ * IP 로 자동 연결하지 않는 이유도 실측에 있다. 같은 공인 IP 를 쓰는
+ * 이름 조합이 하나 있었는데, 3초 간격으로 둘 다 접속해 있었다.
+ * 같은 공유기 뒤의 서로 다른 두 사람이다.
+ *
+ * 세션을 가리지 않고 적용된다. 고정 닉네임은 회의마다 달라지지 않는다.
+ */
+export const nameAliases = pgTable("name_aliases", {
+	/** Zoom 에 뜨는 이름 */
+	alias: text("alias").primaryKey(),
+	/** 이 이름을 묶어 넣을 대표 이름 */
+	canonical: text("canonical").notNull(),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+	clientIp: text("client_ip"),
+});

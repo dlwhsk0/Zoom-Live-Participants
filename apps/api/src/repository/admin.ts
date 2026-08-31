@@ -1,9 +1,9 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
-import { adminActions, participants } from "../db/schema.ts";
+import { adminActions, nameAliases, participants } from "../db/schema.ts";
 
-import { findCurrentSession } from "./query.ts";
+import { findCurrentSession, loadAliasMap } from "./query.ts";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -200,4 +200,108 @@ export async function undoAction(
 
 		return { ok: true, restored: targets.length };
 	});
+}
+
+export interface NameAlias {
+	alias: string;
+	canonical: string;
+	createdAt: Date;
+}
+
+export async function listAliases(db: Db): Promise<NameAlias[]> {
+	return db
+		.select({
+			alias: nameAliases.alias,
+			canonical: nameAliases.canonical,
+			createdAt: nameAliases.createdAt,
+		})
+		.from(nameAliases)
+		.orderBy(nameAliases.canonical, nameAliases.alias);
+}
+
+/**
+ * 별칭을 더한다. 같은 alias 가 이미 있으면 대표 이름만 바꾼다.
+ *
+ * 대표 이름 자신을 alias 로 넣는 것은 막는다. Chloe → Chloe 는
+ * 아무 일도 하지 않고, 사슬(A→B, B→C)은 다루지 않는다.
+ * 한 단계만 치환한다 — 그래야 결과를 예측할 수 있다.
+ */
+export async function putAlias(
+	db: Db,
+	input: { alias: string; canonical: string; clientIp: string | null },
+): Promise<{ ok: boolean; reason?: string }> {
+	const alias = input.alias.trim();
+	const canonical = input.canonical.trim();
+
+	if (!alias || !canonical) {
+		return { ok: false, reason: "이름을 비울 수 없습니다" };
+	}
+	if (alias === canonical) {
+		return { ok: false, reason: "같은 이름끼리는 이을 수 없습니다" };
+	}
+
+	// 사슬(A→B→C)은 만들지 않는다. 한 단계만 치환해야 결과를 예측할 수 있다.
+	// 양쪽을 다 봐야 한다 — 새 대표가 이미 별칭이어도, 새 별칭이 이미
+	// 다른 별칭의 대표여도 사슬이 된다.
+	const existing = await loadAliasMap(db);
+
+	const canonicalIsAlias = existing.get(canonical);
+	if (canonicalIsAlias) {
+		return {
+			ok: false,
+			reason: `${canonical} 은(는) 이미 ${canonicalIsAlias} 의 별칭입니다`,
+		};
+	}
+
+	for (const [otherAlias, otherCanonical] of existing) {
+		if (otherCanonical === alias && otherAlias !== alias) {
+			return {
+				ok: false,
+				reason: `${alias} 은(는) 이미 ${otherAlias} 의 대표 이름입니다`,
+			};
+		}
+	}
+
+	await db.transaction(async (tx) => {
+		await tx
+			.insert(nameAliases)
+			.values({ alias, canonical, clientIp: input.clientIp })
+			.onConflictDoUpdate({
+				target: nameAliases.alias,
+				set: { canonical, clientIp: input.clientIp },
+			});
+
+		await tx.insert(adminActions).values({
+			action: "alias.put",
+			meetingUuid: null,
+			detail: { alias, canonical, before: existing.get(alias) ?? null },
+			clientIp: input.clientIp,
+		});
+	});
+
+	return { ok: true };
+}
+
+export async function deleteAlias(
+	db: Db,
+	alias: string,
+	clientIp: string | null,
+): Promise<{ ok: boolean }> {
+	await db.transaction(async (tx) => {
+		const [removed] = await tx
+			.delete(nameAliases)
+			.where(eq(nameAliases.alias, alias))
+			.returning({ alias: nameAliases.alias, canonical: nameAliases.canonical });
+
+		if (removed) {
+			await tx.insert(adminActions).values({
+				action: "alias.delete",
+				meetingUuid: null,
+				detail: { alias: removed.alias, canonical: removed.canonical },
+				clientIp,
+			});
+		}
+	});
+
+	return { ok: true };
 }
