@@ -28,6 +28,7 @@ function row(
 		statusMessage: null,
 		statusUpdatedAt: null,
 		joinTimeUncertain: false,
+		onlineSeconds: 0,
 		isPresent: false,
 		lastEventType: "left",
 		firstJoinedAt: joinedMin === null ? null : new Date(BASE + joinedMin * 60_000),
@@ -218,6 +219,44 @@ describe("sortForDisplay", () => {
 		);
 
 		expect(sorted.map((s) => s.displayName)).toEqual(["접속중", "나간사람"]);
+	});
+
+	it("나간 사람은 최근에 나간 순으로 온다", () => {
+		const sorted = sortForDisplay(
+			mergeReconnections([
+				row({ uuid: "A", joinedMin: 0, lastMin: 10, displayName: "오래전", publicIp: "203.0.113.1" }),
+				row({ uuid: "B", joinedMin: 0, lastMin: 50, displayName: "방금", publicIp: "203.0.113.2" }),
+				row({ uuid: "C", joinedMin: 0, lastMin: 30, displayName: "중간", publicIp: "203.0.113.3" }),
+			]),
+		);
+
+		// 화면의 "N분 전 퇴장" 이 작은 수부터 늘어선다
+		expect(sorted.map((s) => s.displayName)).toEqual(["방금", "중간", "오래전"]);
+	});
+
+	it("접속 중인 사람은 최초 입장이 이른 순으로 온다", () => {
+		const present = (uuid: string, joinedMin: number, name: string, ip: string) =>
+			row({
+				uuid,
+				joinedMin,
+				lastMin: joinedMin,
+				displayName: name,
+				publicIp: ip,
+				isPresent: true,
+				lastEventType: "joined",
+			});
+
+		const sorted = sortForDisplay(
+			mergeReconnections([
+				present("A", 30, "늦게온사람", "203.0.113.1"),
+				present("B", 5, "일찍온사람", "203.0.113.2"),
+			]),
+		);
+
+		expect(sorted.map((s) => s.displayName)).toEqual([
+			"일찍온사람",
+			"늦게온사람",
+		]);
 	});
 });
 

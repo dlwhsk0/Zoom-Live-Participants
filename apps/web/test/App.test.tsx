@@ -37,6 +37,7 @@ const snapshot: PresenceSnapshot = {
 	participants: [
 		{
 			participantUuid: "p1",
+			onlineSeconds: 70 * 60,
 			displayName: "조하나",
 			firstJoinedAt: new Date(now - 72 * 60_000).toISOString(),
 			isPresent: true,
@@ -47,6 +48,7 @@ const snapshot: PresenceSnapshot = {
 		},
 		{
 			participantUuid: "p2",
+			onlineSeconds: 0,
 			displayName: "참가자02",
 			firstJoinedAt: new Date(now - 4 * 60_000).toISOString(),
 			isPresent: true,
@@ -57,6 +59,7 @@ const snapshot: PresenceSnapshot = {
 		},
 		{
 			participantUuid: "p3",
+			onlineSeconds: 0,
 			displayName: null,
 			firstJoinedAt: new Date(now).toISOString(),
 			isPresent: true,
@@ -67,6 +70,7 @@ const snapshot: PresenceSnapshot = {
 		},
 		{
 			participantUuid: "p4",
+			onlineSeconds: 28 * 60,
 			displayName: "김동현",
 			firstJoinedAt: new Date(now - 40 * 60_000).toISOString(),
 			isPresent: false,
@@ -106,11 +110,11 @@ describe("App", () => {
 	});
 
 	it("나간 사람에게 offline 스타일을 준다", () => {
-		expect(html).toContain("row--offline");
+		expect(html).toContain("card--offline");
 	});
 
 	it("본인으로 추정되면 '나' 표시를 붙인다", () => {
-		expect(html).toContain("row__me");
+		expect(html).toContain("card__me");
 	});
 
 	it("본인이 아닌 사람에게는 표시가 없다", () => {
@@ -118,18 +122,18 @@ describe("App", () => {
 			...snapshot,
 			participants: snapshot.participants.map((p) => ({ ...p, isYou: false })),
 		});
-		expect(none).not.toContain("row__me");
+		expect(none).not.toContain("card__me");
 	});
 
-	it("입장 시각을 모르면 경과 시간 대신 '시각 불명' 을 보여준다", () => {
+	it("입장 시각을 모르면 시간 뒤에 + 를 붙인다", () => {
+		// 머문 시간은 잴 수 있지만 놓친 앞부분이 있으므로 아래로만 틀린다.
 		const unknown = render({
 			...snapshot,
 			participants: snapshot.participants.map((p) =>
 				p.participantUuid === "p1" ? { ...p, joinTimeUncertain: true } : p,
 			),
 		});
-		expect(unknown).toContain("시각 불명");
-		expect(unknown).toContain("row__time--unknown");
+		expect(unknown).toContain("1시간 11분+");
 	});
 
 	it("나간 사람은 시각 불명이어도 퇴장 시각을 보여준다", () => {
@@ -208,10 +212,67 @@ describe("App", () => {
 		expect(html).toContain("이름 없음");
 	});
 
-	it("접속 경과 시간을 보여준다", () => {
-		expect(html).toContain("1시간 12분");
-		expect(html).toContain("4분");
-		expect(html).toContain("방금");
+	it("누적 접속 시간을 보여준다", () => {
+		// p1 은 닫힌 구간 70분 + 진행 중 1분 = 71분
+		expect(html).toContain("1시간 11분");
+	});
+
+	it("1시간을 넘기면 불이 붙는다", () => {
+		// p1 은 71분이라 2단계. p2·p3 는 아직 불이 없다
+		expect(html).toContain("card__icon--tier2");
+		expect(html).toContain("card__icon--tier0");
+		expect(html).toContain("🔥");
+	});
+
+	it("1시간 전에는 불이 붙지 않는다", () => {
+		const warmup = render({
+			...snapshot,
+			participants: snapshot.participants.map((p) =>
+				p.participantUuid === "p1" ? { ...p, onlineSeconds: 40 * 60 } : p,
+			),
+		});
+		expect(warmup).toContain("card__icon--tier1");
+		expect(warmup).not.toContain("🔥");
+	});
+
+	const withOnlineSeconds = (seconds: number) =>
+		render({
+			...snapshot,
+			participants: snapshot.participants.map((p) =>
+				p.participantUuid === "p1" ? { ...p, onlineSeconds: seconds } : p,
+			),
+		});
+
+	it("3시간을 넘기면 카드 배경이 달아오른다", () => {
+		expect(withOnlineSeconds(3 * 3600)).toContain("card--tier3");
+	});
+
+	it("5시간을 넘기면 불꽃이 파래진다", () => {
+		const blue = withOnlineSeconds(5 * 3600);
+		expect(blue).toContain("card--tier4");
+		expect(blue).toContain("card__icon--tier4");
+	});
+
+	it("나간 지 얼마 안 되면 커피, 오래되면 잠든다", () => {
+		const rested = (minutesAgo: number) =>
+			render({
+				...snapshot,
+				participants: snapshot.participants.map((p) =>
+					p.participantUuid === "p4"
+						? {
+								...p,
+								lastOccurredAt: new Date(
+									now - minutesAgo * 60_000,
+								).toISOString(),
+							}
+						: p,
+				),
+			});
+
+		expect(rested(30)).toContain("☕");
+		expect(rested(90)).toContain("🥱");
+		expect(rested(240)).toContain("😴");
+		expect(rested(400)).toContain("💤");
 	});
 
 	it("마지막 갱신 시각을 보여준다", () => {

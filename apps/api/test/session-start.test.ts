@@ -22,6 +22,7 @@ function state(overrides: Partial<ParticipantState>): ParticipantState {
 		statusMessage: null,
 		statusUpdatedAt: null,
 		joinTimeUncertain: false,
+		onlineSeconds: 0,
 		isPresent: false,
 		lastEventType: "left",
 		lastOccurredAt: new Date("2026-08-30T16:00:00Z"),

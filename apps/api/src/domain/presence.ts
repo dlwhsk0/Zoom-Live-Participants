@@ -37,6 +37,15 @@ export interface ParticipantState {
 	meetingUuid: string;
 	/** 회의 세션 시작 시각. 세션 안에서는 모든 참가자가 같은 값을 갖는다. */
 	meetingStartedAt: Date | null;
+	/**
+	 * 이 접속으로 실제로 회의에 머문 시간(초). 닫힌 구간만 센다.
+	 *
+	 * 지금 접속 중이면 진행 중인 구간은 빠져 있다. 화면이
+	 * lastOccurredAt 부터 흐른 시간을 더해서 보여준다.
+	 *
+	 * 로그 전체를 봐야 알 수 있으므로 조회 시점에 채운다.
+	 */
+	onlineSeconds: number;
 	participantUuid: string;
 	displayName: string | null;
 	publicIp: string | null;
@@ -129,6 +138,7 @@ export function applyEvent(
 		statusUpdatedAt: current?.statusUpdatedAt ?? null,
 		// 로그 전체를 봐야 알 수 있다. 조회 시점에 채운다.
 		joinTimeUncertain: current?.joinTimeUncertain ?? false,
+		onlineSeconds: current?.onlineSeconds ?? 0,
 		isPresent: incoming.eventType === "joined",
 		lastEventType: incoming.eventType,
 		lastOccurredAt: incoming.occurredAt,
@@ -239,6 +249,14 @@ export interface MergedParticipant {
 	statusMessage: string | null;
 	/** firstJoinedAt 을 믿을 수 없으면 true. 화면에서 경과 시간을 숨긴다. */
 	joinTimeUncertain: boolean;
+	/**
+	 * 이 세션에서 실제로 머문 시간의 합(초). 재접속 구간을 모두 더한 값이다.
+	 *
+	 * 공백은 빠진다. firstJoinedAt 부터의 경과 시간과는 다른 값이고,
+	 * 자리를 지킨 정도를 나타내므로 이쪽이 "누적 접속 시간" 이다.
+	 * 진행 중인 구간은 포함하지 않는다.
+	 */
+	onlineSeconds: number;
 }
 
 function toMerged(state: ParticipantState): MergedParticipant {
@@ -251,6 +269,7 @@ function toMerged(state: ParticipantState): MergedParticipant {
 		isPresent: state.isPresent,
 		firstJoinedAt: state.firstJoinedAt,
 		lastOccurredAt: state.lastOccurredAt,
+		onlineSeconds: state.onlineSeconds,
 		connectionCount: 1,
 		statusMessage: state.statusMessage,
 		joinTimeUncertain: state.joinTimeUncertain,
@@ -320,6 +339,8 @@ function absorb(
 			next.lastOccurredAt.getTime() >= previous.lastOccurredAt.getTime()
 				? next.lastOccurredAt
 				: previous.lastOccurredAt,
+		// 머문 시간은 구간의 합이므로 그냥 더한다. 공백은 어느 쪽에도 없다.
+		onlineSeconds: previous.onlineSeconds + next.onlineSeconds,
 		connectionCount: previous.connectionCount + 1,
 	};
 }
@@ -386,12 +407,21 @@ export function mergeReconnections(
 	return merged;
 }
 
-/** 접속 중인 사람이 앞, 각 그룹 안에서는 최초 입장순. */
+/**
+ * 접속 중인 사람이 앞.
+ *
+ * 접속 중: 최초 입장순. 오래 있은 사람이 위로 간다.
+ * 나감: 최근에 나간 사람순. 방금 나간 사람이 위로 온다 —
+ *       돌아올 가능성이 높고, 화면의 "N분 전 퇴장" 이 작은 수부터 늘어선다.
+ */
 export function sortForDisplay(
 	people: readonly MergedParticipant[],
 ): MergedParticipant[] {
 	return [...people].sort((a, b) => {
 		if (a.isPresent !== b.isPresent) return a.isPresent ? -1 : 1;
+
+		if (!a.isPresent) return b.lastOccurredAt.getTime() - a.lastOccurredAt.getTime();
+
 		const at = a.firstJoinedAt?.getTime() ?? a.lastOccurredAt.getTime();
 		const bt = b.firstJoinedAt?.getTime() ?? b.lastOccurredAt.getTime();
 		return at - bt;

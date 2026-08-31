@@ -6,6 +6,14 @@ export interface SessionParticipant {
 	isPresent: boolean;
 	/** 마지막 이벤트 시각. 퇴장자의 경우 나간 시각이다. */
 	lastOccurredAt: string;
+	/**
+	 * 이 세션에서 실제로 머문 시간의 합(초).
+	 *
+	 * 나갔다 온 공백은 빠져 있다. **진행 중인 구간도 빠져 있으므로**
+	 * 접속 중인 사람은 lastOccurredAt 부터 흐른 시간을 더해야 한다.
+	 * totalOnlineSeconds() 가 그 계산을 한다.
+	 */
+	onlineSeconds: number;
 	/** 참가자가 적은 상태 메시지 */
 	statusMessage: string | null;
 	/**

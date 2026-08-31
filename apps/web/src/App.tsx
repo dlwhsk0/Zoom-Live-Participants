@@ -3,15 +3,18 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
 	fetchPresence,
-	type PresenceSnapshot,
 	saveStatusMessage,
+	type PresenceSnapshot,
 	type SessionParticipant,
 } from "./api.ts";
 import {
 	formatAgo,
-	formatElapsed,
+	formatDuration,
 	formatLeftAgo,
 	formatSessionStart,
+	restTier,
+	studyTier,
+	totalOnlineSeconds,
 } from "./format.ts";
 import StatusMessage from "./StatusMessage.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
@@ -19,7 +22,20 @@ import Toast, { type ToastState, type ToastTone } from "./Toast.tsx";
 
 const POLL_INTERVAL_MS = 5000;
 
-function Row({
+/** 접속 중일 때 누적 시간에 따라 붙는 불꽃. 2단계부터 붙는다. */
+const FLAME_LABEL = [
+	"",
+	"",
+	"불이 붙음",
+	"활활 타는 중",
+	"파랗게 타는 중",
+];
+
+/** 나간 지 오래될수록 깊이 잠든다. 경계는 접속 쪽과 같은 1·3·5시간. */
+const REST_ICON = ["☕", "🥱", "😴", "💤"];
+const REST_LABEL = ["잠깐 자리 비움", "졸기 시작", "자는 중", "오늘은 끝"];
+
+function Card({
 	participant,
 	now,
 	onSaveStatus,
@@ -28,40 +44,70 @@ function Row({
 	now: number;
 	onSaveStatus: (uuid: string, message: string) => Promise<void>;
 }) {
+	const seconds = totalOnlineSeconds(participant, now);
+	const tier = participant.isPresent ? studyTier(seconds) : 0;
+	const rest = participant.isPresent ? 0 : restTier(participant.lastOccurredAt, now);
+
+	// 입장을 놓친 사람은 실제로는 더 오래 있었을 수 있다. 아래로만 틀린다.
+	const atLeast = participant.joinTimeUncertain && participant.isPresent;
+
 	return (
-		<li className={participant.isPresent ? "row" : "row row--offline"}>
-			<div className="row__main">
-				<span className="row__name">
-					{participant.displayName ?? "이름 없음"}
-					{participant.isYou && <span className="row__me">나</span>}
-				</span>
-				<StatusMessage
-					value={participant.statusMessage}
-					dimmed={!participant.isPresent}
-					isYou={participant.isYou}
-					onSave={(message) =>
-						onSaveStatus(participant.participantUuid, message)
-					}
-				/>
-			</div>
+		<li
+			className={
+				participant.isPresent
+					? `card card--tier${tier}`
+					: "card card--offline"
+			}
+		>
 			<span
-				className={
-					participant.joinTimeUncertain && participant.isPresent
-						? "row__time row__time--unknown"
-						: "row__time"
+				className={`card__icon card__icon--tier${participant.isPresent ? tier : 0}`}
+				role="img"
+				aria-label={
+					participant.isPresent
+						? `공부 중${tier >= 2 ? `, ${FLAME_LABEL[tier]}` : ""}`
+						: REST_LABEL[rest]
 				}
+			>
+				{/* 3단계부터는 불이 사람 뒤로 가고 커진다 */}
+				{participant.isPresent && tier >= 3 && (
+					<span className="card__blaze" aria-hidden="true">
+						🔥
+					</span>
+				)}
+				<span className="card__person">
+					{participant.isPresent ? "🧑‍💻" : REST_ICON[rest]}
+				</span>
+				{participant.isPresent && tier === 2 && (
+					<span className="card__flame" aria-hidden="true">
+						🔥
+					</span>
+				)}
+			</span>
+
+			<span className="card__name">
+				{participant.displayName ?? "이름 없음"}
+				{participant.isYou && <span className="card__me">나</span>}
+			</span>
+
+			<span
+				className="card__time"
 				title={
-					participant.joinTimeUncertain && participant.isPresent
-						? "서버가 입장 이벤트를 받지 못해 접속 시각을 알 수 없습니다"
+					atLeast
+						? "서버가 입장 이벤트를 받지 못했습니다. 실제로는 이보다 깁니다"
 						: undefined
 				}
 			>
 				{participant.isPresent
-					? participant.joinTimeUncertain
-						? "시각 불명"
-						: formatElapsed(participant.firstJoinedAt, now)
+					? `${formatDuration(seconds)}${atLeast ? "+" : ""}`
 					: formatLeftAgo(participant.lastOccurredAt, now)}
 			</span>
+
+			<StatusMessage
+				value={participant.statusMessage}
+				dimmed={!participant.isPresent}
+				isYou={participant.isYou}
+				onSave={(message) => onSaveStatus(participant.participantUuid, message)}
+			/>
 		</li>
 	);
 }
@@ -96,9 +142,9 @@ function Section({
 			{people.length === 0 ? (
 				<p className="section__empty">{emptyText}</p>
 			) : (
-				<ul className="list">
+				<ul className="grid">
 					{people.map((p) => (
-						<Row
+						<Card
 							key={p.participantUuid}
 							participant={p}
 							now={now}
@@ -167,7 +213,13 @@ export default function App() {
 	}
 
 	const updatedAt = data?.updatedAt ? Date.parse(data.updatedAt) : null;
-	const online = data?.participants.filter((p) => p.isPresent) ?? [];
+	// 접속 중은 누적 시간이 많은 순. 서버가 정렬해 줄 수 없는 이유는,
+	// 진행 중인 구간이 서버 값에 빠져 있어 매 초 값이 달라지기 때문이다.
+	// (한 번도 안 나간 사람은 서버 기준으로 0초다.)
+	const online = (data?.participants.filter((p) => p.isPresent) ?? [])
+		.slice()
+		.sort((a, b) => totalOnlineSeconds(b, now) - totalOnlineSeconds(a, now));
+	// 나간 사람은 서버가 준 순서를 그대로 쓴다. 최근에 나간 사람이 앞이다.
 	const offline = data?.participants.filter((p) => !p.isPresent) ?? [];
 	const loading = isPending && !data;
 

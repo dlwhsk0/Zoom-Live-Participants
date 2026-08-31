@@ -24,6 +24,15 @@ export interface SessionParticipant {
 	lastOccurredAt: Date;
 	/** 몇 번 접속했는지. 1보다 크면 재접속한 사람이다. */
 	connectionCount: number;
+	/**
+	 * 이 세션에서 실제로 머문 시간의 합(초).
+	 *
+	 * 나갔다 들어온 공백은 빠진다. firstJoinedAt 부터의 경과 시간과 다르다.
+	 * **진행 중인 구간은 포함하지 않는다.** 지금 접속 중인 사람은
+	 * 화면이 lastOccurredAt 부터 흐른 시간을 더해서 보여준다
+	 * (접속 중이면 lastOccurredAt 이 곧 마지막 입장 시각이다).
+	 */
+	onlineSeconds: number;
 	/** 참가자가 적은 상태 메시지 */
 	statusMessage: string | null;
 	/**
@@ -129,13 +138,17 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
-	const uncertain = await findUncertainJoinTimes(db, session.meetingUuid);
+	const [uncertain, onlineSeconds] = await Promise.all([
+		findUncertainJoinTimes(db, session.meetingUuid),
+		findOnlineSeconds(db, session.meetingUuid),
+	]);
 
 	// event_type 은 text 컬럼이라 넓은 타입으로 돌아온다. 도메인 타입으로 좁힌다.
 	const states: ParticipantState[] = rows.map((row) => ({
 		...row,
 		lastEventType: row.lastEventType === "joined" ? "joined" : "left",
 		joinTimeUncertain: uncertain.has(row.participantUuid),
+		onlineSeconds: onlineSeconds.get(row.participantUuid) ?? 0,
 	}));
 
 	// participant_uuid 는 접속마다 새로 발급되므로 같은 사람이 여러 행으로 쪼개진다.
@@ -163,6 +176,7 @@ export async function getPresenceSnapshot(
 			isPresent: p.isPresent,
 			lastOccurredAt: p.lastOccurredAt,
 			connectionCount: p.connectionCount,
+			onlineSeconds: p.onlineSeconds,
 			statusMessage: p.statusMessage,
 			// firstJoinedAt 이 null 이어도 알 수 없는 것은 마찬가지다
 			joinTimeUncertain: p.joinTimeUncertain || p.firstJoinedAt === null,
@@ -313,6 +327,59 @@ export async function getLogs(
 			? (page.at(-1)?.occurredAt.toISOString() ?? null)
 			: null,
 	};
+}
+
+/**
+ * 접속마다 실제로 머문 시간을 초 단위로 구한다.
+ *
+ * joined 다음에 오는 left 까지가 한 구간이다. 그 구간들의 합이다.
+ * 나갔다 들어온 사이의 공백은 어느 구간에도 속하지 않으므로 자연히 빠진다.
+ *
+ * 같은 시각의 left + joined 쌍(소회의실 이동)은 길이 0 인 구간을 만들고
+ * 곧바로 다음 구간이 열리므로 이동 때문에 시간이 끊기지 않는다.
+ * 정렬에서 left 를 먼저 두는 이유가 이것이다.
+ *
+ * joined 가 연달아 오면(left 를 놓친 경우) 뒤엣것부터 센다.
+ * 실제보다 적게 잡히지만 없는 시간을 만들어내지는 않는다.
+ *
+ * 진행 중인 구간은 포함하지 않는다. 화면이 lastOccurredAt 부터
+ * 흐른 시간을 더해서 보여준다.
+ */
+async function findOnlineSeconds(
+	db: Db,
+	meetingUuid: string,
+): Promise<Map<string, number>> {
+	const rows = await db.execute<{
+		participant_uuid: string;
+		seconds: number | string;
+	}>(sql`
+		select
+			participant_uuid,
+			sum(
+				case
+					when event_type = 'left' and prev_type = 'joined'
+					then extract(epoch from (occurred_at - prev_at))
+					else 0
+				end
+			) as seconds
+		from (
+			select
+				participant_uuid,
+				event_type,
+				occurred_at,
+				lag(event_type) over w as prev_type,
+				lag(occurred_at) over w as prev_at
+			from participant_events
+			where meeting_uuid = ${meetingUuid}
+			window w as (
+				partition by participant_uuid
+				order by occurred_at, case when event_type = 'left' then 0 else 1 end
+			)
+		) t
+		group by participant_uuid
+	`);
+
+	return new Map(rows.map((r) => [r.participant_uuid, Number(r.seconds)]));
 }
 
 /**

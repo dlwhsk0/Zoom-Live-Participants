@@ -253,64 +253,120 @@ body {
 	border-bottom: 1px solid var(--line);
 }
 
-.list {
+.grid {
 	margin: 0;
 	padding: 0;
 	list-style: none;
+	display: grid;
+	/* 좁은 화면에서 3열, 넓어지면 알아서 늘어난다 */
+	grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+	/* 타일을 붙인다. 칸 사이 여백은 카드 안쪽 padding 이 만든다 */
+	gap: 0;
 }
 
-.row {
+.card {
+	position: relative;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
-	justify-content: space-between;
-	gap: 10px;
-	padding: 10px 2px;
-	border-bottom: 1px solid var(--line);
-}
-
-/* 이름과 상태 메시지를 한 덩어리로 묶어 시간과 벌린다 */
-.row__main {
-	display: flex;
-	align-items: baseline;
-	gap: 7px;
+	gap: 3px;
+	padding: 12px 4px;
 	min-width: 0;
-	flex: 1;
+	border-radius: 12px;
 }
 
-.row__name {
-	font-size: 15px;
+.card--offline {
+	opacity: 0.72;
+}
+
+/* 아이콘이 주인공이다. 불꽃을 얹기 위해 기준점을 잡는다 */
+.card__icon {
+	position: relative;
+	display: block;
+	font-size: 30px;
+	line-height: 1.1;
+	/* 이모지 폰트가 없는 환경에서도 자리는 유지된다 */
+	font-family:
+		"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+/* 시간이 쌓일수록 아이콘이 또렷해진다. 1단계는 불이 붙기 전 예열이다 */
+.card__icon--tier0 {
+	opacity: 0.7;
+}
+
+.card__icon--tier1 {
+	opacity: 0.88;
+}
+
+.card__icon--tier2,
+.card__icon--tier3,
+.card__icon--tier4 {
+	opacity: 1;
+}
+
+/* 사람 이모지. 뒤에 깔린 불보다 앞에 와야 한다 */
+.card__person {
+	position: relative;
+	z-index: 1;
+}
+
+/* 1~3시간. 불이 노트북 앞, 오른쪽에 작게 올라온다 */
+.card__flame {
+	position: absolute;
+	right: 2px;
+	bottom: -1px;
+	z-index: 2;
+	font-size: 19px;
+	line-height: 1;
+}
+
+/* 3시간부터. 불이 사람 뒤로 가고 커진다 */
+.card__blaze {
+	position: absolute;
+	left: 50%;
+	top: 52%;
+	z-index: 0;
+	transform: translate(-50%, -50%);
+	font-size: 52px;
+	line-height: 1;
+	opacity: 0.5;
+}
+
+/* 5시간. 더 뜨거운 불은 파랗다.
+   이모지에 색을 입힐 방법이 hue-rotate 뿐이라 이렇게 돌린다 */
+.card__icon--tier4 .card__blaze {
+	font-size: 58px;
+	opacity: 0.6;
+	filter: hue-rotate(178deg) saturate(1.5) brightness(1.15);
+}
+
+.card__name {
+	font-size: 12px;
 	font-weight: 500;
-	flex: none;
-	max-width: 45%;
+	max-width: 100%;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
 /* IP 로 추정한 본인 표시. 확정이 아니므로 조용하게 둔다. */
-.row__me {
-	margin-left: 5px;
-	padding: 1px 5px;
+.card__me {
+	margin-left: 4px;
+	padding: 0 4px;
 	border-radius: 4px;
 	background: var(--accent);
 	color: #ffffff;
-	font-size: 10px;
+	font-size: 9px;
 	font-weight: 700;
 	vertical-align: 1px;
 }
 
-.row__time {
-	flex: none;
-	font-size: 12px;
+.card__time {
+	font-size: 11px;
 	color: var(--muted);
 	font-variant-numeric: tabular-nums;
-}
-
-/* 입장 이벤트를 놓쳐 경과 시간을 계산할 수 없는 경우.
-   틀린 숫자를 보여주느니 모른다고 하는 편이 낫다. */
-.row__time--unknown {
-	color: var(--muted-weak);
-	font-style: italic;
+	white-space: nowrap;
 }
 
 /* 나간 사람은 기록으로만 남기므로 눈에 덜 띄게 */
