@@ -59,25 +59,34 @@ describe("mergeReconnections", () => {
 		expect(merged[0]?.firstJoinedAt?.getTime()).toBe(BASE);
 	});
 
-	it("시간이 겹치면 합치지 않는다 — 같은 NAT 뒤의 동명이인", () => {
+	it("재접속 인수인계로 구간이 겹쳐도 합친다", () => {
+		// Zoom 은 새 연결의 joined 를 먼저 보내고 옛 연결의 left 를 나중에 보낸다.
+		// 운영에서 91초가 겹쳤고, 예전 규칙은 이를 동명이인으로 오판했다.
 		const merged = mergeReconnections([
-			row({ uuid: "A", joinedMin: 0, lastMin: 20, isPresent: true, lastEventType: "joined" }),
-			row({ uuid: "B", joinedMin: 5, lastMin: 22, isPresent: true, lastEventType: "joined" }),
+			row({ uuid: "A", joinedMin: 0, lastMin: 114 }),
+			row({
+				uuid: "B",
+				joinedMin: 112,
+				lastMin: 112,
+				isPresent: true,
+				lastEventType: "joined",
+			}),
 		]);
 
-		expect(merged).toHaveLength(2);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.isPresent).toBe(true);
 	});
 
-	it("앞 사람이 아직 접속 중이면 합치지 않는다", () => {
+	it("앞 사람이 아직 접속 중이어도 합친다", () => {
 		const merged = mergeReconnections([
 			row({ uuid: "A", joinedMin: 0, lastMin: 3, isPresent: true, lastEventType: "joined" }),
 			row({ uuid: "B", joinedMin: 10, lastMin: 10, isPresent: true, lastEventType: "joined" }),
 		]);
 
-		expect(merged).toHaveLength(2);
+		expect(merged).toHaveLength(1);
 	});
 
-	it("IP 가 달라도 이름이 같고 시간이 안 겹치면 합친다", () => {
+	it("IP 가 달라도 이름이 같으면 합친다", () => {
 		// 네트워크를 옮겨 다시 들어온 경우다. 예전에는 두 명으로 쪼개졌다.
 		const merged = mergeReconnections([
 			row({ uuid: "A", joinedMin: 0, lastMin: 6 }),
@@ -88,14 +97,16 @@ describe("mergeReconnections", () => {
 		expect(merged[0]?.connectionCount).toBe(2);
 	});
 
-	it("이름이 같아도 시간이 겹치면 합치지 않는다 — 동명이인", () => {
-		// 한 사람이 동시에 두 곳에 있을 수 없다. IP 를 빼도 이 안전장치는 남는다.
+	it("이름이 같으면 조건 없이 합친다", () => {
+		// 동명이인이 섞일 수 있지만, 병합은 조회 시점 계산이라 원본을 바꾸지 않는다.
+		// 잘못 묶이면 어드민에서 이름을 달리 주어 떼어낸다.
 		const merged = mergeReconnections([
 			row({ uuid: "A", joinedMin: 0, lastMin: 20, publicIp: "203.0.113.1" }),
 			row({ uuid: "B", joinedMin: 10, lastMin: 30, publicIp: "203.0.113.2" }),
 		]);
 
-		expect(merged).toHaveLength(2);
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.connectionCount).toBe(2);
 	});
 
 	it("IP 가 같아도 이름이 다르면 합치지 않는다", () => {
@@ -313,7 +324,7 @@ describe("상태 메시지 승계", () => {
 		expect(merged[0]?.statusMessage).toBe("새 메시지");
 	});
 
-	it("합쳐지지 않는 사람끼리는 상태가 섞이지 않는다", () => {
+	it("이름이 다르면 상태가 섞이지 않는다", () => {
 		const merged = mergeReconnections([
 			row({
 				uuid: "A",
@@ -324,7 +335,14 @@ describe("상태 메시지 승계", () => {
 				statusMessage: "A 의 상태",
 				statusUpdatedAt: new Date(BASE),
 			}),
-			row({ uuid: "B", joinedMin: 5, lastMin: 22, isPresent: true, lastEventType: "joined" }),
+			row({
+				uuid: "B",
+				joinedMin: 5,
+				lastMin: 22,
+				displayName: "다른사람",
+				isPresent: true,
+				lastEventType: "joined",
+			}),
 		]);
 
 		expect(merged).toHaveLength(2);

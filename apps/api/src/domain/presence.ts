@@ -291,20 +291,35 @@ function laterStatus(
 /**
  * 두 행을 같은 사람의 연속된 접속으로 볼 수 있는가.
  *
- * 앞 행이 이미 퇴장했고, 뒤 행이 그 이후에 시작했어야 한다.
- * 활동 구간이 겹치면 한 사람이 동시에 두 곳에 있다는 뜻이므로 다른 사람이다.
- * 같은 네트워크(NAT) 뒤의 동명이인이 이 경우에 해당한다.
+ * **이름이 같으면 같은 사람으로 본다.** 조건을 더 두지 않는다.
+ *
+ * 예전에는 "활동 구간이 겹치면 다른 사람" 이라는 안전장치가 있었다.
+ * 한 사람이 동시에 두 곳에 있을 수 없다는 논리였는데, 기록상으로는
+ * 겹친다. 재접속할 때 Zoom 이 **새 연결의 joined 를 먼저 보내고
+ * 옛 연결의 left 를 나중에** 보내기 때문이다.
+ *
+ * 실제로 걸린 사례:
+ *
+ *   행 A   10:08:20 ~ 12:02:07 (left)
+ *   행 B   12:00:36 ~          (joined)
+ *
+ * 91초가 겹쳤고 안전장치가 이를 동명이인으로 오판해 한 사람을
+ * 두 명으로 갈랐다. 이런 인수인계 구간을 걸러낼 임계값을 정할
+ * 근거가 없어서 조건 자체를 뺐다.
+ *
+ * 대신 이렇게 해도 안전한 이유가 있다. 병합은 **조회 시점 계산**이라
+ * 원본 데이터를 바꾸지 않는다. webhook_events 와 participant_events 는
+ * 그대로 남고, 잘못 묶이면 어드민에서 이름을 달리 주어 떼어낸다.
+ *
+ * 남는 대가: 구간이 실제로 겹치는 두 행을 합치면 누적 접속 시간이
+ * 그만큼 이중으로 셈해진다. 위 사례에서는 91초라 무시할 만하다.
+ * 진짜 동명이인이라면 크게 틀리지만, 그때는 어드민에서 떼어낸다.
  */
 function isContinuation(
-	previous: MergedParticipant,
-	next: ParticipantState,
+	_previous: MergedParticipant,
+	_next: ParticipantState,
 ): boolean {
-	if (previous.isPresent) {
-		return false;
-	}
-
-	const nextStart = (next.firstJoinedAt ?? next.lastOccurredAt).getTime();
-	return nextStart >= previous.lastOccurredAt.getTime();
+	return true;
 }
 
 function absorb(
