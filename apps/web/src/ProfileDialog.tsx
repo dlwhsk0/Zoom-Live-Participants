@@ -190,11 +190,6 @@ export default function ProfileDialog({
 								<span className="profile__videoTitle">
 									{video.data?.title ?? "유튜브에서 열기"}
 								</span>
-								{video.data?.author && (
-									<span className="profile__videoAuthor">
-										{video.data.author}
-									</span>
-								)}
 							</a>
 						)}
 					</div>

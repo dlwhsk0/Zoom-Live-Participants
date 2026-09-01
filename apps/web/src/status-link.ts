@@ -77,7 +77,6 @@ export function parseStatus(value: string | null): ParsedStatus {
 
 export interface YoutubeInfo {
 	title: string;
-	author: string;
 }
 
 /**
@@ -101,17 +100,11 @@ export async function fetchYoutubeInfo(url: string): Promise<YoutubeInfo> {
 	// 없는 영상이거나 비공개면 400 이 온다
 	if (!response.ok) throw new Error("영상 정보를 불러오지 못했습니다");
 
-	const body = (await response.json()) as {
-		title?: unknown;
-		author_name?: unknown;
-	};
+	const body = (await response.json()) as { title?: unknown };
 
 	if (typeof body.title !== "string") {
 		throw new Error("영상 정보를 불러오지 못했습니다");
 	}
 
-	return {
-		title: body.title,
-		author: typeof body.author_name === "string" ? body.author_name : "",
-	};
+	return { title: body.title };
 }

@@ -1184,14 +1184,6 @@ body {
 	overflow-wrap: anywhere;
 }
 
-.profile__videoAuthor {
-	grid-column: 2;
-	color: var(--muted-weak);
-	font-size: 11px;
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
 
 /* "상태 메시지 수정" 이 길어 나란히 두면 카드를 넘친다. 폭을 나눠 쓴다 */
 .profile .dialog__actions {
