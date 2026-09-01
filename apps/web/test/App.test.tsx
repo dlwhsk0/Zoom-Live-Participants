@@ -193,10 +193,17 @@ describe("App", () => {
 
 	it("글 없이 링크만 있으면 빈 자리를 두지 않는다", () => {
 		// 제목을 받아 채운다. 아직 못 받았으면 표시만 남는다.
-		const html = withStatus("youtu.be/abc");
+		// 다른 사람의 빈 칸이 섞이지 않도록 전원에게 링크를 준다.
+		const allLinked = render({
+			...snapshot,
+			participants: snapshot.participants.map((p) => ({
+				...p,
+				statusMessage: "youtu.be/abc",
+			})),
+		});
 
-		expect(html).toContain("status__link");
-		expect(html).not.toContain("status--empty-slot");
+		expect(allLinked).toContain("status__link");
+		expect(allLinked).not.toContain("status--empty-slot");
 	});
 
 	it("유튜브가 아닌 주소는 표시를 남기지 않는다", () => {
