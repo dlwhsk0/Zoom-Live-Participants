@@ -434,7 +434,10 @@ body {
 	/* 세 줄까지 보여주고 그 뒤는 자른다 */
 	-webkit-line-clamp: 3;
 	line-clamp: 3;
-	width: 100%;
+	/* 폭을 다 먹으면 옆의 ▶ 가 오른쪽 끝으로 밀린다.
+	   내용만큼만 차지하고 남으면 줄인다. */
+	min-width: 0;
+	max-width: 100%;
 	padding: 1px 2px;
 	border: 0;
 	background: none;
@@ -478,6 +481,11 @@ body {
 	color: var(--muted-weak);
 	opacity: 0;
 	transition: opacity 0.12s;
+}
+
+/* 상태 메시지가 아예 없는 칸. 자리만 잡아 둔다 */
+.status--empty-slot {
+	width: 100%;
 }
 
 /* 빈 상태는 평소엔 감췄다가 타일에 손이 갈 때만 보인다 */

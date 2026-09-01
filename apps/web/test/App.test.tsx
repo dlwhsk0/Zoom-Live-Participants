@@ -191,6 +191,14 @@ describe("App", () => {
 		expect(html).not.toContain("<a");
 	});
 
+	it("글 없이 링크만 있으면 빈 자리를 두지 않는다", () => {
+		// 제목을 받아 채운다. 아직 못 받았으면 표시만 남는다.
+		const html = withStatus("youtu.be/abc");
+
+		expect(html).toContain("status__link");
+		expect(html).not.toContain("status--empty-slot");
+	});
+
 	it("유튜브가 아닌 주소는 표시를 남기지 않는다", () => {
 		// 상태 메시지는 아무나 쓸 수 있다. 아무 주소나 열어주면 피싱에 쓰인다
 		const html = withStatus("여기 봐 https://evil.example.com/x");

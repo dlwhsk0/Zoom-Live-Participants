@@ -1,4 +1,6 @@
-import { parseStatus } from "./status-link.ts";
+import { useQuery } from "@tanstack/react-query";
+
+import { fetchYoutubeInfo, parseStatus } from "./status-link.ts";
 
 /**
  * 타일에 보이는 상태 메시지. **표시 전용이다.**
@@ -17,6 +19,16 @@ export default function StatusMessage({
 	// 진짜 링크는 프로필 카드에 있다.
 	const { text, youtube } = parseStatus(value);
 
+	// 적은 글이 없으면 영상 제목으로 자리를 채운다. 링크만 덩그러니 있는 것보다
+	// 무엇을 걸었는지 보이는 편이 낫다. 같은 영상은 카드와 캐시를 함께 쓴다.
+	const video = useQuery({
+		queryKey: ["youtube", youtube],
+		queryFn: () => fetchYoutubeInfo(youtube as string),
+		enabled: youtube !== null && text === "",
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+	});
+
 	if (!text && !youtube) {
 		return (
 			<span className="status status--empty-slot">
@@ -25,13 +37,15 @@ export default function StatusMessage({
 		);
 	}
 
+	const label = text || video.data?.title || "";
+
 	const classes = ["status"];
 	if (dimmed) classes.push("status--dim");
-	if (text) classes.push(`status--len${lengthStep(text)}`);
+	if (label) classes.push(`status--len${lengthStep(label)}`);
 
 	return (
 		<span className="status-row">
-			<span className={classes.join(" ")}>{text}</span>
+			{label && <span className={classes.join(" ")}>{label}</span>}
 			{youtube && (
 				<span className="status__link" aria-label="유튜브 링크 있음">
 					▶
