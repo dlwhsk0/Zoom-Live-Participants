@@ -25,7 +25,7 @@ export default function StatusDialog({
 	onCancel,
 }: Props) {
 	const [draft, setDraft] = useState(value ?? "");
-	const inputRef = useRef<HTMLInputElement>(null);
+	const inputRef = useRef<HTMLTextAreaElement>(null);
 
 	// 창이 열릴 때 한 번만 커서를 잡는다.
 	//
@@ -54,7 +54,7 @@ export default function StatusDialog({
 		return () => window.removeEventListener("keydown", onKey);
 	}, []);
 
-	const left = STATUS_MAX_LENGTH - draft.length;
+	const over = draft.length > STATUS_MAX_LENGTH;
 
 	return (
 		<Portal>
@@ -73,20 +73,41 @@ export default function StatusDialog({
 					</h2>
 					<p className="dialog__body">상태 메시지를 적어주세요.</p>
 
-					<input
-						ref={inputRef}
-						className="dialog__input"
-						value={draft}
-						maxLength={STATUS_MAX_LENGTH}
-						disabled={saving}
-						placeholder="예: 논문 마감 중"
-						aria-label="상태 메시지"
-						onChange={(event) => setDraft(event.target.value)}
-						onKeyDown={(event) => {
-							if (event.key === "Enter" && !saving) onSave(draft.trim());
-						}}
-					/>
-					<p className="dialog__hint">{left}자 남음</p>
+					{/*
+					  * 넘친 글자를 빨갛게 칠하려면 글자 하나하나에 스타일을 줘야 하는데
+					  * input 안의 텍스트에는 줄 수 없다. 같은 글을 그린 거울을 뒤에 깔고
+					  * 입력칸은 글자를 투명하게 해서 위에 얹는다. 커서만 보인다.
+					  *
+					  * 한 줄짜리 input 이 아니라 textarea 인 이유는 가로 스크롤 때문이다.
+					  * 스크롤되면 거울과 어긋난다. 줄바꿈으로 받으면 항상 붙어 있다.
+					  */}
+					<div className="dialog__field">
+						<div className="dialog__mirror" aria-hidden="true">
+							{draft.slice(0, STATUS_MAX_LENGTH)}
+							<mark className="dialog__over">
+								{draft.slice(STATUS_MAX_LENGTH)}
+							</mark>
+						</div>
+						<textarea
+							ref={inputRef}
+							className="dialog__input"
+							value={draft}
+							rows={2}
+							disabled={saving}
+							placeholder="예: 논문 마감 중"
+							aria-label="상태 메시지"
+							onChange={(event) => setDraft(event.target.value)}
+							onKeyDown={(event) => {
+								if (event.key !== "Enter") return;
+								// 상태 메시지는 한 줄짜리다. 줄바꿈 대신 저장으로 받는다.
+								event.preventDefault();
+								if (!saving && !over) onSave(draft.trim());
+							}}
+						/>
+					</div>
+					<p className={over ? "dialog__hint dialog__hint--over" : "dialog__hint"}>
+						{`${draft.length}/${STATUS_MAX_LENGTH}`}
+					</p>
 
 					<div className="dialog__actions">
 						<button
@@ -100,7 +121,7 @@ export default function StatusDialog({
 						<button
 							type="button"
 							className="dialog__button dialog__button--primary"
-							disabled={saving}
+							disabled={saving || over}
 							onClick={() => onSave(draft.trim())}
 						>
 							{saving ? "저장 중" : "저장"}

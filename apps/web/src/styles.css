@@ -18,6 +18,8 @@
 	--toast-fg: #f4f6f8;
 	--toast-ok: #4ade80;
 	--toast-err: #f87171;
+	--over-bg: rgba(220, 38, 38, 0.18);
+	--over-fg: #dc2626;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -37,6 +39,8 @@
 		--toast-fg: #1a1d22;
 		--toast-ok: #16a34a;
 		--toast-err: #dc2626;
+		--over-bg: rgba(248, 113, 113, 0.28);
+		--over-fg: #f87171;
 	}
 }
 
@@ -56,6 +60,8 @@
 	--toast-fg: #1a1d22;
 	--toast-ok: #16a34a;
 	--toast-err: #dc2626;
+	--over-bg: rgba(248, 113, 113, 0.28);
+	--over-fg: #f87171;
 }
 
 * {
@@ -489,20 +495,63 @@ body {
 	color: var(--muted);
 }
 
-.dialog__input {
-	width: 100%;
-	padding: 9px 11px;
+/*
+ * 입력칸은 두 겹이다. 뒤에 글을 그린 거울, 위에 글자가 투명한 입력칸.
+ * 넘친 글자를 빨갛게 칠하려면 글자마다 스타일이 필요한데 입력칸 안의
+ * 텍스트에는 줄 수 없기 때문이다.
+ *
+ * 두 겹의 글자 배치가 정확히 같아야 한다. 폰트·여백·줄바꿈 규칙을
+ * 공유 규칙에 몰아 둔 이유다. 하나만 고치면 어긋난다.
+ */
+.dialog__field {
+	position: relative;
 	border: 1px solid var(--line-strong);
 	border-radius: 9px;
 	background: var(--field);
-	color: var(--fg);
-	font: inherit;
-	font-size: 15px;
 }
 
-.dialog__input:focus {
-	outline: none;
+.dialog__field:focus-within {
 	border-color: var(--accent);
+}
+
+.dialog__mirror,
+.dialog__input {
+	padding: 9px 11px;
+	font: inherit;
+	font-size: 15px;
+	line-height: 1.45;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+/* 거울이 높이를 정한다. 입력칸은 그 위에 겹쳐진다 */
+.dialog__mirror {
+	min-height: 62px;
+	color: var(--fg);
+}
+
+/* 제한을 넘은 부분. 트위터처럼 붉게 깔아 어디서부터 넘쳤는지 보여준다 */
+.dialog__over {
+	background: var(--over-bg);
+	color: inherit;
+	border-radius: 2px;
+}
+
+.dialog__input {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	border: 0;
+	background: transparent;
+	/* 글자는 거울이 보여준다. 여기서는 커서만 보이면 된다 */
+	color: transparent;
+	caret-color: var(--fg);
+	resize: none;
+	outline: none;
+}
+
+.dialog__input::placeholder {
+	color: var(--muted-weak);
 }
 
 .dialog__input:disabled {
@@ -515,6 +564,11 @@ body {
 	color: var(--muted-weak);
 	text-align: right;
 	font-variant-numeric: tabular-nums;
+}
+
+.dialog__hint--over {
+	color: var(--over-fg);
+	font-weight: 600;
 }
 
 .dialog__actions {
@@ -533,6 +587,12 @@ body {
 	font-size: 13px;
 	font-weight: 500;
 	cursor: pointer;
+}
+
+/* 글자 수를 넘기면 저장이 막힌다. 막혔다는 것이 보여야 한다 */
+.dialog__button:disabled {
+	opacity: 0.45;
+	cursor: default;
 }
 
 .dialog__button:hover {
