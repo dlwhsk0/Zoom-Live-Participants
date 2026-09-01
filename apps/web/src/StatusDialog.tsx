@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { STATUS_MAX_LENGTH } from "./api.ts";
+import Portal from "./Portal.tsx";
 
 interface Props {
 	name: string;
@@ -56,55 +57,57 @@ export default function StatusDialog({
 	const left = STATUS_MAX_LENGTH - draft.length;
 
 	return (
-		<div
-			className="overlay"
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="status-title"
-			onClick={(event) => {
-				if (event.target === event.currentTarget) onCancel();
-			}}
-		>
-			<div className="dialog">
-				<h2 className="dialog__title" id="status-title">
-					{name}
-				</h2>
-				<p className="dialog__body">상태 메시지를 적어주세요.</p>
+		<Portal>
+			<div
+				className="overlay"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="status-title"
+				onClick={(event) => {
+					if (event.target === event.currentTarget) onCancel();
+				}}
+			>
+				<div className="dialog">
+					<h2 className="dialog__title" id="status-title">
+						{name}
+					</h2>
+					<p className="dialog__body">상태 메시지를 적어주세요.</p>
 
-				<input
-					ref={inputRef}
-					className="dialog__input"
-					value={draft}
-					maxLength={STATUS_MAX_LENGTH}
-					disabled={saving}
-					placeholder="예: 논문 마감 중"
-					aria-label="상태 메시지"
-					onChange={(event) => setDraft(event.target.value)}
-					onKeyDown={(event) => {
-						if (event.key === "Enter" && !saving) onSave(draft.trim());
-					}}
-				/>
-				<p className="dialog__hint">{left}자 남음</p>
+					<input
+						ref={inputRef}
+						className="dialog__input"
+						value={draft}
+						maxLength={STATUS_MAX_LENGTH}
+						disabled={saving}
+						placeholder="예: 논문 마감 중"
+						aria-label="상태 메시지"
+						onChange={(event) => setDraft(event.target.value)}
+						onKeyDown={(event) => {
+							if (event.key === "Enter" && !saving) onSave(draft.trim());
+						}}
+					/>
+					<p className="dialog__hint">{left}자 남음</p>
 
-				<div className="dialog__actions">
-					<button
-						type="button"
-						className="dialog__button"
-						disabled={saving}
-						onClick={onCancel}
-					>
-						취소
-					</button>
-					<button
-						type="button"
-						className="dialog__button dialog__button--primary"
-						disabled={saving}
-						onClick={() => onSave(draft.trim())}
-					>
-						{saving ? "저장 중" : "저장"}
-					</button>
+					<div className="dialog__actions">
+						<button
+							type="button"
+							className="dialog__button"
+							disabled={saving}
+							onClick={onCancel}
+						>
+							취소
+						</button>
+						<button
+							type="button"
+							className="dialog__button dialog__button--primary"
+							disabled={saving}
+							onClick={() => onSave(draft.trim())}
+						>
+							{saving ? "저장 중" : "저장"}
+						</button>
+					</div>
 				</div>
 			</div>
-		</div>
+		</Portal>
 	);
 }

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import Portal from "./Portal.tsx";
 
 interface Props {
 	title: string;
@@ -42,35 +43,37 @@ export default function ConfirmDialog({
 	}, []);
 
 	return (
-		<div
-			className="overlay"
-			role="dialog"
-			aria-modal="true"
-			aria-labelledby="confirm-title"
-			onClick={(event) => {
-				// 바깥을 누르면 닫는다
-				if (event.target === event.currentTarget) onCancel();
-			}}
-		>
-			<div className="dialog">
-				<h2 className="dialog__title" id="confirm-title">
-					{title}
-				</h2>
-				<p className="dialog__body">{description}</p>
-				<div className="dialog__actions">
-					<button type="button" className="dialog__button" onClick={onCancel}>
-						{cancelLabel}
-					</button>
-					<button
-						ref={confirmRef}
-						type="button"
-						className="dialog__button dialog__button--primary"
-						onClick={onConfirm}
-					>
-						{confirmLabel}
-					</button>
+		<Portal>
+			<div
+				className="overlay"
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby="confirm-title"
+				onClick={(event) => {
+					// 바깥을 누르면 닫는다
+					if (event.target === event.currentTarget) onCancel();
+				}}
+			>
+				<div className="dialog">
+					<h2 className="dialog__title" id="confirm-title">
+						{title}
+					</h2>
+					<p className="dialog__body">{description}</p>
+					<div className="dialog__actions">
+						<button type="button" className="dialog__button" onClick={onCancel}>
+							{cancelLabel}
+						</button>
+						<button
+							ref={confirmRef}
+							type="button"
+							className="dialog__button dialog__button--primary"
+							onClick={onConfirm}
+						>
+							{confirmLabel}
+						</button>
+					</div>
 				</div>
 			</div>
-		</div>
+		</Portal>
 	);
 }
