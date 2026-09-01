@@ -107,6 +107,8 @@ export interface LogEntry {
 	leaveReason: string | null;
 	/** 같은 참가자·같은 발생 시각에 반대 이벤트가 있으면 소회의실 이동이다. */
 	isRoomMove: boolean;
+	/** 이 시각에 같은 사람의 다른 접속이 살아 있었는가. 노트북 + 폰 같은 경우다. */
+	isConcurrent: boolean;
 	payload?: unknown;
 }
 

@@ -18,6 +18,32 @@ function readKey(): string {
 	return new URLSearchParams(window.location.search).get("key") ?? "";
 }
 
+type Tab = "people" | "aliases" | "logs" | "history";
+
+const TABS: { id: Tab; label: string }[] = [
+	{ id: "people", label: "사람" },
+	{ id: "aliases", label: "별칭" },
+	{ id: "logs", label: "로그" },
+	{ id: "history", label: "기록" },
+];
+
+/** 열린 탭을 주소에 남긴다. 새로고침해도 보던 탭이 유지되고 링크로 공유된다. */
+function readTab(): Tab {
+	if (typeof window === "undefined") return "people";
+
+	const value = new URLSearchParams(window.location.search).get("tab");
+	return TABS.some((t) => t.id === value) ? (value as Tab) : "people";
+}
+
+function selectTab(next: Tab, apply: (tab: Tab) => void): void {
+	apply(next);
+
+	if (typeof window === "undefined") return;
+	const url = new URL(window.location.href);
+	url.searchParams.set("tab", next);
+	window.history.replaceState(null, "", url);
+}
+
 function formatTime(iso: string): string {
 	const d = new Date(iso);
 	if (Number.isNaN(d.getTime())) return iso;
@@ -54,7 +80,17 @@ function Row({ entry, showRaw }: { entry: LogEntry; showRaw: boolean }) {
 					{joined ? "입장" : "퇴장"}
 				</span>
 				<span className="log__name">{entry.displayName ?? "이름 없음"}</span>
-				{entry.isRoomMove && <span className="log__tag">방 이동</span>}
+				<span className="log__tags">
+					{entry.isRoomMove && <span className="log__tag">방 이동</span>}
+					{entry.isConcurrent && (
+						<span
+							className="log__tag log__tag--concurrent"
+							title="이 시각에 같은 사람의 다른 접속이 살아 있었습니다 (노트북 + 폰 등)"
+						>
+							{joined ? "동시 접속" : "다른 기기 접속 중"}
+						</span>
+					)}
+				</span>
 			</button>
 
 			<div className="log__meta">
@@ -137,15 +173,6 @@ function LogList({ accessKey: key }: { accessKey: string }) {
 	);
 }
 
-type Tab = "people" | "aliases" | "logs" | "history";
-
-const TABS: { id: Tab; label: string }[] = [
-	{ id: "people", label: "사람" },
-	{ id: "aliases", label: "별칭" },
-	{ id: "logs", label: "로그" },
-	{ id: "history", label: "기록" },
-];
-
 /**
  * 어드민 화면.
  *
@@ -154,7 +181,7 @@ const TABS: { id: Tab; label: string }[] = [
  */
 export default function Admin() {
 	const [key] = useState(readKey);
-	const [tab, setTab] = useState<Tab>("people");
+	const [tab, setTab] = useState<Tab>(readTab);
 	const [toast, setToast] = useState<ToastState | null>(null);
 
 	// 인라인 화살표로 넘기면 매 렌더 새 함수가 되어 Toast 의 자동 닫힘
@@ -193,7 +220,7 @@ export default function Admin() {
 						key={t.id}
 						type="button"
 						className={tab === t.id ? "tab tab--on" : "tab"}
-						onClick={() => setTab(t.id)}
+						onClick={() => selectTab(t.id, setTab)}
 					>
 						{t.label}
 					</button>

@@ -323,6 +323,16 @@ export interface LogEntry {
 	leaveReason: string | null;
 	/** 같은 참가자·같은 발생 시각에 반대 이벤트가 있으면 소회의실 이동이다. */
 	isRoomMove: boolean;
+	/**
+	 * 이 시각에 같은 사람의 **다른 접속**이 살아 있었는가.
+	 *
+	 * 노트북과 폰으로 동시에 들어온 경우다. 로그만 보면 한 사람이 두 번
+	 * 들어오고 한 번만 나간 것처럼 보여 헷갈린다. 그 상황임을 표시한다.
+	 *
+	 * 재접속 인수인계(새 연결의 joined 가 옛 연결의 left 보다 먼저 오는
+	 * 구간)도 여기에 걸린다. 기록상 실제로 겹치는 것이 맞다.
+	 */
+	isConcurrent: boolean;
 	/** raw=true 로 요청했을 때만 담는다. */
 	payload?: unknown;
 }
@@ -390,6 +400,8 @@ export async function getLogs(
 	const hasMore = rows.length > limit;
 	const page = hasMore ? rows.slice(0, limit) : rows;
 
+	const concurrent = await findConcurrentTimes(db, session.meetingUuid, page);
+
 	// 방 이동 판정: 같은 페이지 안에서 같은 참가자·같은 시각의 반대 이벤트를 찾는다.
 	// 페이지 경계에 쌍이 걸치면 놓칠 수 있으나, 쌍은 항상 같은 시각이라 드물다.
 	const pairKeys = new Set(
@@ -413,6 +425,7 @@ export async function getLogs(
 			isRoomMove: pairKeys.has(
 				`${r.participantUuid}|${r.occurredAt.getTime()}|${opposite}`,
 			),
+			isConcurrent: concurrent.has(r.id),
 			...(options.raw ? { payload: r.payload } : {}),
 		};
 	});
@@ -425,6 +438,80 @@ export async function getLogs(
 			? (page.at(-1)?.occurredAt.toISOString() ?? null)
 			: null,
 	};
+}
+
+/** 구간이 그 시각을 덮는가. 끝나는 순간은 덮지 않는 것으로 본다. */
+function covers(interval: Interval, at: number): boolean {
+	if (interval.start.getTime() > at) return false;
+	return interval.end === null || interval.end.getTime() > at;
+}
+
+/**
+ * 같은 사람의 다른 접속이 살아 있던 이벤트를 찾는다.
+ *
+ * 사람은 이름으로 묶는다. 병합 규칙과 같은 기준이어야 로그와 화면이
+ * 어긋나지 않는다. 별칭도 같이 적용한다.
+ *
+ * 같은 participant_uuid 는 제외한다. 소회의실 이동은 같은 uuid 에서
+ * left 와 joined 가 같은 시각에 나는 것이라 동시 접속이 아니다.
+ */
+async function findConcurrentTimes(
+	db: Db,
+	meetingUuid: string,
+	page: readonly { id: string; participantUuid: string; occurredAt: Date }[],
+): Promise<Set<string>> {
+	if (page.length === 0) return new Set();
+
+	const [intervals, aliases, owners] = await Promise.all([
+		findIntervals(db, meetingUuid),
+		loadAliasMap(db),
+		db
+			.select({
+				participantUuid: participants.participantUuid,
+				displayName: participants.displayName,
+			})
+			.from(participants)
+			.where(eq(participants.meetingUuid, meetingUuid)),
+	]);
+
+	/** participant_uuid → 사람 이름(별칭 적용) */
+	const personOf = new Map<string, string>();
+	for (const owner of owners) {
+		if (!owner.displayName) continue;
+		personOf.set(
+			owner.participantUuid,
+			aliases.get(owner.displayName) ?? owner.displayName,
+		);
+	}
+
+	/** 사람 → 그 사람의 접속들 */
+	const byPerson = new Map<string, { uuid: string; intervals: Interval[] }[]>();
+	for (const [uuid, list] of intervals) {
+		const person = personOf.get(uuid);
+		if (!person) continue;
+		const connections = byPerson.get(person) ?? [];
+		connections.push({ uuid, intervals: list });
+		byPerson.set(person, connections);
+	}
+
+	const flagged = new Set<string>();
+
+	for (const entry of page) {
+		const person = personOf.get(entry.participantUuid);
+		if (!person) continue;
+
+		const connections = byPerson.get(person);
+		if (!connections || connections.length < 2) continue;
+
+		const at = entry.occurredAt.getTime();
+		const overlapped = connections.some(
+			(c) => c.uuid !== entry.participantUuid && c.intervals.some((i) => covers(i, at)),
+		);
+
+		if (overlapped) flagged.add(entry.id);
+	}
+
+	return flagged;
 }
 
 /**

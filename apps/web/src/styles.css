@@ -708,9 +708,16 @@ body {
 	white-space: nowrap;
 }
 
+/* 태그가 둘일 수 있다. 묶어서 오른쪽으로 밀어 놓는다 */
+.log__tags {
+	display: flex;
+	flex: none;
+	gap: 4px;
+	margin-left: auto;
+}
+
 .log__tag {
 	flex: none;
-	margin-left: auto;
 	padding: 1px 6px;
 	border-radius: 4px;
 	background: var(--field);
@@ -718,6 +725,12 @@ body {
 	font-size: 11px;
 	font-weight: 600;
 	white-space: nowrap;
+}
+
+/* 동시 접속은 사람이 놓치기 쉬운 상황이라 눈에 띄게 둔다 */
+.log__tag--concurrent {
+	background: var(--warn-bg);
+	color: var(--warn-fg);
 }
 
 .log__meta {
