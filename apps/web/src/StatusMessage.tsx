@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import ConfirmDialog from "./ConfirmDialog.tsx";
+import { parseStatus } from "./status-link.ts";
 import StatusDialog from "./StatusDialog.tsx";
 
 /**
@@ -55,9 +56,26 @@ export default function StatusMessage({
 		}
 	}
 
+	// 주소는 타일에 그대로 담기엔 길다. 걷어내고 작은 표시로 대신한다.
+	const { text, youtube } = parseStatus(value);
+
 	return (
 		<>
-			<StatusButton value={value} dimmed={dimmed} onClick={startEditing} />
+			<span className="status-row">
+				<StatusButton value={text} dimmed={dimmed} onClick={startEditing} />
+				{youtube && (
+					<a
+						className="status__link"
+						href={youtube}
+						target="_blank"
+						// 새 탭이 원래 창을 건드리지 못하게 한다
+						rel="noopener noreferrer nofollow"
+						title={youtube}
+					>
+						▶
+					</a>
+				)}
+			</span>
 
 			{asking && (
 				<ConfirmDialog
@@ -103,7 +121,7 @@ function StatusButton({
 	dimmed,
 	onClick,
 }: {
-	value: string | null;
+	value: string;
 	dimmed: boolean;
 	onClick: () => void;
 }) {

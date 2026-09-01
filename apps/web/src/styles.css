@@ -390,6 +390,34 @@ body {
 
 /* ── 상태 메시지 ────────────────────────────── */
 
+/* 글과 링크를 나란히 둔다. a 를 button 안에 넣을 수 없다 */
+.status-row {
+	display: flex;
+	/* 글이 두 줄이면 마지막 줄 옆에 붙어야 자연스럽다 */
+	align-items: flex-end;
+	justify-content: center;
+	gap: 3px;
+	width: 100%;
+	min-width: 0;
+	padding-bottom: 2px;
+}
+
+/* 유튜브 링크. 주소 대신 이것만 보인다 */
+.status__link {
+	flex: none;
+	padding: 0 3px;
+	border-radius: 4px;
+	background: var(--field);
+	color: var(--muted);
+	font-size: 10px;
+	line-height: 1.6;
+	text-decoration: none;
+}
+
+.status__link:hover {
+	color: var(--fg);
+}
+
 .status {
 	display: -webkit-box;
 	-webkit-box-orient: vertical;

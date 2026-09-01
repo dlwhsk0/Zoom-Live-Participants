@@ -176,6 +176,29 @@ describe("App", () => {
 		);
 	});
 
+	it("상태 메시지의 유튜브 주소를 링크로 만든다", () => {
+		const html = withStatus("공부 브금 youtu.be/dQw4w9WgXcQ");
+
+		expect(html).toContain('href="https://youtu.be/dQw4w9WgXcQ"');
+		// 주소는 타일에 담기엔 길다. 걷어내고 표시로 대신한다
+		expect(html).toContain("공부 브금");
+		expect(html).not.toContain("youtu.be/dQw4w9WgXcQ<");
+	});
+
+	it("새 탭이 원래 창을 건드리지 못하게 한다", () => {
+		const html = withStatus("youtu.be/abc");
+		expect(html).toMatch(/rel="noopener noreferrer nofollow"/);
+	});
+
+	it("유튜브가 아닌 주소는 링크로 만들지 않는다", () => {
+		// 상태 메시지는 아무나 쓸 수 있다. 아무 주소나 열어주면 피싱에 쓰인다
+		const html = withStatus("여기 봐 https://evil.example.com/x");
+
+		expect(html).not.toContain("status__link");
+		expect(html).not.toContain("evil.example.com\"");
+		expect(html).toContain("evil.example.com");
+	});
+
 	it("긴 상태 메시지도 타일 안에서 줄바꿈으로 받는다", () => {
 		// 호버 말풍선은 두지 않는다. 잘리면 잘린 채로 둔다.
 		const long = withStatus("이번주까지 논문 마감이라 정신이 없음");
