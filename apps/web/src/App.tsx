@@ -15,6 +15,7 @@ import {
 	restTier,
 	studyTier,
 } from "./format.ts";
+import ProfileDialog from "./ProfileDialog.tsx";
 import StatusMessage from "./StatusMessage.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 import Toast, { type ToastState, type ToastTone } from "./Toast.tsx";
@@ -37,11 +38,11 @@ const REST_LABEL = ["잠깐 자리 비움", "졸기 시작", "자는 중", "오�
 function Card({
 	participant,
 	now,
-	onSaveStatus,
+	onOpen,
 }: {
 	participant: SessionParticipant;
 	now: number;
-	onSaveStatus: (uuid: string, message: string) => Promise<void>;
+	onOpen: () => void;
 }) {
 	const seconds = participant.onlineSeconds;
 	const tier = participant.isPresent ? studyTier(seconds) : 0;
@@ -51,63 +52,66 @@ function Card({
 	const atLeast = participant.joinTimeUncertain && participant.isPresent;
 
 	return (
-		<li
-			className={
-				participant.isPresent
-					? `card card--tier${tier}`
-					: "card card--offline"
-			}
-		>
-			<span
-				className={`card__icon card__icon--tier${participant.isPresent ? tier : 0}`}
-				role="img"
-				aria-label={
+		<li>
+			{/* 타일 전체가 프로필 카드를 여는 버튼이다. 90px 안에 누를 것을
+			    여럿 두면 서로 먹는다. */}
+			<button
+				type="button"
+				className={
 					participant.isPresent
-						? `공부 중${tier >= 2 ? `, ${FLAME_LABEL[tier]}` : ""}`
-						: REST_LABEL[rest]
+						? `card card--tier${tier}`
+						: "card card--offline"
 				}
+				onClick={onOpen}
 			>
-				{/* 3단계부터는 불이 사람 뒤로 가고 커진다 */}
-				{participant.isPresent && tier >= 3 && (
-					<span className="card__blaze" aria-hidden="true">
-						🔥
+				<span
+					className={`card__icon card__icon--tier${participant.isPresent ? tier : 0}`}
+					role="img"
+					aria-label={
+						participant.isPresent
+							? `공부 중${tier >= 2 ? `, ${FLAME_LABEL[tier]}` : ""}`
+							: REST_LABEL[rest]
+					}
+				>
+					{/* 3단계부터는 불이 사람 뒤로 가고 커진다 */}
+					{participant.isPresent && tier >= 3 && (
+						<span className="card__blaze" aria-hidden="true">
+							🔥
+						</span>
+					)}
+					<span className="card__person">
+						{participant.isPresent ? "🧑‍💻" : REST_ICON[rest]}
 					</span>
-				)}
-				<span className="card__person">
-					{participant.isPresent ? "🧑‍💻" : REST_ICON[rest]}
+					{participant.isPresent && tier === 2 && (
+						<span className="card__flame" aria-hidden="true">
+							🔥
+						</span>
+					)}
 				</span>
-				{participant.isPresent && tier === 2 && (
-					<span className="card__flame" aria-hidden="true">
-						🔥
-					</span>
-				)}
-			</span>
 
-			<span className="card__name">
-				{participant.displayName ?? "이름 없음"}
-				{participant.isYou && <span className="card__me">(나)</span>}
-			</span>
+				<span className="card__name">
+					{participant.displayName ?? "이름 없음"}
+					{participant.isYou && <span className="card__me">(나)</span>}
+				</span>
 
-			<span
-				className="card__time"
-				title={
-					atLeast
-						? "서버가 입장 이벤트를 받지 못했습니다. 실제로는 이보다 깁니다"
-						: undefined
-				}
-			>
-				{participant.isPresent
-					? `${formatDuration(seconds)}${atLeast ? "+" : ""}`
-					: formatLeftAgo(participant.lastOccurredAt, now)}
-			</span>
+				<span
+					className="card__time"
+					title={
+						atLeast
+							? "서버가 입장 이벤트를 받지 못했습니다. 실제로는 이보다 깁니다"
+							: undefined
+					}
+				>
+					{participant.isPresent
+						? `${formatDuration(seconds)}${atLeast ? "+" : ""}`
+						: formatLeftAgo(participant.lastOccurredAt, now)}
+				</span>
 
-			<StatusMessage
-				name={participant.displayName ?? "이름 없음"}
-				value={participant.statusMessage}
-				dimmed={!participant.isPresent}
-				isYou={participant.isYou}
-				onSave={(message) => onSaveStatus(participant.participantUuid, message)}
-			/>
+				<StatusMessage
+					value={participant.statusMessage}
+					dimmed={!participant.isPresent}
+				/>
+			</button>
 		</li>
 	);
 }
@@ -118,14 +122,14 @@ function Section({
 	people,
 	now,
 	emptyText,
-	onSaveStatus,
+	onOpen,
 }: {
 	title: string;
 	tone: "online" | "offline";
 	people: SessionParticipant[];
 	now: number;
 	emptyText?: string;
-	onSaveStatus: (uuid: string, message: string) => Promise<void>;
+	onOpen: (participant: SessionParticipant) => void;
 }) {
 	if (people.length === 0 && !emptyText) {
 		return null;
@@ -148,7 +152,7 @@ function Section({
 							key={p.participantUuid}
 							participant={p}
 							now={now}
-							onSaveStatus={onSaveStatus}
+							onOpen={() => onOpen(p)}
 						/>
 					))}
 				</ul>
@@ -212,6 +216,15 @@ export default function App() {
 		await statusMutation.mutateAsync({ uuid, message });
 	}
 
+	// 열려 있는 프로필 카드. 목록이 5초마다 갱신되므로 uuid 로만 붙들고
+	// 최신 데이터를 매번 다시 찾는다. 카드가 켜진 채로 시간이 흐른다.
+	const [selectedUuid, setSelectedUuid] = useState<string | null>(null);
+	const setSelected = useCallback(
+		(participant: SessionParticipant) => setSelectedUuid(participant.participantUuid),
+		[],
+	);
+	const closeProfile = useCallback(() => setSelectedUuid(null), []);
+
 	const updatedAt = data?.updatedAt ? Date.parse(data.updatedAt) : null;
 	// 접속 중은 누적 시간이 많은 순. 값은 서버가 이미 끝까지 계산해 준다.
 	const online = (data?.participants.filter((p) => p.isPresent) ?? [])
@@ -224,9 +237,23 @@ export default function App() {
 	// 값이 없으면 빈 문자열이 와서 아래 렌더가 통째로 빠진다.
 	const sessionStart = formatSessionStart(data?.startedAt ?? null);
 
+	const selected =
+		data?.participants.find((p) => p.participantUuid === selectedUuid) ?? null;
+
 	return (
 		<main className="screen">
 			<Toast toast={toast} onDismiss={dismissToast} />
+
+			{selected && (
+				<ProfileDialog
+					participant={selected}
+					now={now}
+					onSave={(message) =>
+						handleSaveStatus(selected.participantUuid, message)
+					}
+					onClose={closeProfile}
+				/>
+			)}
 
 			{isError && data && (
 				<div className="banner" role="status">
@@ -283,14 +310,14 @@ export default function App() {
 						people={online}
 						now={now}
 						emptyText="접속 중인 사람이 없습니다"
-						onSaveStatus={handleSaveStatus}
+						onOpen={setSelected}
 					/>
 					<Section
 						title="오프라인"
 						tone="offline"
 						people={offline}
 						now={now}
-						onSaveStatus={handleSaveStatus}
+						onOpen={setSelected}
 					/>
 				</>
 			)}

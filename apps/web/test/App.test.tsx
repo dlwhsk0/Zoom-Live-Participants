@@ -38,6 +38,7 @@ const snapshot: PresenceSnapshot = {
 	participants: [
 		{
 			participantUuid: "p1",
+			connectionCount: 1,
 			// 서버가 진행 중인 구간까지 더해서 준다
 			onlineSeconds: 71 * 60,
 			displayName: "조하나",
@@ -50,6 +51,7 @@ const snapshot: PresenceSnapshot = {
 		},
 		{
 			participantUuid: "p2",
+			connectionCount: 1,
 			onlineSeconds: 0,
 			displayName: "참가자02",
 			firstJoinedAt: new Date(now - 4 * 60_000).toISOString(),
@@ -61,6 +63,7 @@ const snapshot: PresenceSnapshot = {
 		},
 		{
 			participantUuid: "p3",
+			connectionCount: 1,
 			onlineSeconds: 0,
 			displayName: null,
 			firstJoinedAt: new Date(now).toISOString(),
@@ -72,6 +75,7 @@ const snapshot: PresenceSnapshot = {
 		},
 		{
 			participantUuid: "p4",
+			connectionCount: 1,
 			onlineSeconds: 28 * 60,
 			displayName: "김동현",
 			firstJoinedAt: new Date(now - 40 * 60_000).toISOString(),
@@ -176,26 +180,22 @@ describe("App", () => {
 		);
 	});
 
-	it("상태 메시지의 유튜브 주소를 링크로 만든다", () => {
+	it("타일에는 주소 대신 표시만 남긴다", () => {
+		// 90px 안에 주소를 담을 수 없다. 진짜 링크는 프로필 카드에 있다.
 		const html = withStatus("공부 브금 youtu.be/dQw4w9WgXcQ");
 
-		expect(html).toContain('href="https://youtu.be/dQw4w9WgXcQ"');
-		// 주소는 타일에 담기엔 길다. 걷어내고 표시로 대신한다
 		expect(html).toContain("공부 브금");
-		expect(html).not.toContain("youtu.be/dQw4w9WgXcQ<");
+		expect(html).toContain("status__link");
+		expect(html).not.toContain("youtu.be/dQw4w9WgXcQ");
+		// 타일에서는 링크를 열지 않는다
+		expect(html).not.toContain("<a");
 	});
 
-	it("새 탭이 원래 창을 건드리지 못하게 한다", () => {
-		const html = withStatus("youtu.be/abc");
-		expect(html).toMatch(/rel="noopener noreferrer nofollow"/);
-	});
-
-	it("유튜브가 아닌 주소는 링크로 만들지 않는다", () => {
+	it("유튜브가 아닌 주소는 표시를 남기지 않는다", () => {
 		// 상태 메시지는 아무나 쓸 수 있다. 아무 주소나 열어주면 피싱에 쓰인다
 		const html = withStatus("여기 봐 https://evil.example.com/x");
 
 		expect(html).not.toContain("status__link");
-		expect(html).not.toContain("evil.example.com\"");
 		expect(html).toContain("evil.example.com");
 	});
 

@@ -6,6 +6,8 @@ export interface SessionParticipant {
 	isPresent: boolean;
 	/** 마지막 이벤트 시각. 퇴장자의 경우 나간 시각이다. */
 	lastOccurredAt: string;
+	/** 몇 번 접속했는지. 1보다 크면 재접속했거나 기기가 여럿이다. */
+	connectionCount: number;
 	/**
 	 * 이 세션에서 실제로 머문 시간의 합(초). 진행 중인 구간까지 포함한다.
 	 *
@@ -29,7 +31,7 @@ export interface SessionParticipant {
 }
 
 /** 타일 한 칸에 들어가야 하므로 길이를 제한한다. 서버와 같은 값이다. */
-export const STATUS_MAX_LENGTH = 30;
+export const STATUS_MAX_LENGTH = 50;
 
 export interface PresenceSnapshot {
 	meetingId: string;

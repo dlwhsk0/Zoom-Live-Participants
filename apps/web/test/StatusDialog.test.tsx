@@ -18,19 +18,20 @@ function render(value: string | null): string {
 }
 
 describe("StatusDialog", () => {
-	it("제한은 30자다", () => {
-		expect(STATUS_MAX_LENGTH).toBe(30);
+	it("제한은 50자다", () => {
+		// 유튜브 주소(짧게 20자)를 넣고도 글 쓸 자리가 남아야 한다
+		expect(STATUS_MAX_LENGTH).toBe(50);
 	});
 
 	it("남은 수가 아니라 n/n 으로 보여준다", () => {
-		expect(render("집중")).toContain("2/30");
+		expect(render("집중")).toContain("2/50");
 	});
 
 	it("제한을 넘기면 넘친 부분만 표시를 남긴다", () => {
-		const over = "가".repeat(35);
+		const over = "가".repeat(55);
 		const html = render(over);
 
-		expect(html).toContain("35/30");
+		expect(html).toContain("55/50");
 		expect(html).toContain("dialog__hint--over");
 		expect(html).toContain("dialog__over");
 	});
@@ -43,7 +44,7 @@ describe("StatusDialog", () => {
 	});
 
 	it("제한을 넘기면 저장을 막는다", () => {
-		const html = render("가".repeat(35));
+		const html = render("가".repeat(55));
 		// 저장 버튼에 disabled 가 붙는다
 		expect(html).toMatch(/dialog__button--primary"[^>]*disabled/);
 	});

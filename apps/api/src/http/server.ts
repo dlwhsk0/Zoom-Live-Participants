@@ -30,7 +30,7 @@ import { clientIpFrom } from "./client-ip.ts";
 import { corsHeaders } from "./cors.ts";
 
 /** 한 줄에 들어가야 하므로 길이를 제한한다. */
-export const STATUS_MAX_LENGTH = 30;
+export const STATUS_MAX_LENGTH = 50;
 
 const statusBodySchema = z.object({
 	message: z
