@@ -43,14 +43,16 @@ export default function StatusMessage({
 	if (dimmed) classes.push("status--dim");
 	if (label) classes.push(`status--len${lengthStep(label)}`);
 
+	// 재생목록 한 줄처럼 ▶ 를 제목 앞에 붙인다. 옆에 떼어 두면
+	// 글이 줄바꿈될 때 따로 놀고 오른쪽으로 밀린다.
 	return (
-		<span className="status-row">
-			{label && <span className={classes.join(" ")}>{label}</span>}
+		<span className={classes.join(" ")}>
 			{youtube && (
-				<span className="status__link" aria-label="유튜브 링크 있음">
+				<span className="status__play" aria-label="유튜브 링크">
 					▶
 				</span>
 			)}
+			{label}
 		</span>
 	);
 }

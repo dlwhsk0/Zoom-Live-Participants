@@ -403,28 +403,13 @@ body {
 
 /* ── 상태 메시지 ────────────────────────────── */
 
-/* 글과 링크를 나란히 둔다. a 를 button 안에 넣을 수 없다 */
-.status-row {
-	display: flex;
-	/* 글이 두 줄이면 마지막 줄 옆에 붙어야 자연스럽다 */
-	align-items: flex-end;
-	justify-content: center;
-	gap: 3px;
-	width: 100%;
-	min-width: 0;
-	padding-bottom: 2px;
-}
-
-/* 유튜브 링크. 주소 대신 이것만 보인다 */
-.status__link {
-	flex: none;
-	padding: 0 3px;
-	border-radius: 4px;
-	background: var(--field);
-	color: var(--muted);
-	font-size: 10px;
-	line-height: 1.6;
-	text-decoration: none;
+/* 재생목록 한 줄처럼 제목 앞에 붙는다 */
+.status__play {
+	margin-right: 3px;
+	color: var(--accent);
+	font-size: 0.85em;
+	/* 글자와 눈높이를 맞춘다 */
+	vertical-align: 1px;
 }
 
 /* 이제 표시 전용이다. 누르는 것은 타일 전체가 받는다 */

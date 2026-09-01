@@ -185,7 +185,7 @@ describe("App", () => {
 		const html = withStatus("공부 브금 youtu.be/dQw4w9WgXcQ");
 
 		expect(html).toContain("공부 브금");
-		expect(html).toContain("status__link");
+		expect(html).toContain("status__play");
 		expect(html).not.toContain("youtu.be/dQw4w9WgXcQ");
 		// 타일에서는 링크를 열지 않는다
 		expect(html).not.toContain("<a");
@@ -202,7 +202,7 @@ describe("App", () => {
 			})),
 		});
 
-		expect(allLinked).toContain("status__link");
+		expect(allLinked).toContain("status__play");
 		expect(allLinked).not.toContain("status--empty-slot");
 	});
 
@@ -210,7 +210,7 @@ describe("App", () => {
 		// 상태 메시지는 아무나 쓸 수 있다. 아무 주소나 열어주면 피싱에 쓰인다
 		const html = withStatus("여기 봐 https://evil.example.com/x");
 
-		expect(html).not.toContain("status__link");
+		expect(html).not.toContain("status__play");
 		expect(html).toContain("evil.example.com");
 	});
 
