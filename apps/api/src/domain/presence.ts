@@ -16,6 +16,12 @@
 
 export type EventType = "joined" | "left";
 
+/** 한 번의 접속 구간. end 가 null 이면 아직 접속 중이다. */
+export interface Interval {
+	start: Date;
+	end: Date | null;
+}
+
 export interface ParticipantEvent {
 	meetingId: string;
 	meetingUuid: string;
@@ -38,14 +44,14 @@ export interface ParticipantState {
 	/** 회의 세션 시작 시각. 세션 안에서는 모든 참가자가 같은 값을 갖는다. */
 	meetingStartedAt: Date | null;
 	/**
-	 * 이 접속으로 실제로 회의에 머문 시간(초). 닫힌 구간만 센다.
+	 * 이 접속이 회의에 머문 구간들. end 가 null 이면 아직 접속 중이다.
 	 *
-	 * 지금 접속 중이면 진행 중인 구간은 빠져 있다. 화면이
-	 * lastOccurredAt 부터 흐른 시간을 더해서 보여준다.
+	 * 합칠 때 그냥 더하면 안 된다. 노트북과 폰으로 동시에 접속하면
+	 * 구간이 겹쳐 이중으로 셈해진다. 겹치는 구간은 합집합으로 눌러야 한다.
 	 *
 	 * 로그 전체를 봐야 알 수 있으므로 조회 시점에 채운다.
 	 */
-	onlineSeconds: number;
+	intervals: Interval[];
 	participantUuid: string;
 	displayName: string | null;
 	publicIp: string | null;
@@ -138,7 +144,7 @@ export function applyEvent(
 		statusUpdatedAt: current?.statusUpdatedAt ?? null,
 		// 로그 전체를 봐야 알 수 있다. 조회 시점에 채운다.
 		joinTimeUncertain: current?.joinTimeUncertain ?? false,
-		onlineSeconds: current?.onlineSeconds ?? 0,
+		intervals: current?.intervals ?? [],
 		isPresent: incoming.eventType === "joined",
 		lastEventType: incoming.eventType,
 		lastOccurredAt: incoming.occurredAt,
@@ -250,13 +256,11 @@ export interface MergedParticipant {
 	/** firstJoinedAt 을 믿을 수 없으면 true. 화면에서 경과 시간을 숨긴다. */
 	joinTimeUncertain: boolean;
 	/**
-	 * 이 세션에서 실제로 머문 시간의 합(초). 재접속 구간을 모두 더한 값이다.
+	 * 이 사람의 모든 접속 구간. 여러 기기로 동시에 접속하면 겹칠 수 있다.
 	 *
-	 * 공백은 빠진다. firstJoinedAt 부터의 경과 시간과는 다른 값이고,
-	 * 자리를 지킨 정도를 나타내므로 이쪽이 "누적 접속 시간" 이다.
-	 * 진행 중인 구간은 포함하지 않는다.
+	 * 누적 시간은 unionSeconds() 로 구한다. 그냥 더하면 겹친 만큼 부풀려진다.
 	 */
-	onlineSeconds: number;
+	intervals: Interval[];
 }
 
 function toMerged(state: ParticipantState): MergedParticipant {
@@ -269,7 +273,7 @@ function toMerged(state: ParticipantState): MergedParticipant {
 		isPresent: state.isPresent,
 		firstJoinedAt: state.firstJoinedAt,
 		lastOccurredAt: state.lastOccurredAt,
-		onlineSeconds: state.onlineSeconds,
+		intervals: state.intervals,
 		connectionCount: 1,
 		statusMessage: state.statusMessage,
 		joinTimeUncertain: state.joinTimeUncertain,
@@ -334,7 +338,12 @@ function absorb(
 		meetingUuid: next.meetingUuid,
 		displayName: next.displayName,
 		publicIp: next.publicIp,
-		isPresent: next.isPresent,
+		// 한 쪽이라도 접속 중이면 접속 중이다.
+		//
+		// 예전에는 뒤 행의 값을 그대로 썼다. 노트북과 폰으로 동시에 들어와
+		// 나중에 들어온 쪽이 먼저 나가면, 남은 접속이 살아 있는데도
+		// 오프라인으로 뒤집혔다.
+		isPresent: previous.isPresent || next.isPresent,
 		statusMessage: laterStatus(
 			{
 				statusMessage: previous.statusMessage,
@@ -354,8 +363,8 @@ function absorb(
 			next.lastOccurredAt.getTime() >= previous.lastOccurredAt.getTime()
 				? next.lastOccurredAt
 				: previous.lastOccurredAt,
-		// 머문 시간은 구간의 합이므로 그냥 더한다. 공백은 어느 쪽에도 없다.
-		onlineSeconds: previous.onlineSeconds + next.onlineSeconds,
+		// 구간은 모아만 둔다. 겹칠 수 있으므로 더하는 것은 unionSeconds 가 한다.
+		intervals: [...previous.intervals, ...next.intervals],
 		connectionCount: previous.connectionCount + 1,
 	};
 }
@@ -436,6 +445,48 @@ export function mergeReconnections(
 	}
 
 	return merged;
+}
+
+/**
+ * 겹치는 구간을 합쳐 실제로 머문 시간(초)을 구한다.
+ *
+ * 노트북과 폰으로 동시에 접속하면 구간이 겹친다. 그냥 더하면 두 배가 된다.
+ * 사람은 한 명이므로 겹친 시간은 한 번만 세야 한다.
+ *
+ * 아직 닫히지 않은 구간은 now 까지로 본다.
+ */
+export function unionSeconds(
+	intervals: readonly Interval[],
+	now: Date,
+): number {
+	if (intervals.length === 0) return 0;
+
+	const ranges = intervals
+		.map(({ start, end }) => ({
+			from: start.getTime(),
+			to: (end ?? now).getTime(),
+		}))
+		.filter((r) => r.to > r.from)
+		.sort((a, b) => a.from - b.from);
+
+	let total = 0;
+	let from = -1;
+	let to = -1;
+
+	for (const range of ranges) {
+		if (range.from > to) {
+			// 앞 구간과 떨어져 있다. 앞 구간을 확정하고 새로 연다.
+			if (to > from) total += to - from;
+			from = range.from;
+			to = range.to;
+		} else if (range.to > to) {
+			// 겹치거나 이어진다. 끝만 늘린다.
+			to = range.to;
+		}
+	}
+
+	if (to > from) total += to - from;
+	return Math.round(total / 1000);
 }
 
 /**

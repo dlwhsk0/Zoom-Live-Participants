@@ -68,29 +68,6 @@ export function formatSessionStart(at: string | null): string {
 }
 
 /**
- * 지금 시점의 누적 접속 시간(초).
- *
- * 서버가 주는 onlineSeconds 는 닫힌 구간의 합이라 진행 중인 구간이 빠져 있다.
- * 접속 중이면 마지막 입장 이후 흐른 시간을 더한다.
- * (접속 중일 때 lastOccurredAt 은 곧 마지막 입장 시각이다.)
- */
-export function totalOnlineSeconds(
-	participant: {
-		onlineSeconds: number;
-		isPresent: boolean;
-		lastOccurredAt: string;
-	},
-	now: number,
-): number {
-	if (!participant.isPresent) return participant.onlineSeconds;
-
-	const since = Date.parse(participant.lastOccurredAt);
-	if (Number.isNaN(since)) return participant.onlineSeconds;
-
-	return participant.onlineSeconds + Math.max(0, (now - since) / 1000);
-}
-
-/**
  * 누적 시간을 "4시간 06분" / "23분" 으로.
  *
  * 1분이 안 되면 "0분" 대신 "방금 전". 방금 들어온 사람에게

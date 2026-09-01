@@ -14,7 +14,6 @@ import {
 	formatSessionStart,
 	restTier,
 	studyTier,
-	totalOnlineSeconds,
 } from "./format.ts";
 import StatusMessage from "./StatusMessage.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
@@ -44,7 +43,7 @@ function Card({
 	now: number;
 	onSaveStatus: (uuid: string, message: string) => Promise<void>;
 }) {
-	const seconds = totalOnlineSeconds(participant, now);
+	const seconds = participant.onlineSeconds;
 	const tier = participant.isPresent ? studyTier(seconds) : 0;
 	const rest = participant.isPresent ? 0 : restTier(participant.lastOccurredAt, now);
 
@@ -214,12 +213,10 @@ export default function App() {
 	}
 
 	const updatedAt = data?.updatedAt ? Date.parse(data.updatedAt) : null;
-	// 접속 중은 누적 시간이 많은 순. 서버가 정렬해 줄 수 없는 이유는,
-	// 진행 중인 구간이 서버 값에 빠져 있어 매 초 값이 달라지기 때문이다.
-	// (한 번도 안 나간 사람은 서버 기준으로 0초다.)
+	// 접속 중은 누적 시간이 많은 순. 값은 서버가 이미 끝까지 계산해 준다.
 	const online = (data?.participants.filter((p) => p.isPresent) ?? [])
 		.slice()
-		.sort((a, b) => totalOnlineSeconds(b, now) - totalOnlineSeconds(a, now));
+		.sort((a, b) => b.onlineSeconds - a.onlineSeconds);
 	// 나간 사람은 서버가 준 순서를 그대로 쓴다. 최근에 나간 사람이 앞이다.
 	const offline = data?.participants.filter((p) => !p.isPresent) ?? [];
 	const loading = isPending && !data;

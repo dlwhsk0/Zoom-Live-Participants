@@ -38,7 +38,8 @@ const snapshot: PresenceSnapshot = {
 	participants: [
 		{
 			participantUuid: "p1",
-			onlineSeconds: 70 * 60,
+			// 서버가 진행 중인 구간까지 더해서 준다
+			onlineSeconds: 71 * 60,
 			displayName: "조하나",
 			firstJoinedAt: new Date(now - 72 * 60_000).toISOString(),
 			isPresent: true,
@@ -255,7 +256,6 @@ describe("App", () => {
 	});
 
 	it("누적 접속 시간을 보여준다", () => {
-		// p1 은 닫힌 구간 70분 + 진행 중 1분 = 71분
 		expect(html).toContain("1시간 11분");
 	});
 

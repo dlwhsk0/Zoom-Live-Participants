@@ -7,7 +7,6 @@ import {
 	formatSessionStart,
 	restTier,
 	studyTier,
-	totalOnlineSeconds,
 } from "../src/format.ts";
 
 const NOW = Date.parse("2026-08-28T12:00:00Z");
@@ -72,38 +71,6 @@ describe("formatSessionStart", () => {
 
 	it("날짜가 아니면 빈 문자열이다", () => {
 		expect(formatSessionStart("말도 안 되는 값")).toBe("");
-	});
-});
-
-describe("totalOnlineSeconds", () => {
-	const at = (secondsAgo: number) =>
-		new Date(NOW - secondsAgo * 1000).toISOString();
-
-	it("나간 사람은 서버 값을 그대로 쓴다", () => {
-		expect(
-			totalOnlineSeconds(
-				{ onlineSeconds: 600, isPresent: false, lastOccurredAt: at(300) },
-				NOW,
-			),
-		).toBe(600);
-	});
-
-	it("접속 중이면 진행 중인 구간을 더한다", () => {
-		expect(
-			totalOnlineSeconds(
-				{ onlineSeconds: 600, isPresent: true, lastOccurredAt: at(120) },
-				NOW,
-			),
-		).toBe(720);
-	});
-
-	it("시각이 미래여도 시간이 줄지 않는다", () => {
-		expect(
-			totalOnlineSeconds(
-				{ onlineSeconds: 600, isPresent: true, lastOccurredAt: at(-60) },
-				NOW,
-			),
-		).toBe(600);
 	});
 });
 

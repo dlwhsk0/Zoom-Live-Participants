@@ -126,7 +126,7 @@ describe("실측 시나리오", () => {
 					statusMessage: null,
 					statusUpdatedAt: null,
 					joinTimeUncertain: false,
-					onlineSeconds: 0,
+					intervals: [],
 					isPresent: event.eventType === "joined",
 					lastEventType: event.eventType,
 					lastOccurredAt: event.occurredAt,

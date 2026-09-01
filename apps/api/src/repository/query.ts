@@ -8,9 +8,11 @@ import {
 	webhookEvents,
 } from "../db/schema.ts";
 import {
+	type Interval,
 	mergeReconnections,
 	type ParticipantState,
 	sortForDisplay,
+	unionSeconds,
 } from "../domain/presence.ts";
 
 type Db = ReturnType<typeof getDb>;
@@ -160,9 +162,9 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
-	const [uncertain, onlineSeconds, aliases, firstJoin] = await Promise.all([
+	const [uncertain, intervals, aliases, firstJoin] = await Promise.all([
 		findUncertainJoinTimes(db, session.meetingUuid),
-		findOnlineSeconds(db, session.meetingUuid),
+		findIntervals(db, session.meetingUuid),
 		loadAliasMap(db),
 		findFirstJoin(db, session.meetingUuid),
 	]);
@@ -179,12 +181,17 @@ export async function getPresenceSnapshot(
 			: row.displayName,
 		lastEventType: row.lastEventType === "joined" ? "joined" : "left",
 		joinTimeUncertain: uncertain.has(row.participantUuid),
-		onlineSeconds: onlineSeconds.get(row.participantUuid) ?? 0,
+		intervals: intervals.get(row.participantUuid) ?? [],
 	}));
 
 	// participant_uuid 는 접속마다 새로 발급되므로 같은 사람이 여러 행으로 쪼개진다.
 	// 조회 시점에 합친다. 상세는 presence.ts 의 mergeReconnections 주석 참고.
 	const people = sortForDisplay(mergeReconnections(states));
+
+	// 진행 중인 구간까지 포함해 지금 시점의 누적 시간을 낸다.
+	// 화면이 더 보태지 않아도 되도록 서버가 끝까지 계산한다 —
+	// 구간이 겹칠 수 있어 화면에서는 제대로 합칠 수 없기 때문이다.
+	const now = new Date();
 
 	// IP 가 정확히 한 명과 일치할 때만 "당신"으로 본다.
 	// 같은 네트워크를 여러 명이 쓰면 누구인지 특정할 수 없다.
@@ -208,7 +215,7 @@ export async function getPresenceSnapshot(
 			isPresent: p.isPresent,
 			lastOccurredAt: p.lastOccurredAt,
 			connectionCount: p.connectionCount,
-			onlineSeconds: p.onlineSeconds,
+			onlineSeconds: unionSeconds(p.intervals, now),
 			statusMessage: p.statusMessage,
 			// firstJoinedAt 이 null 이어도 알 수 없는 것은 마찬가지다
 			joinTimeUncertain: p.joinTimeUncertain || p.firstJoinedAt === null,
@@ -421,45 +428,42 @@ export async function getLogs(
 }
 
 /**
- * 접속마다 실제로 머문 시간을 초 단위로 구한다.
+ * 접속마다 회의에 머문 구간을 뽑는다.
  *
- * joined 다음에 오는 left 까지가 한 구간이다. 그 구간들의 합이다.
- * 나갔다 들어온 사이의 공백은 어느 구간에도 속하지 않으므로 자연히 빠진다.
+ * joined 다음에 오는 left 까지가 한 구간이다. 마지막이 joined 로 끝나면
+ * 아직 접속 중이므로 end 를 null 로 둔다.
  *
  * 같은 시각의 left + joined 쌍(소회의실 이동)은 길이 0 인 구간을 만들고
  * 곧바로 다음 구간이 열리므로 이동 때문에 시간이 끊기지 않는다.
  * 정렬에서 left 를 먼저 두는 이유가 이것이다.
  *
- * joined 가 연달아 오면(left 를 놓친 경우) 뒤엣것부터 센다.
+ * joined 가 연달아 오면(left 를 놓친 경우) 앞엣것은 버린다.
  * 실제보다 적게 잡히지만 없는 시간을 만들어내지는 않는다.
  *
- * 진행 중인 구간은 포함하지 않는다. 화면이 lastOccurredAt 부터
- * 흐른 시간을 더해서 보여준다.
+ * 구간을 그대로 돌려주는 이유는 합칠 때 겹침을 눌러야 하기 때문이다.
+ * 노트북과 폰으로 동시에 접속하면 구간이 겹친다. 상세는
+ * presence.ts 의 unionSeconds 주석 참고.
  */
-async function findOnlineSeconds(
+async function findIntervals(
 	db: Db,
 	meetingUuid: string,
-): Promise<Map<string, number>> {
+): Promise<Map<string, Interval[]>> {
 	const rows = await db.execute<{
 		participant_uuid: string;
-		seconds: number | string;
+		started_at: string | Date;
+		ended_at: string | Date | null;
 	}>(sql`
-		select
-			participant_uuid,
-			sum(
-				case
-					when event_type = 'left' and prev_type = 'joined'
-					then extract(epoch from (occurred_at - prev_at))
-					else 0
-				end
-			) as seconds
+		select participant_uuid, started_at, ended_at
 		from (
 			select
 				participant_uuid,
+				occurred_at as started_at,
 				event_type,
-				occurred_at,
-				lag(event_type) over w as prev_type,
-				lag(occurred_at) over w as prev_at
+				lead(event_type) over w as next_type,
+				case
+					when lead(event_type) over w = 'left'
+					then lead(occurred_at) over w
+				end as ended_at
 			from participant_events
 			where meeting_uuid = ${meetingUuid}
 			window w as (
@@ -467,10 +471,22 @@ async function findOnlineSeconds(
 				order by occurred_at, case when event_type = 'left' then 0 else 1 end
 			)
 		) t
-		group by participant_uuid
+		where event_type = 'joined'
+			and (next_type is null or next_type = 'left')
 	`);
 
-	return new Map(rows.map((r) => [r.participant_uuid, Number(r.seconds)]));
+	const byUuid = new Map<string, Interval[]>();
+
+	for (const row of rows) {
+		const list = byUuid.get(row.participant_uuid) ?? [];
+		list.push({
+			start: new Date(row.started_at),
+			end: row.ended_at === null ? null : new Date(row.ended_at),
+		});
+		byUuid.set(row.participant_uuid, list);
+	}
+
+	return byUuid;
 }
 
 /**

@@ -4,6 +4,7 @@ import {
 	mergeReconnections,
 	type ParticipantState,
 	sortForDisplay,
+	unionSeconds,
 } from "../src/domain/presence.ts";
 import { shuffle } from "./fixture.ts";
 
@@ -28,7 +29,7 @@ function row(
 		statusMessage: null,
 		statusUpdatedAt: null,
 		joinTimeUncertain: false,
-		onlineSeconds: 0,
+		intervals: [],
 		isPresent: false,
 		lastEventType: "left",
 		firstJoinedAt: joinedMin === null ? null : new Date(BASE + joinedMin * 60_000),
@@ -347,5 +348,105 @@ describe("상태 메시지 승계", () => {
 
 		expect(merged).toHaveLength(2);
 		expect(merged.find((m) => m.participantUuid === "B")?.statusMessage).toBeNull();
+	});
+});
+
+describe("동시 접속 — 노트북 + 폰", () => {
+	/** 분 오프셋으로 구간을 만든다. end 가 null 이면 아직 접속 중. */
+	const span = (fromMin: number, toMin: number | null) => ({
+		start: new Date(BASE + fromMin * 60_000),
+		end: toMin === null ? null : new Date(BASE + toMin * 60_000),
+	});
+
+	it("한 쪽이 나가도 남은 접속이 있으면 접속 중이다", () => {
+		// 노트북 0분 입장(계속), 폰 10분 입장 → 20분 퇴장.
+		// 예전에는 뒤 행(폰)의 isPresent 를 그대로 써서 오프라인으로 뒤집혔다.
+		const merged = mergeReconnections([
+			row({
+				uuid: "노트북",
+				joinedMin: 0,
+				lastMin: 0,
+				isPresent: true,
+				lastEventType: "joined",
+				intervals: [span(0, null)],
+			}),
+			row({
+				uuid: "폰",
+				joinedMin: 10,
+				lastMin: 20,
+				intervals: [span(10, 20)],
+			}),
+		]);
+
+		expect(merged).toHaveLength(1);
+		expect(merged[0]?.isPresent).toBe(true);
+	});
+
+	it("두 기기가 모두 나가야 오프라인이다", () => {
+		const merged = mergeReconnections([
+			row({ uuid: "노트북", joinedMin: 0, lastMin: 30, intervals: [span(0, 30)] }),
+			row({ uuid: "폰", joinedMin: 10, lastMin: 20, intervals: [span(10, 20)] }),
+		]);
+
+		expect(merged[0]?.isPresent).toBe(false);
+	});
+});
+
+describe("unionSeconds", () => {
+	const at = (min: number) => new Date(BASE + min * 60_000);
+	const NOW = at(100);
+
+	it("겹치지 않는 구간은 더한다", () => {
+		expect(
+			unionSeconds([{ start: at(0), end: at(10) }, { start: at(20), end: at(30) }], NOW),
+		).toBe(20 * 60);
+	});
+
+	it("겹치는 구간은 한 번만 센다", () => {
+		// 노트북 0~30분, 폰 10~20분. 사람은 한 명이므로 30분이다.
+		expect(
+			unionSeconds([{ start: at(0), end: at(30) }, { start: at(10), end: at(20) }], NOW),
+		).toBe(30 * 60);
+	});
+
+	it("일부만 겹쳐도 끝만 늘린다", () => {
+		expect(
+			unionSeconds([{ start: at(0), end: at(20) }, { start: at(10), end: at(40) }], NOW),
+		).toBe(40 * 60);
+	});
+
+	it("맞닿은 구간은 이어 붙인다", () => {
+		expect(
+			unionSeconds([{ start: at(0), end: at(10) }, { start: at(10), end: at(20) }], NOW),
+		).toBe(20 * 60);
+	});
+
+	it("닫히지 않은 구간은 now 까지로 본다", () => {
+		expect(unionSeconds([{ start: at(90), end: null }], NOW)).toBe(10 * 60);
+	});
+
+	it("진행 중인 구간이 닫힌 구간을 덮으면 한 번만 센다", () => {
+		// 노트북이 0분부터 계속 켜져 있고 폰이 중간에 잠깐 들어왔다 나갔다.
+		expect(
+			unionSeconds([{ start: at(0), end: null }, { start: at(10), end: at(20) }], NOW),
+		).toBe(100 * 60);
+	});
+
+	it("길이 0 인 구간은 무시한다 — 소회의실 이동", () => {
+		expect(unionSeconds([{ start: at(10), end: at(10) }], NOW)).toBe(0);
+	});
+
+	it("입력 순서에 의존하지 않는다", () => {
+		const spans = [
+			{ start: at(20), end: at(30) },
+			{ start: at(0), end: at(10) },
+			{ start: at(5), end: at(25) },
+		];
+		expect(unionSeconds(spans, NOW)).toBe(30 * 60);
+		expect(unionSeconds([...spans].reverse(), NOW)).toBe(30 * 60);
+	});
+
+	it("구간이 없으면 0 이다", () => {
+		expect(unionSeconds([], NOW)).toBe(0);
 	});
 });
