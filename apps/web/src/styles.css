@@ -1146,20 +1146,51 @@ body {
 	color: var(--muted-weak);
 }
 
+/* 영상 제목이 들어오므로 한 줄로 안 끝난다. 블록으로 두고 감싼다 */
 .profile__youtube {
-	display: inline-block;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	align-items: start;
+	gap: 2px 7px;
 	margin-top: 8px;
-	padding: 5px 10px;
-	border-radius: 7px;
+	padding: 8px 10px;
+	border-radius: 8px;
 	background: var(--bg);
+	text-decoration: none;
+	text-align: left;
+}
+
+.profile__youtube:hover .profile__videoTitle {
+	text-decoration: underline;
+}
+
+.profile__play {
+	color: var(--accent);
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.profile__videoTitle {
 	color: var(--accent);
 	font-size: 12px;
 	font-weight: 600;
-	text-decoration: none;
+	line-height: 1.45;
+	/* 제목이 길 수 있다. 두 줄까지만 */
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+	overflow-wrap: anywhere;
 }
 
-.profile__youtube:hover {
-	text-decoration: underline;
+.profile__videoAuthor {
+	grid-column: 2;
+	color: var(--muted-weak);
+	font-size: 11px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* "상태 메시지 수정" 이 길어 나란히 두면 카드를 넘친다. 폭을 나눠 쓴다 */

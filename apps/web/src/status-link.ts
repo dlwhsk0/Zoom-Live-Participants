@@ -74,3 +74,44 @@ export function parseStatus(value: string | null): ParsedStatus {
 
 	return { text, youtube };
 }
+
+export interface YoutubeInfo {
+	title: string;
+	author: string;
+}
+
+/**
+ * 유튜브 영상 제목을 가져온다.
+ *
+ * oEmbed 는 키가 필요 없고 CORS 도 열려 있어 브라우저가 직접 부를 수 있다.
+ * 서버를 거치지 않으므로 우리 쪽에 SSRF 여지가 생기지 않는다.
+ *
+ * 주소는 부르기 전에 parseYoutube 를 통과해야 한다. 허용 호스트가 아니면
+ * 여기까지 오지 않는다.
+ *
+ * 제목은 남이 지은 글이다. 반드시 텍스트로만 그린다(React 가 escape 한다).
+ */
+export async function fetchYoutubeInfo(url: string): Promise<YoutubeInfo> {
+	const endpoint = new URL("https://www.youtube.com/oembed");
+	endpoint.searchParams.set("url", url);
+	endpoint.searchParams.set("format", "json");
+
+	const response = await fetch(endpoint, { headers: { accept: "application/json" } });
+
+	// 없는 영상이거나 비공개면 400 이 온다
+	if (!response.ok) throw new Error("영상 정보를 불러오지 못했습니다");
+
+	const body = (await response.json()) as {
+		title?: unknown;
+		author_name?: unknown;
+	};
+
+	if (typeof body.title !== "string") {
+		throw new Error("영상 정보를 불러오지 못했습니다");
+	}
+
+	return {
+		title: body.title,
+		author: typeof body.author_name === "string" ? body.author_name : "",
+	};
+}

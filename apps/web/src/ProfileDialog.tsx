@@ -1,10 +1,11 @@
+import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import type { SessionParticipant } from "./api.ts";
 import ConfirmDialog from "./ConfirmDialog.tsx";
 import { formatDuration, formatLeftAgo, restTier, studyTier } from "./format.ts";
 import Portal from "./Portal.tsx";
-import { parseStatus } from "./status-link.ts";
+import { fetchYoutubeInfo, parseStatus } from "./status-link.ts";
 import StatusDialog from "./StatusDialog.tsx";
 
 /**
@@ -88,6 +89,16 @@ export default function ProfileDialog({
 		: restTier(participant.lastOccurredAt, now);
 	const { text, youtube } = parseStatus(participant.statusMessage);
 
+	// 제목은 유튜브에서 가져온다. 실패하면 주소만 열 수 있게 두면 된다.
+	// 같은 영상은 react-query 가 붙들고 있어 다시 열어도 다시 받지 않는다.
+	const video = useQuery({
+		queryKey: ["youtube", youtube],
+		queryFn: () => fetchYoutubeInfo(youtube as string),
+		enabled: youtube !== null,
+		staleTime: Number.POSITIVE_INFINITY,
+		retry: false,
+	});
+
 	if (editing) {
 		return (
 			<StatusDialog
@@ -159,9 +170,9 @@ export default function ProfileDialog({
 					)}
 
 					<div className="profile__status">
-						{text ? (
-							<p className="profile__statusText">{text}</p>
-						) : (
+						{text && <p className="profile__statusText">{text}</p>}
+						{/* 링크만 남긴 경우도 있다. 그때는 링크가 곧 내용이다. */}
+						{!text && !youtube && (
 							<p className="profile__statusEmpty">상태 메시지가 없습니다</p>
 						)}
 
@@ -171,8 +182,19 @@ export default function ProfileDialog({
 								href={youtube}
 								target="_blank"
 								rel="noopener noreferrer nofollow"
+								title={video.data?.title}
 							>
-								▶ 유튜브에서 열기
+								<span className="profile__play" aria-hidden="true">
+									▶
+								</span>
+								<span className="profile__videoTitle">
+									{video.data?.title ?? "유튜브에서 열기"}
+								</span>
+								{video.data?.author && (
+									<span className="profile__videoAuthor">
+										{video.data.author}
+									</span>
+								)}
 							</a>
 						)}
 					</div>

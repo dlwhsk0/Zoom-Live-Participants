@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createElement } from "react";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -21,13 +22,21 @@ const base: SessionParticipant = {
 };
 
 function render(overrides: Partial<SessionParticipant> = {}): string {
+	const client = new QueryClient({
+		defaultOptions: { queries: { retry: false } },
+	});
+
 	return renderToString(
-		createElement(ProfileDialog, {
-			participant: { ...base, ...overrides },
-			now,
-			onSave: async () => {},
-			onClose: () => {},
-		}),
+		createElement(
+			QueryClientProvider,
+			{ client },
+			createElement(ProfileDialog, {
+				participant: { ...base, ...overrides },
+				now,
+				onSave: async () => {},
+				onClose: () => {},
+			}),
+		),
 	);
 }
 
@@ -62,9 +71,17 @@ describe("ProfileDialog", () => {
 		const html = render({ statusMessage: "공부 브금 youtu.be/dQw4w9WgXcQ" });
 
 		expect(html).toContain('href="https://youtu.be/dQw4w9WgXcQ"');
+		// 제목을 아직 못 받았을 때의 대체 문구
 		expect(html).toContain("유튜브에서 열기");
 		// 주소는 글에서 걷어내고 링크로만 남는다
 		expect(html).toContain("공부 브금");
+	});
+
+	it("글 없이 링크만 있으면 링크만 보여준다", () => {
+		const html = render({ statusMessage: "youtu.be/abc" });
+
+		expect(html).not.toContain("상태 메시지가 없습니다");
+		expect(html).toContain('href="https://youtu.be/abc"');
 	});
 
 	it("새 탭이 원래 창을 건드리지 못하게 한다", () => {
