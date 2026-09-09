@@ -117,19 +117,17 @@
 | 이름 | 환경 | 비고 |
 |---|---|---|
 | `VITE_API_BASE` | Production / Preview / Development | **쓰인다.** 번들에 박힌다(공개 전제) |
-| `ZOOM_ACCOUNT_ID` | Production | Zoom 앱이 살아 있어 남긴다 |
-| `ZOOM_CLIENT_ID` | Production | 위와 같음 |
-| `ZOOM_CLIENT_SECRET` | Production | 위와 같음 |
 | `PORT` | Production | 정적 사이트에 의미 없음. 지워도 그만 |
 
-지운 것: `SLACK_BOT_TOKEN`, `SLACK_DEFAULT_CHANNEL_ID`, `SLACK_ADMIN_API_KEY`,
-`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
-Slack 앱도 Supabase 프로젝트도 이미 없어서 가리키는 곳이 없는 값들이었다.
+지운 것: Slack 3개(`BOT_TOKEN`, `DEFAULT_CHANNEL_ID`, `ADMIN_API_KEY`),
+Supabase 3개(`URL`, `ANON_KEY`, `SERVICE_ROLE_KEY`),
+Zoom REST 3개(`ACCOUNT_ID`, `CLIENT_ID`, `CLIENT_SECRET`).
 
-**Zoom 세 값은 남아 있다.** 현재 코드는 Zoom REST API 를 쓰지 않으므로
-(웹훅만 받는다) 정적 사이트 프로젝트에 있을 이유는 없다. 다만 앱이 살아
-있는 값이라 지우는 대신 판단을 남겨 둔다 — 옮기거나, 지우고 필요할 때
-백엔드 쪽에만 다시 넣는다.
+Slack 앱과 Supabase 프로젝트는 이미 없어서 가리키는 곳이 없는 값이었다.
+Zoom 앱은 살아 있지만 **현재 코드가 REST API 를 쓰지 않는다** — 웹훅만 받고,
+그건 `ZOOM_WEBHOOK_SECRET_TOKEN` 으로 백엔드에서 검증한다. 정적 사이트
+프로젝트에 둘 이유가 없어 지웠다. 나중에 필요하면 Zoom 앱 콘솔에서 다시
+받아 백엔드 쪽에만 넣는다.
 
 ## 6. 확인 방법
 
