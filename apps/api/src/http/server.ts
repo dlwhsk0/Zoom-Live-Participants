@@ -19,6 +19,7 @@ import {
 	undoAction,
 } from "../repository/admin.ts";
 import { setStatusMessage } from "../repository/ingest.ts";
+import { findUserByUsername, touchLastLogin } from "../repository/users.ts";
 import {
 	findCurrentSession,
 	getLogs,
@@ -28,10 +29,26 @@ import { handleWebhook } from "../webhook/handle.ts";
 import { SOURCE_FINGERPRINT, STARTED_AT } from "../version.ts";
 import { clientIpFrom } from "./client-ip.ts";
 import { corsHeaders } from "./cors.ts";
+import { canAttempt, clearAttempts, recordFailure } from "./login-throttle.ts";
+import { verifyPassword } from "./password.ts";
+import {
+	buildSessionCookie,
+	cookieFrom,
+	createSessionValue,
+	readSessionValue,
+	SESSION_COOKIE,
+} from "./session.ts";
 import { bearerFrom, tokensMatch } from "./token.ts";
 
 /** 한 줄에 들어가야 하므로 길이를 제한한다. */
 export const STATUS_MAX_LENGTH = 50;
+
+/**
+ * 없는 아이디로 로그인해도 있는 아이디와 같은 시간이 걸리게 하려고 쓴다.
+ * 이 값에 해당하는 비밀번호는 아무도 모른다 — 맞을 일이 없다.
+ */
+const DUMMY_PASSWORD_HASH =
+	"scrypt$16384$8$1$rMmKy5YlFWN1goAVGka+Fg==$LAtikmkbvDe7B39stCjI7dl9zKTfzCgGi8TQvP5XuZM3UMGQpmebBNGh1sG4PMYvV6vw/s47gvAaunvY2oFAsA==";
 
 const statusBodySchema = z.object({
 	message: z
@@ -48,6 +65,11 @@ const renameSchema = z.object({
 		.trim()
 		.min(1, "이름을 비울 수 없습니다")
 		.max(80, "이름이 너무 깁니다"),
+});
+
+const loginSchema = z.object({
+	username: z.string().trim().min(1, "아이디를 입력하세요").max(80),
+	password: z.string().min(1, "비밀번호를 입력하세요").max(200),
 });
 
 const undoSchema = z.object({
@@ -156,6 +178,29 @@ function checkToken(
 	}
 
 	return null;
+}
+
+/** 요청에 실려 온 로그인 세션. 없거나 서명이 틀리면 null. */
+function sessionFrom(headers: Record<string, string | string[] | undefined>) {
+	return readSessionValue(
+		cookieFrom(headers.cookie, SESSION_COOKIE),
+		getEnv().SESSION_SECRET,
+	);
+}
+
+/**
+ * 어드민 화면을 열 자격이 있는가.
+ *
+ * 로그인 세션이 먼저다. LOGS_TOKEN 은 세션이 없던 시절의 방식이고,
+ * 아직 쓰는 곳이 있어 남겨 둔다 — 계정으로 옮겨간 뒤에 걷어낸다.
+ */
+function checkAdmin(
+	query: URLSearchParams,
+	headers: Record<string, string | string[] | undefined>,
+): Reply | null {
+	if (sessionFrom(headers)?.role === "admin") return null;
+
+	return checkToken(query, headers);
 }
 
 /** 어드민이 다루는 회의방. 지정이 없으면 환경변수의 방을 쓴다. */
@@ -288,9 +333,116 @@ async function route(
 		return { status: 200, body: { ok: true, statusMessage: message } };
 	}
 
+	// ── 로그인 ──────────────────────────────────
+
+	/**
+	 * 로그인.
+	 *
+	 * 화면에 가입은 없다. 계정은 scripts/create-user.ts 로만 만든다.
+	 * 아이디가 없는 경우에도 해시를 한 번 돌린다 — 응답 시간으로
+	 * "그 아이디는 있다/없다" 를 알아낼 수 있으면 안 된다.
+	 */
+	if (method === "POST" && path === "/api/auth/login") {
+		if (!getEnv().SESSION_SECRET) {
+			return {
+				status: 503,
+				body: { ok: false, reason: "로그인이 설정되지 않았습니다" },
+			};
+		}
+
+		const ip = clientIpFrom(headers) ?? "unknown";
+
+		if (!canAttempt(ip)) {
+			return {
+				status: 429,
+				body: { ok: false, reason: "시도가 너무 많습니다. 잠시 뒤에 다시 하세요" },
+			};
+		}
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "본문이 JSON 이 아닙니다" } };
+		}
+
+		const input = loginSchema.safeParse(parsed);
+		if (!input.success) {
+			return {
+				status: 400,
+				body: { ok: false, reason: input.error.issues[0]?.message ?? "잘못된 요청입니다" },
+			};
+		}
+
+		const user = await findUserByUsername(getDb(), input.data.username);
+		const matched = await verifyPassword(
+			input.data.password,
+			user?.passwordHash ?? DUMMY_PASSWORD_HASH,
+		);
+
+		if (!user || !matched) {
+			recordFailure(ip);
+			// 어느 쪽이 틀렸는지 알려주지 않는다
+			return {
+				status: 401,
+				body: { ok: false, reason: "아이디 또는 비밀번호가 맞지 않습니다" },
+			};
+		}
+
+		clearAttempts(ip);
+		await touchLastLogin(getDb(), user.id);
+
+		const value = createSessionValue(
+			{ sub: user.id, username: user.username, role: user.role },
+			getEnv().SESSION_SECRET,
+		);
+
+		return {
+			status: 200,
+			body: { ok: true, user: { username: user.username, role: user.role } },
+			headers: {
+				"set-cookie": buildSessionCookie(value),
+				"cache-control": "no-store",
+			},
+		};
+	}
+
+	if (method === "POST" && path === "/api/auth/logout") {
+		return {
+			status: 200,
+			body: { ok: true },
+			headers: {
+				"set-cookie": buildSessionCookie(null),
+				"cache-control": "no-store",
+			},
+		};
+	}
+
+	/** 화면이 "지금 로그인돼 있나" 를 묻는 곳. */
+	if (method === "GET" && path === "/api/auth/me") {
+		const session = sessionFrom(headers);
+
+		if (!session) {
+			return {
+				status: 401,
+				body: { ok: false, reason: "로그인이 필요합니다" },
+				headers: { "cache-control": "no-store" },
+			};
+		}
+
+		return {
+			status: 200,
+			body: {
+				ok: true,
+				user: { username: session.username, role: session.role },
+			},
+			headers: { "cache-control": "no-store" },
+		};
+	}
+
 	// 로그는 참가자 이름과 IP 를 그대로 담는다. 토큰 없이는 열지 않는다.
 	if (method === "GET" && path === "/api/logs") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		const meetingId = resolveMeetingId(query);
@@ -315,7 +467,7 @@ async function route(
 	// 사람을 합치고 떼어내는 곳. 로그와 같은 토큰으로 막는다.
 
 	if (method === "GET" && path === "/api/admin/identities") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		const meetingId = resolveMeetingId(query);
@@ -341,7 +493,7 @@ async function route(
 	 * 이름을 같게 하면 합쳐지고 다르게 하면 떨어진다.
 	 */
 	if (method === "POST" && path === "/api/admin/rename") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		let parsed: unknown;
@@ -377,7 +529,7 @@ async function route(
 	}
 
 	if (method === "GET" && path === "/api/admin/actions") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		const actions = await listAdminActions(getDb(), Number(query.get("limit") ?? 50));
@@ -389,7 +541,7 @@ async function route(
 	}
 
 	if (method === "POST" && path === "/api/admin/undo") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		let parsed: unknown;
@@ -414,7 +566,7 @@ async function route(
 	}
 
 	if (method === "GET" && path === "/api/admin/aliases") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		const aliases = await listAliases(getDb());
@@ -426,7 +578,7 @@ async function route(
 	}
 
 	if (method === "POST" && path === "/api/admin/aliases") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		let parsed: unknown;
@@ -457,7 +609,7 @@ async function route(
 	}
 
 	if (method === "DELETE" && path === "/api/admin/aliases") {
-		const denied = checkToken(query, headers);
+		const denied = checkAdmin(query, headers);
 		if (denied) return denied;
 
 		const alias = query.get("alias")?.trim();

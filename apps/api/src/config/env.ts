@@ -69,6 +69,13 @@ const schema = z.object({
 	 *
 	 * 비우면 모두 허용 — 로컬 개발용이며 운영에서는 반드시 지정한다.
 	 */
+	/**
+	 * 세션 쿠키 서명 키.
+	 *
+	 * 비워두면 로그인 기능 자체가 꺼진다. 서명 없는 세션을 발급하느니
+	 * 로그인을 막는 쪽이 낫다. 바꾸면 발급된 세션이 전부 끊긴다.
+	 */
+	SESSION_SECRET: z.string().default(""),
 	CORS_ALLOWED_ORIGINS: z
 		.string()
 		.default("")

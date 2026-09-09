@@ -1,32 +1,33 @@
 {
-  "name": "@techeer-up/api",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
-    "db:check": "node --env-file=../../.env scripts/db-check.mjs",
-    "db:reset": "node --env-file=../../.env --experimental-strip-types scripts/reset-db.ts",
-    "db:replay": "node --env-file=../../.env.test --experimental-strip-types scripts/replay-fixture.ts",
-    "db:seed": "node --env-file=../../.env.test --experimental-strip-types scripts/seed-live.ts",
-    "dev": "node --env-file=../../.env --experimental-strip-types src/main.ts",
-    "start": "node --experimental-strip-types src/main.ts",
-    "fingerprint": "node scripts/print-fingerprint.mjs"
-  },
-  "dependencies": {
-    "drizzle-orm": "^0.36.4",
-    "postgres": "^3.4.5",
-    "zod": "^3.23.8",
-    "prom-client": "^15.1.3"
-  },
-  "devDependencies": {
-    "@types/node": "^22.9.0",
-    "drizzle-kit": "^0.28.1",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.5"
-  }
+	"name": "@techeer-up/api",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"db:generate": "drizzle-kit generate",
+		"db:migrate": "drizzle-kit migrate",
+		"db:check": "node --env-file=../../.env scripts/db-check.mjs",
+		"db:reset": "node --env-file=../../.env --experimental-strip-types scripts/reset-db.ts",
+		"db:replay": "node --env-file=../../.env.test --experimental-strip-types scripts/replay-fixture.ts",
+		"db:seed": "node --env-file=../../.env.test --experimental-strip-types scripts/seed-live.ts",
+		"dev": "node --env-file=../../.env --experimental-strip-types src/main.ts",
+		"start": "node --experimental-strip-types src/main.ts",
+		"fingerprint": "node scripts/print-fingerprint.mjs",
+		"user:create": "node --env-file=../../.env --experimental-strip-types scripts/create-user.ts"
+	},
+	"dependencies": {
+		"drizzle-orm": "^0.36.4",
+		"postgres": "^3.4.5",
+		"zod": "^3.23.8",
+		"prom-client": "^15.1.3"
+	},
+	"devDependencies": {
+		"@types/node": "^22.9.0",
+		"drizzle-kit": "^0.28.1",
+		"typescript": "^5.6.3",
+		"vitest": "^2.1.5"
+	}
 }

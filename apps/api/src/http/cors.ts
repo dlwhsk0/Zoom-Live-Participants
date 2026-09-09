@@ -23,6 +23,10 @@ export function corsHeaders(requestOrigin: string | null): Record<string, string
 		return {
 			...base,
 			"access-control-allow-origin": requestOrigin,
+			// 로그인 세션이 다른 도메인의 화면에서 실려 오려면 이게 있어야 한다.
+			// 브라우저는 allow-origin 이 * 이면 자격증명을 막는다 —
+			// 그래서 허용 목록을 지정한 경우에만 켜진다.
+			"access-control-allow-credentials": "true",
 			// 오리진별로 응답이 달라지므로 캐시가 섞이지 않게 한다
 			vary: "Origin",
 		};
