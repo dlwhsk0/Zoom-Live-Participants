@@ -16,7 +16,8 @@
 		"dev": "node --env-file=../../.env --experimental-strip-types src/main.ts",
 		"start": "node --experimental-strip-types src/main.ts",
 		"fingerprint": "node scripts/print-fingerprint.mjs",
-		"user:create": "node --env-file=../../.env --experimental-strip-types scripts/create-user.ts"
+		"user:create": "node --env-file=../../.env --experimental-strip-types scripts/create-user.ts",
+		"user:password": "node --env-file=../../.env --experimental-strip-types scripts/set-password.ts"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.36.4",

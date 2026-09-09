@@ -127,8 +127,18 @@ pnpm --filter api user:create -- <아이디> admin
 PASSWORD=... pnpm --filter api user:create -- <아이디> admin
 ```
 
+비밀번호를 바꿀 때는 이쪽이다.
+
+```bash
+PASSWORD=... pnpm --filter api user:password -- <아이디>
+```
+
 비밀번호를 인자로 받지 않는 것은 셸 히스토리에 남기 때문이다. 비워 두면
 무작위로 만들어 한 번만 보여준다.
+
+**비밀번호를 바꿔도 이미 발급된 세션은 끊기지 않는다.** 서명한 쿠키만 쓰고
+세션 테이블을 두지 않아서, 서버가 끊을 목록을 들고 있지 않다. 전부 끊으려면
+`SESSION_SECRET` 을 바꾸고 API 를 다시 띄운다.
 
 ## 4. 점검 결과
 
