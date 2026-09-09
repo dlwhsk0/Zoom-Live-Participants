@@ -52,34 +52,67 @@
 쪽이다. 확인은 검색창에 `site:techeer-comeon.vercel.app` 으로 한다.
 이미 걸려 있으면 Search Console 의 삭제 요청이 가장 빠르다.
 
-## 3. 접근 차단이 필요해지면 — 선택지
+## 3. 접근 구조
 
-아직 고르지 않았다. 판단 근거만 남긴다.
+문을 두 겹으로 둔다. 목적이 다르니 수단도 나눈다.
 
-### HTTP Basic Auth 란
+```
+바깥문  사이트 전체        공용 비밀번호 (HTTP Basic)   "외부인 차단"
+  └ 참가자 화면            로그인 없음                  "링크 하나로 바로"
+  └ /logs, /admin ────── 계정 로그인 (users)          "아무나 못 만지게"
+```
 
-서버가 `401 + WWW-Authenticate: Basic` 을 내리면 **브라우저가 자체 로그인
-창을 띄운다.** 가입도 세션도 로그인 화면도 DB 도 없다. 공유하는 것은
-계정이 아니라 비밀번호 하나이고, 브라우저가 기억한다.
+### 참가자는 왜 로그인이 없나
 
-| | Basic Auth | 계정 로그인 |
-|---|---|---|
-| 만들 것 | 없음 (설정) | 유저 테이블·세션·화면 |
-| 쓰는 쪽 | 비번 1회 입력 | 가입 → 로그인 |
-| 공유 단위 | 팀 공용 비번 | 사람마다 계정 |
-| 누가 봤는지 | 모름 | 알 수 있음 |
+이 앱의 참가자는 **Zoom 웹훅이 만든 존재**(`participant_uuid`)이고, `users`
+테이블은 **가입이 만든 존재**다. 서로 다른 신원 공간이라 자동으로 이어지지
+않는다. "이 계정이 저 타일의 주인" 임을 알려면 둘을 잇는 단계가 따로 필요하다.
 
-### 이 프로젝트에서의 함정
+지금은 잇지 않는다. 대신 상태 메시지는 **막지 않고 남긴다**(4절).
 
-화면(Vercel)과 API(Dokploy/Traefik)가 **다른 도메인**이다.
+### 바깥문 — HTTP Basic
 
-- 화면에만 걸면 → API 는 그대로 열려 있다. 실명은 API 에서 나온다. 무의미.
-- 양쪽에 걸면 → 브라우저 `fetch` 는 자격증명을 자동으로 싣지 않는다.
-  화면이 깨진다.
+서버가 `401 + WWW-Authenticate: Basic` 을 내리면 브라우저가 자기 로그인 창을
+띄운다. 가입도 세션도 화면도 없고, 팀이 비밀번호 하나를 같이 쓴다.
 
-그래서 Basic Auth 를 고른다면 **공유 토큰 방식**이 더 맞는다. API 가
-토큰을 요구하고, 화면이 그 토큰을 URL 조각이나 저장소에서 읽어 헤더로
-싣는다. 사용자 경험은 "링크 한 번" 으로 같고, 두 도메인 문제가 없다.
+Vercel 엣지(`middleware.ts`)에서 건다. **환경변수가 없으면 켜지지 않는다** —
+`BASIC_AUTH_USER` 와 `BASIC_AUTH_PASSWORD` 를 넣는 순간부터 잠긴다.
+`robots.txt` 는 통과시킨다. 크롤러가 "들어오지 마라" 는 읽어야 한다.
+
+한계는 분명하다. 비번을 아는 사람은 전부 같은 권한이고, 누가 봤는지 모른다.
+바깥문에는 그 이상이 필요 없다.
+
+### 안쪽문 — 계정 로그인
+
+`users` 테이블(`username` / `password_hash` / `role`).
+
+- 해시는 **Node 내장 scrypt**. argon2/bcrypt 는 네이티브 빌드가 필요한데 이
+  저장소는 의존성을 얇게 유지해 왔다. 파라미터를 해시 값 안에 담아
+  (`scrypt$N$r$p$salt$hash`) 나중에 세기를 올려도 옛 해시를 계속 검증한다
+- 세션은 **서명한 쿠키 하나**. 세션 테이블을 두지 않는다 — 어드민 한둘이 쓰는
+  화면이라 서버가 목록을 들고 있을 이유가 없다. 대신 **개별 세션을 끊을 수
+  없다.** 급하면 `SESSION_SECRET` 을 바꿔 전부 끊는다
+- 화면과 API 가 다른 도메인이라 `SameSite=None` + `Secure` +
+  `Access-Control-Allow-Credentials` 가 같이 필요하다. CORS 허용 목록이 이미
+  잠겨 있어(`*` 아님) 전제 조건은 충족돼 있었다
+- 없는 아이디로 로그인해도 해시를 한 번 돌린다. 응답 시간으로 아이디의 존재를
+  알 수 있으면 안 된다
+- IP 당 10분에 10번으로 시도를 제한한다. 프로세스 메모리에만 둔다 —
+  인스턴스를 늘리면 이건 다시 봐야 한다
+
+`role` 은 `admin` / `member` 다. 지금 실제로 쓰는 것은 `admin` 뿐이고,
+나중에 팀원 계정을 열 여지를 남겨 둔 것이다.
+
+**가입 화면은 없다.** 계정은 `scripts/create-user.ts` 로만 만든다.
+
+```bash
+# 대상 DB 는 .env 의 DATABASE_URL 이다. 어느 쪽을 가리키는지 먼저 확인할 것
+pnpm --filter api user:create -- <아이디> admin
+PASSWORD=... pnpm --filter api user:create -- <아이디> admin
+```
+
+비밀번호를 인자로 받지 않는 것은 셸 히스토리에 남기 때문이다. 비워 두면
+무작위로 만들어 한 번만 보여준다.
 
 ## 4. 점검 결과
 
@@ -98,13 +131,18 @@
 
 | # | 무엇 | 위치 | 영향 |
 |---|---|---|---|
-| 1 | **상태 메시지 쓰기에 인증이 없다** | `http/server.ts` `PUT /api/participants/:uuid/status` | `participantUuid` 는 공개 조회 API 가 그대로 내준다. 누구나 남의 상태 메시지를 덮어쓸 수 있다. 화면의 `isYou` 는 확인창을 건너뛰는 힌트일 뿐 서버는 보지 않는다 |
-| 2 | **웹훅 재생(replay) 방어가 없다** | `webhook/signature.ts` | `x-zm-request-timestamp` 를 서명 계산에만 쓰고 신선도를 안 본다. 유효한 요청을 한 번 가로채면 무한 재전송해 입퇴장 기록을 오염시킬 수 있다. 5분 넘으면 거부하면 된다 |
-| 3 | 토큰이 URL 쿼리에 담긴다 | `http/server.ts` `checkToken`, `web/src/Logs.tsx` | `?key=...` 는 접근 로그·브라우저 히스토리·Referer 에 남는다. 로그 API 는 이름과 IP 를 그대로 내주는 곳이다. 비교도 상수시간이 아니다 — 같은 저장소에 `safeEquals` 가 이미 있다 |
-| 4 | 레이트리밋이 없다 | `http/server.ts` | 1번과 겹치면 상태 메시지 스팸을 막을 수단이 없다 |
-| 5 | 프론트 프로젝트에 백엔드 비밀값이 있다 | Vercel 환경변수 | 아래 5절 |
+| 1 | 상태 메시지 쓰기에 인증이 없다 | `PUT /api/participants/:uuid/status` | **막지 않기로 했다.** 로그인을 붙이면 "링크 하나로 바로 쓴다" 는 성질이 사라진다. 대신 누가(IP) 무엇을 바꿨는지 `admin_actions` 에 남기고, 어드민 화면에서 되돌릴 수 있게 했다 |
+| 2 | 레이트리밋이 없다 | `http/server.ts` | 로그인에만 걸었다. 상태 메시지 쓰기에는 아직 없다 — 스팸이 실제로 생기면 그때 붙인다 |
+| 3 | `LOGS_TOKEN` 이 아직 살아 있다 | `http/server.ts` `checkToken` | 화면은 세션 로그인으로 옮겼고 `?key=` 를 더 이상 쓰지 않는다. 서버는 아직 토큰도 받는다 — 계정으로 완전히 옮긴 뒤 걷어낸다 |
+| 4 | IP 를 권한 판단에 쓸 수 없다 | `http/client-ip.ts` | `X-Forwarded-For` 의 **맨 앞** 값을 읽는다. Traefik 은 뒤에 덧붙이므로 클라이언트가 앞을 위조할 수 있다. 지금은 힌트(`isYou`)로만 쓰니 피해가 없지만, **IP 를 권한으로 승격하려면 반드시 먼저 고쳐야 한다** |
 
-1·2번이 실제로 뒤가 열려 있는 구멍이다. 이 브랜치의 범위 밖이라 손대지 않았다.
+### 해결된 것
+
+- **웹훅 재생 방어** — 서명이 맞은 뒤 `x-zm-request-timestamp` 의 신선도를 본다.
+  양쪽으로 5분. 단위는 자릿수로 가른다(초/밀리초 문서가 엇갈린다)
+- **토큰 비교가 상수 시간** — `http/token.ts`. 앞글자부터 비교하다 멈추면 그
+  시간 차이로 토큰을 한 글자씩 맞춰 나갈 수 있다
+- **`HEAD /robots.txt` 가 404** — HEAD 를 GET 으로 라우팅한다
 
 ## 5. Vercel 환경변수 정리 대상
 
@@ -117,6 +155,8 @@
 | 이름 | 환경 | 비고 |
 |---|---|---|
 | `VITE_API_BASE` | Production / Preview / Development | **쓰인다.** 번들에 박힌다(공개 전제) |
+| `BASIC_AUTH_USER` | Production | 넣으면 사이트가 잠긴다. 없으면 안 잠긴다 |
+| `BASIC_AUTH_PASSWORD` | Production | 위와 짝 |
 | `PORT` | Production | 정적 사이트에 의미 없음. 지워도 그만 |
 
 지운 것: Slack 3개(`BOT_TOKEN`, `DEFAULT_CHANNEL_ID`, `ADMIN_API_KEY`),
@@ -145,5 +185,28 @@ curl -s https://techeerzoom.techeer.cloud-yaho.cloud/api/participants | head -c 
 curl -sI -H "Origin: https://example.com" \
   https://techeerzoom.techeer.cloud-yaho.cloud/api/participants | grep -i access-control
 ```
+
+```bash
+# 사이트가 잠겼는지 (BASIC_AUTH_* 를 넣은 뒤)
+curl -sI https://techeer-comeon.vercel.app | head -1        # 401 이어야 한다
+curl -sI -u '아이디:비밀번호' https://techeer-comeon.vercel.app | head -1   # 200
+
+# 로그인이 되는지
+curl -s -X POST https://<api>/api/auth/login \
+  -H 'content-type: application/json' \
+  -d '{"username":"...","password":"..."}' -i | head -20
+```
+
+## 7. 배포 순서
+
+인증을 켜는 순서를 틀리면 자기가 잠긴다.
+
+1. **마이그레이션** — `users` 테이블(`0007`). 대상 DB 가 어디인지 먼저 확인한다.
+   `.env` 의 `DATABASE_URL` 은 주석을 바꿔가며 전환하게 되어 있다
+2. **`SESSION_SECRET` 설정** — 비어 있으면 로그인이 503 이다
+3. **계정 생성** — `scripts/create-user.ts`. **이걸 먼저 안 하면 어드민 화면에
+   못 들어간다.** 화면에서 `?key=` 는 더 이상 쓰지 않는다
+4. **배포**
+5. 마지막에 `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` — 이걸 넣는 순간 잠긴다
 
 로컬에서 화면을 띄워 보는 절차는 `.claude/skills/run-web/SKILL.md` 에 있다.

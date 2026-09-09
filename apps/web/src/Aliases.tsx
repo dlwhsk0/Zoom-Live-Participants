@@ -11,10 +11,8 @@ import { deleteAlias, fetchAliases, putAlias } from "./api.ts";
  * 고치는 일회성 교정이고, 이쪽은 모든 세션에 계속 적용된다.
  */
 export default function Aliases({
-	accessKey,
 	onToast,
 }: {
-	accessKey: string;
 	onToast: (message: string, ok: boolean) => void;
 }) {
 	const queryClient = useQueryClient();
@@ -22,8 +20,8 @@ export default function Aliases({
 	const [canonical, setCanonical] = useState("");
 
 	const { data, isPending, isError, error } = useQuery({
-		queryKey: ["aliases", accessKey],
-		queryFn: () => fetchAliases(accessKey),
+		queryKey: ["aliases"],
+		queryFn: fetchAliases,
 		retry: false,
 	});
 
@@ -35,7 +33,7 @@ export default function Aliases({
 
 	const add = useMutation({
 		mutationFn: () =>
-			putAlias({ key: accessKey, alias: alias.trim(), canonical: canonical.trim() }),
+			putAlias({ alias: alias.trim(), canonical: canonical.trim() }),
 		onSuccess: () => {
 			onToast(`${alias.trim()} 을(를) ${canonical.trim()} 로 묶었습니다`, true);
 			setAlias("");
@@ -46,7 +44,7 @@ export default function Aliases({
 	});
 
 	const remove = useMutation({
-		mutationFn: (target: string) => deleteAlias({ key: accessKey, alias: target }),
+		mutationFn: (target: string) => deleteAlias({ alias: target }),
 		onSuccess: () => {
 			onToast("별칭을 지웠습니다", true);
 			refresh();

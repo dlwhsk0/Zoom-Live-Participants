@@ -1192,3 +1192,114 @@ body {
 	padding: 9px 8px;
 	white-space: nowrap;
 }
+
+/* ── 로그인 ────────────────────────────────── */
+
+/* 화면에 이것만 있다. 가운데로 모으고 폭을 좁게 잡는다 */
+.login {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	max-width: 320px;
+	margin: 12vh auto 0;
+}
+
+.login__title {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+.login__hint {
+	margin: 0 0 14px;
+	color: var(--muted);
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.login__label {
+	margin-top: 8px;
+	color: var(--muted);
+	font-size: 12px;
+	font-weight: 500;
+}
+
+.login__input {
+	padding: 9px 11px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--field);
+	color: var(--fg);
+	font: inherit;
+	font-size: 14px;
+}
+
+.login__input:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+/* 틀렸다는 말은 눈에 띄어야 한다. 다시 칠 자리 바로 위에 둔다 */
+.login__error {
+	margin: 12px 0 0;
+	color: var(--over-fg);
+	font-size: 13px;
+}
+
+.login__submit {
+	margin-top: 16px;
+	padding: 10px 14px;
+	border: 0;
+	border-radius: 8px;
+	background: var(--accent);
+	/* 밝은 accent 위의 흰 글자는 다크에서 읽히지 않는다.
+	   .dialog__button--primary 와 같은 방식으로 뒤집는다 */
+	color: #ffffff;
+	font: inherit;
+	font-size: 14px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+:root[data-theme="dark"] .login__submit,
+:root:not([data-theme="light"]) .login__submit {
+	color: #10131a;
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme="dark"]) .login__submit {
+		color: #ffffff;
+	}
+}
+
+.login__submit:hover:not(:disabled) {
+	filter: brightness(0.94);
+}
+
+.login__submit:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+/* 누구로 들어와 있는지. 조용히 둔다 */
+.topbar__who {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.topbar__signout {
+	border: 0;
+	padding: 0;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+	cursor: pointer;
+}
+
+.topbar__signout:hover {
+	color: var(--fg);
+}
