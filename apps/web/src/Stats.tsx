@@ -8,6 +8,15 @@ import StudyIcon from "./StudyIcon.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 
 const RANGES = [7, 14, 30] as const;
+
+type View = "days" | "hours" | "weekdays" | "rank";
+
+const VIEWS: { id: View; label: string }[] = [
+	{ id: "days", label: "일별" },
+	{ id: "hours", label: "시간대" },
+	{ id: "weekdays", label: "요일" },
+	{ id: "rank", label: "랭킹" },
+];
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const MEDAL = ["🥇", "🥈", "🥉"];
 
@@ -61,14 +70,7 @@ function Bar({
 	);
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-	return (
-		<section className="stats__section">
-			<h2 className="stats__title">{title}</h2>
-			{children}
-		</section>
-	);
-}
+
 
 /** 지난 7일과 그 앞 7일. 늘었으면 위, 줄었으면 아래. */
 function WeekCard({ week }: { week: StatsData["week"] | undefined }) {
@@ -118,7 +120,7 @@ function WeekCard({ week }: { week: StatsData["week"] | undefined }) {
 /** 처음에 보여줄 인원. 76명을 다 펼치면 아래 구역들이 화면 밖으로 밀린다. */
 const RANK_PREVIEW = 10;
 
-function Ranking({
+export function Ranking({
 	people,
 	onOpen,
 }: {
@@ -185,24 +187,7 @@ function Ranking({
 	);
 }
 
-function Body({
-	data,
-	onOpen,
-}: {
-	data: StatsData;
-	onOpen: (person: PersonStat) => void;
-}) {
-	const dayMax = Math.max(...data.days.map((d) => d.seconds), 1);
-	const hourMax = Math.max(...data.hours.map((h) => h.seconds), 1);
-
-	// 요일은 그 요일이 몇 번 있었는지가 다르다. 합계로 견주면 기간에 두 번 든
-	// 요일이 유리해진다. 하루 평균으로 고쳐 놓고 본다.
-	const weekdayAvg = data.weekdays.map((w) => ({
-		...w,
-		average: w.days > 0 ? w.seconds / w.days : 0,
-	}));
-	const weekdayMax = Math.max(...weekdayAvg.map((w) => w.average), 1);
-
+function Summary({ data }: { data: StatsData }) {
 	const busiest = [...data.hours].sort((a, b) => b.seconds - a.seconds)[0];
 
 	return (
@@ -229,8 +214,33 @@ function Body({
 					}${data.typicalEnd} 에 끝납니다`}
 				</p>
 			)}
+		</>
+	);
+}
 
-			<Section title="날짜별">
+function Body({
+	data,
+	view,
+	onOpen,
+}: {
+	data: StatsData;
+	view: View;
+	onOpen: (person: PersonStat) => void;
+}) {
+	const dayMax = Math.max(...data.days.map((d) => d.seconds), 1);
+	const hourMax = Math.max(...data.hours.map((h) => h.seconds), 1);
+
+	// 요일은 그 요일이 몇 번 있었는지가 다르다. 합계로 견주면 기간에 두 번 든
+	// 요일이 유리해진다. 하루 평균으로 고쳐 놓고 본다.
+	const weekdayAvg = data.weekdays.map((w) => ({
+		...w,
+		average: w.days > 0 ? w.seconds / w.days : 0,
+	}));
+	const weekdayMax = Math.max(...weekdayAvg.map((w) => w.average), 1);
+
+	return (
+		<>
+			{view === "days" && (
 				<ul className="chart">
 					{[...data.days].reverse().map((d) => (
 						<Bar
@@ -249,9 +259,9 @@ function Body({
 						/>
 					))}
 				</ul>
-			</Section>
+			)}
 
-			<Section title="시간대별">
+			{view === "hours" && (
 				<ul className="chart">
 					{data.hours.map((h) => (
 						<Bar
@@ -263,13 +273,9 @@ function Body({
 						/>
 					))}
 				</ul>
-			</Section>
+			)}
 
-			<Section title="랭킹">
-				<Ranking people={data.people} onOpen={onOpen} />
-			</Section>
-
-			<Section title="요일별">
+			{view === "weekdays" && (
 				<ul className="chart">
 					{weekdayAvg.map((w) => (
 						<Bar
@@ -282,13 +288,16 @@ function Body({
 						/>
 					))}
 				</ul>
-			</Section>
+			)}
+
+			{view === "rank" && <Ranking people={data.people} onOpen={onOpen} />}
 		</>
 	);
 }
 
 export default function Stats() {
 	const [days, setDays] = useState(14);
+	const [view, setView] = useState<View>("days");
 	const [selected, setSelected] = useState<PersonStat | null>(null);
 
 	const { data, isPending, isError, error } = useQuery({
@@ -320,13 +329,28 @@ export default function Stats() {
 				))}
 			</nav>
 
+			{data && <Summary data={data} />}
+
+			<nav className="tabs stats__views">
+				{VIEWS.map((v) => (
+					<button
+						key={v.id}
+						type="button"
+						className={view === v.id ? "tab tab--on" : "tab"}
+						onClick={() => setView(v.id)}
+					>
+						{v.label}
+					</button>
+				))}
+			</nav>
+
 			{isPending && <p className="empty">불러오는 중…</p>}
 			{isError && (
 				<p className="empty">
 					{error instanceof Error ? error.message : "불러오지 못했습니다"}
 				</p>
 			)}
-			{data && <Body data={data} onOpen={setSelected} />}
+			{data && <Body data={data} view={view} onOpen={setSelected} />}
 
 			{selected && (
 				<PersonDialog person={selected} onClose={() => setSelected(null)} />

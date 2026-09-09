@@ -4,7 +4,7 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { Stats as StatsData } from "../src/api.ts";
-import Stats, { hours } from "../src/Stats.tsx";
+import Stats, { hours, Ranking } from "../src/Stats.tsx";
 
 function render(data?: StatsData): string {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -59,7 +59,13 @@ describe("시간 표기", () => {
 });
 
 describe("통계 화면", () => {
-	it("구역을 모두 그린다", () => {
+	function renderRanking(people: StatsData["people"]): string {
+		return renderToString(
+			createElement(Ranking, { people, onOpen: () => {} }),
+		);
+	}
+
+	it("구역을 탭으로 나눈다", () => {
 		const html = render({
 			...EMPTY,
 			days: [{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" }],
@@ -71,14 +77,26 @@ describe("통계 화면", () => {
 			totalPeople: 3,
 		});
 
+		// 탭 이름
+		expect(html).toContain("일별");
+		expect(html).toContain("시간대");
+		expect(html).toContain("요일");
 		expect(html).toContain("랭킹");
-		expect(html).toContain("날짜별");
-		expect(html).toContain("시간대별");
-		expect(html).toContain("요일별");
-		expect(html).toContain("김하나");
+		// 요약은 탭과 무관하게 늘 보인다
 		expect(html).toContain("붐비는 시간 22시");
-		// 보통 몇 시에 시작해서 끝나는지
 		expect(html).toContain("21:00");
+	});
+
+	it("처음에는 일별을 보여준다 — 처음에 물어본 것이 그쪽이다", () => {
+		const html = render({
+			...EMPTY,
+			days: [{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" }],
+			people: [person()],
+		});
+
+		expect(html).toContain("09-09");
+		// 랭킹 탭을 고르기 전에는 사람 목록이 나오지 않는다
+		expect(html).not.toContain("rank__row");
 	});
 
 	it("설명 문장을 늘어놓지 않는다", () => {
@@ -90,30 +108,22 @@ describe("통계 화면", () => {
 	});
 
 	it("이어지는 중일 때만 연속을 자랑한다", () => {
-		const alive = render({
-			...EMPTY,
-			people: [person({ streak: 5, streakAlive: true })],
-		});
-		expect(alive).toContain("5일 연속");
-
-		const dead = render({
-			...EMPTY,
-			people: [person({ streak: 5, streakAlive: false })],
-		});
+		expect(renderRanking([person({ streak: 5, streakAlive: true })])).toContain(
+			"5일 연속",
+		);
 		// 끊긴 기록을 "연속" 이라고 부르면 거짓말이 된다
-		expect(dead).not.toContain("5일 연속");
+		expect(
+			renderRanking([person({ streak: 5, streakAlive: false })]),
+		).not.toContain("5일 연속");
 	});
 
 	it("1~3위에 메달을 준다", () => {
-		const html = render({
-			...EMPTY,
-			people: [
-				person({ displayName: "일등", seconds: 300 }),
-				person({ displayName: "이등", seconds: 200 }),
-				person({ displayName: "삼등", seconds: 100 }),
-				person({ displayName: "사등", seconds: 50 }),
-			],
-		});
+		const html = renderRanking([
+			person({ displayName: "일등", seconds: 300 }),
+			person({ displayName: "이등", seconds: 200 }),
+			person({ displayName: "삼등", seconds: 100 }),
+			person({ displayName: "사등", seconds: 50 }),
+		]);
 
 		expect(html).toContain("🥇");
 		expect(html).toContain("🥉");
@@ -150,8 +160,9 @@ describe("통계 화면", () => {
 	it("기록이 없어도 화면이 선다", () => {
 		const html = render(EMPTY);
 
-		expect(html).toContain("기록이 없습니다");
+		expect(html).toContain("일별");
 		expect(html).not.toContain("붐비는 시간");
+		expect(renderRanking([])).toContain("기록이 없습니다");
 	});
 
 	it("불러오는 동안 숫자를 만들어내지 않는다", () => {
@@ -159,7 +170,6 @@ describe("통계 화면", () => {
 
 		expect(html).toContain("불러오는 중");
 		expect(html).not.toContain("누적");
-		expect(html).not.toContain("랭킹");
 	});
 });
 
@@ -171,7 +181,9 @@ describe("긴 목록", () => {
 	}
 
 	it("랭킹을 10명까지만 펼친다 — 다 그리면 아래 구역이 화면 밖으로 밀린다", () => {
-		const html = render({ ...EMPTY, people: many(76) });
+		const html = renderToString(
+			createElement(Ranking, { people: many(76), onOpen: () => {} }),
+		);
 
 		expect(html).toContain("사람0");
 		expect(html).toContain("사람9");
@@ -180,14 +192,16 @@ describe("긴 목록", () => {
 	});
 
 	it("열 명 이하면 더 보기를 두지 않는다", () => {
-		const html = render({ ...EMPTY, people: many(4) });
+		const html = renderToString(
+			createElement(Ranking, { people: many(4), onOpen: () => {} }),
+		);
 
 		expect(html).not.toContain("더 보기");
 	});
 
-	it("날짜별이 랭킹보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
+	it("일별 탭이 랭킹 탭보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
 		const html = render({ ...EMPTY, people: many(3) });
 
-		expect(html.indexOf("날짜별")).toBeLessThan(html.indexOf("랭킹"));
+		expect(html.indexOf("일별")).toBeLessThan(html.indexOf("랭킹"));
 	});
 });
