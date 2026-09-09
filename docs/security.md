@@ -112,28 +112,24 @@
 나머지는 **쓰이지 않으면서 저장만 되어 있다.** 지금 번들에 실리지는 않지만,
 누군가 이름을 `VITE_` 로 바꾸는 순간 브라우저로 나간다.
 
-레포를 공개하기 전에 훑어볼 목록이다. 삭제·로테이션은 직접 판단한다.
+2026-09-09 에 죽은 값을 지웠다. 남은 것은 아래가 전부다.
 
-| 이름 | 환경 | 만든 지 | 비고 |
-|---|---|---|---|
-| `VITE_API_BASE` | Production / Preview / Development | 10일 | **쓰인다.** 번들에 박힌다(공개 전제) |
-| `SLACK_BOT_TOKEN` | Production | 150일 | v1 잔재로 보임 |
-| `SLACK_DEFAULT_CHANNEL_ID` | Production | 150일 | v1 잔재로 보임 |
-| `SLACK_ADMIN_API_KEY` | Production | 150일 | v1 잔재로 보임 |
-| `ZOOM_ACCOUNT_ID` | Production | 150일 | v1 잔재로 보임 |
-| `ZOOM_CLIENT_ID` | Production | 150일 | v1 잔재로 보임 |
-| `ZOOM_CLIENT_SECRET` | Production | 150일 | v1 잔재로 보임 |
-| `SUPABASE_URL` | Production | 150일 | 프로젝트가 이미 없다. 죽은 값 |
-| `SUPABASE_ANON_KEY` | Production | 150일 | 프로젝트가 이미 없다. 죽은 값 |
-| `SUPABASE_SERVICE_ROLE_KEY` | Production | 150일 | 프로젝트가 이미 없다. 죽은 값 |
-| `PORT` | Production | 150일 | 정적 사이트에 의미 없음 |
+| 이름 | 환경 | 비고 |
+|---|---|---|
+| `VITE_API_BASE` | Production / Preview / Development | **쓰인다.** 번들에 박힌다(공개 전제) |
+| `ZOOM_ACCOUNT_ID` | Production | Zoom 앱이 살아 있어 남긴다 |
+| `ZOOM_CLIENT_ID` | Production | 위와 같음 |
+| `ZOOM_CLIENT_SECRET` | Production | 위와 같음 |
+| `PORT` | Production | 정적 사이트에 의미 없음. 지워도 그만 |
 
-150일 된 값들은 v1(Supabase + Slack) 시절의 것이다. v2 백엔드는 Dokploy 에서
-자기 환경변수를 따로 쓴다.
+지운 것: `SLACK_BOT_TOKEN`, `SLACK_DEFAULT_CHANNEL_ID`, `SLACK_ADMIN_API_KEY`,
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+Slack 앱도 Supabase 프로젝트도 이미 없어서 가리키는 곳이 없는 값들이었다.
 
-Supabase 프로젝트는 이미 없앴다. 그쪽 세 값은 가리키는 곳이 없으므로
-로테이션할 것도 없고 지우기만 하면 된다. **살아 있을 수 있는 것은 Slack 과
-Zoom 쪽이다** — 이건 값이 아직 유효한지 확인하고 정리한다.
+**Zoom 세 값은 남아 있다.** 현재 코드는 Zoom REST API 를 쓰지 않으므로
+(웹훅만 받는다) 정적 사이트 프로젝트에 있을 이유는 없다. 다만 앱이 살아
+있는 값이라 지우는 대신 판단을 남겨 둔다 — 옮기거나, 지우고 필요할 때
+백엔드 쪽에만 다시 넣는다.
 
 ## 6. 확인 방법
 
