@@ -1303,3 +1303,41 @@ body {
 .topbar__signout:hover {
 	color: var(--fg);
 }
+
+/* ── 없는 주소 ─────────────────────────────── */
+
+.notfound {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 6px;
+	margin: 18vh auto 0;
+	text-align: center;
+}
+
+.notfound__code {
+	margin: 0;
+	color: var(--line-strong);
+	font-size: 44px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+}
+
+.notfound__text {
+	margin: 0;
+	color: var(--muted);
+	font-size: 14px;
+}
+
+.notfound__home {
+	margin-top: 10px;
+	color: var(--accent);
+	font-size: 13px;
+	text-decoration: none;
+}
+
+.notfound__home:hover {
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}

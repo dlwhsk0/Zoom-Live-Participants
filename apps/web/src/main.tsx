@@ -4,6 +4,7 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App.tsx";
 import Admin from "./Logs.tsx";
+import NotFound from "./NotFound.tsx";
 import "./styles.css";
 
 const queryClient = new QueryClient({
@@ -36,14 +37,17 @@ function adminPath(): string {
 	return withSlash.replace(/\/+$/, "") || "/admin";
 }
 
-// 화면이 둘뿐이라 라우터를 쓰지 않는다.
-const isAdmin =
-	window.location.pathname.replace(/\/+$/, "") === adminPath();
+// 화면이 셋뿐이라 라우터를 쓰지 않는다.
+const path = window.location.pathname.replace(/\/+$/, "");
+const screen =
+	path === adminPath() ? "admin" : path === "" ? "participants" : "notfound";
 
 createRoot(container).render(
 	<StrictMode>
 		<QueryClientProvider client={queryClient}>
-			{isAdmin ? <Admin /> : <App />}
+			{screen === "admin" && <Admin />}
+			{screen === "participants" && <App />}
+			{screen === "notfound" && <NotFound />}
 		</QueryClientProvider>
 	</StrictMode>,
 );
