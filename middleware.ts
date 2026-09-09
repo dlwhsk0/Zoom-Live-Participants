@@ -5,7 +5,14 @@
  * 팀이 비밀번호 하나를 같이 쓴다.
  *
  * **환경변수가 없으면 아무 일도 하지 않는다.** 배포했다고 잠기지 않는다 —
- * BASIC_AUTH_USER 와 BASIC_AUTH_PASSWORD 를 넣는 순간부터 켜진다.
+ * BASIC_AUTH_PASSWORD 를 넣는 순간부터 켜진다.
+ *
+ * 아이디는 검사하지 않는다. 브라우저 창에서 아이디 칸을 없앨 수는 없지만
+ * (프로토콜이 아이디:비번 쌍을 요구한다) 아무 값이나, 비워도 통과시킨다.
+ * 팀이 공유하는 것은 비밀번호 하나면 된다 — 아이디는 비밀이 아니라서
+ * 따로 요구해봐야 외울 것만 늘고 막아주는 것은 없다.
+ *
+ * BASIC_AUTH_USER 를 굳이 지정하면 그때는 아이디도 함께 본다.
  *
  * 이건 바깥문이다. 어드민 화면은 안쪽에서 계정으로 다시 막는다.
  */
@@ -43,32 +50,52 @@ function unauthorized(): Response {
 	});
 }
 
-export default function middleware(request: Request): Response | undefined {
-	const user = process.env.BASIC_AUTH_USER;
-	const password = process.env.BASIC_AUTH_PASSWORD;
-
-	// 설정이 없으면 켜지 않는다
-	if (!user || !password) return undefined;
-
-	const header = request.headers.get("authorization");
-	if (!header?.startsWith("Basic ")) return unauthorized();
+/**
+ * `Authorization: Basic ...` 을 검사한다.
+ *
+ * 미들웨어 본체에서 떼어 둔 것은 이 판단만 따로 시험할 수 있게 하기 위해서다.
+ */
+export function credentialsAccepted(
+	header: string | null,
+	expected: { user?: string; password: string },
+): boolean {
+	if (!header?.startsWith("Basic ")) return false;
 
 	let decoded: string;
 	try {
 		decoded = atob(header.slice("Basic ".length).trim());
 	} catch {
-		return unauthorized();
+		return false;
 	}
 
 	// 비밀번호에 콜론이 들어갈 수 있다. 첫 콜론에서만 자른다.
 	const separator = decoded.indexOf(":");
-	if (separator === -1) return unauthorized();
+	if (separator === -1) return false;
 
-	const okUser = constantTimeEquals(decoded.slice(0, separator), user);
-	const okPassword = constantTimeEquals(decoded.slice(separator + 1), password);
+	const okPassword = constantTimeEquals(
+		decoded.slice(separator + 1),
+		expected.password,
+	);
 
-	// 둘 다 확인하고 나서 판단한다. 아이디만 맞아도 시간이 달라지면 안 된다.
-	if (!okUser || !okPassword) return unauthorized();
+	// 아이디를 지정하지 않았으면 무엇이 오든(비어 있어도) 통과다
+	const okUser = expected.user
+		? constantTimeEquals(decoded.slice(0, separator), expected.user)
+		: true;
 
-	return undefined;
+	// 둘 다 계산하고 나서 판단한다. 한쪽만 맞아도 시간이 달라지면 안 된다.
+	return okUser && okPassword;
+}
+
+export default function middleware(request: Request): Response | undefined {
+	const password = process.env.BASIC_AUTH_PASSWORD;
+
+	// 비밀번호가 없으면 켜지 않는다
+	if (!password) return undefined;
+
+	const accepted = credentialsAccepted(request.headers.get("authorization"), {
+		user: process.env.BASIC_AUTH_USER,
+		password,
+	});
+
+	return accepted ? undefined : unauthorized();
 }
