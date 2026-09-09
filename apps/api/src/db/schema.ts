@@ -1,6 +1,7 @@
 import {
 	boolean,
 	index,
+	integer,
 	jsonb,
 	pgTable,
 	text,
@@ -250,4 +251,34 @@ export const users = pgTable("users", {
 	role: text("role").notNull().default("member"),
 	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 	lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+});
+
+/**
+ * 하루치 기록 스냅샷.
+ *
+ * 통계는 participant_events 를 매번 다시 세어 만든다. 그게 진실이고, 이
+ * 표는 그것을 굳혀 둔 것이다 — 원본 이벤트를 언젠가 정리하더라도 "9월 6일에
+ * 51명이 187시간" 이라는 사실은 남는다.
+ *
+ * **캐시이지 원장이 아니다.** 세는 규칙이 바뀌면 다시 만들 수 있어야 한다
+ * (scripts/rebuild-snapshots.ts). 실제로 퇴장을 못 받은 구간 처리를 고치면서
+ * 숫자가 통째로 바뀐 적이 있다.
+ *
+ * 날짜는 한국 시간 기준 YYYY-MM-DD 다.
+ */
+export const dailySnapshots = pgTable("daily_snapshots", {
+	date: text("date").primaryKey(),
+	/** 그날 한 번이라도 들어온 사람 수 */
+	people: integer("people").notNull(),
+	/** 그날 머문 시간의 합(초). 사람별로 겹침을 누른 값이다. */
+	seconds: integer("seconds").notNull(),
+	/** 그 순간 가장 많이 모였던 인원 */
+	peak: integer("peak").notNull(),
+	/** 그 밤에 가장 먼저 들어온 / 마지막으로 나간 시각. HH:MM */
+	firstAt: text("first_at"),
+	lastAt: text("last_at"),
+	/** 언제 센 값인가. 규칙이 바뀌었을 때 어느 것이 오래됐는지 본다. */
+	computedAt: timestamp("computed_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
 });
