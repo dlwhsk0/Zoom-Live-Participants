@@ -51,6 +51,7 @@ v1 코드 전체는 **`snapshot/v1-esm` 브랜치**에 보존되어 있다.
 - [`docs/implementation-plan.md`](docs/implementation-plan.md) — 백/프론트/DB 실행 계획, 단계별 완료 기준
 - [`docs/webhook-data-reference.md`](docs/webhook-data-reference.md) — fixture 실측 수치
 - [`docs/security.md`](docs/security.md) — **접근 정책과 보안 점검.** 검색 차단, 인증 선택지, 남은 구멍
+- [`docs/stats.md`](docs/stats.md) — 통계가 무엇을 어떻게 세는지. 겹침·자정·시간대 규칙
 - [`docs/README.md`](docs/README.md) — 문서 운영 방식
 
 ## 추후 추가될 예정 기능

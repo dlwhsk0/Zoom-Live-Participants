@@ -459,7 +459,34 @@ export function unionSeconds(
 	intervals: readonly Interval[],
 	now: Date,
 ): number {
-	if (intervals.length === 0) return 0;
+	const merged = mergeIntervals(intervals, now);
+	const total = merged.reduce((sum, r) => sum + (r.to - r.from), 0);
+
+	return Math.round(total / 1000);
+}
+
+/** 밀리초로 표현한 반열린 구간 [from, to). */
+export interface Range {
+	from: number;
+	to: number;
+}
+
+/**
+ * 겹치는 구간을 합쳐 서로 겹치지 않는 구간 목록으로 만든다.
+ *
+ * unionSeconds 가 쓰던 계산을 떼어낸 것이다. 합계만 필요하면 그쪽을 쓰고,
+ * "언제" 가 필요하면 — 시간대별로 쪼개는 통계 같은 것 — 이쪽을 쓴다.
+ *
+ * **쪼개기 전에 반드시 합쳐야 한다.** 겹친 채로 시간대에 나눠 담으면
+ * 같은 시간이 두 번 세어진다.
+ *
+ * 아직 닫히지 않은 구간은 now 까지로 본다.
+ */
+export function mergeIntervals(
+	intervals: readonly Interval[],
+	now: Date,
+): Range[] {
+	if (intervals.length === 0) return [];
 
 	const ranges = intervals
 		.map(({ start, end }) => ({
@@ -469,24 +496,21 @@ export function unionSeconds(
 		.filter((r) => r.to > r.from)
 		.sort((a, b) => a.from - b.from);
 
-	let total = 0;
-	let from = -1;
-	let to = -1;
+	const merged: Range[] = [];
 
 	for (const range of ranges) {
-		if (range.from > to) {
-			// 앞 구간과 떨어져 있다. 앞 구간을 확정하고 새로 연다.
-			if (to > from) total += to - from;
-			from = range.from;
-			to = range.to;
-		} else if (range.to > to) {
+		const last = merged[merged.length - 1];
+
+		if (!last || range.from > last.to) {
+			// 앞 구간과 떨어져 있다. 새로 연다.
+			merged.push({ ...range });
+		} else if (range.to > last.to) {
 			// 겹치거나 이어진다. 끝만 늘린다.
-			to = range.to;
+			last.to = range.to;
 		}
 	}
 
-	if (to > from) total += to - from;
-	return Math.round(total / 1000);
+	return merged;
 }
 
 /**
