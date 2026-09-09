@@ -1529,6 +1529,69 @@ body {
 	margin-top: 22px;
 }
 
+/* 패턴 탭 안의 작은 제목 */
+.stats__title--gap {
+	margin-top: 26px;
+}
+
+/* 날짜 고르기. 옆으로 넘긴다 — 세로로 쌓으면 화면을 다 먹는다 */
+.daypick {
+	display: flex;
+	gap: 6px;
+	margin-top: 14px;
+	padding-bottom: 4px;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+
+.daypick::-webkit-scrollbar {
+	display: none;
+}
+
+.daypick__day {
+	flex: none;
+	padding: 6px 10px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+	cursor: pointer;
+}
+
+.daypick__day--on {
+	border-color: var(--accent);
+	background: var(--accent);
+	color: #ffffff;
+}
+
+:root[data-theme="dark"] .daypick__day--on,
+:root:not([data-theme="light"]) .daypick__day--on {
+	color: #10131a;
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme="dark"]) .daypick__day--on {
+		color: #ffffff;
+	}
+}
+
+/* 그날 요약 한 줄 */
+.day__meta {
+	margin: 14px 2px 0;
+	color: var(--muted);
+	font-size: 12px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* 지난 날의 타일은 누를 것이 없다. 카드와 같은 모양만 쓴다 */
+.card--static {
+	cursor: default;
+}
+
 .rank {
 	margin: 10px 0 0;
 	padding: 0;

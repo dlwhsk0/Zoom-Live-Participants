@@ -424,6 +424,8 @@ export interface WeekComparison {
 }
 
 export interface Stats {
+	weeks: PeriodBucket[];
+	months: PeriodBucket[];
 	from: string;
 	to: string;
 	days: DayBucket[];
@@ -451,4 +453,35 @@ export async function fetchStats(days: number): Promise<Stats> {
 	}
 
 	return (await response.json()) as Stats;
+}
+
+export interface PeriodBucket {
+	/** 주는 그 주 월요일(YYYY-MM-DD), 달은 YYYY-MM */
+	key: string;
+	seconds: number;
+	people: number;
+	activeDays: number;
+}
+
+export interface DayDetail {
+	date: string;
+	people: { displayName: string; seconds: number }[];
+	peak: number;
+	totalSeconds: number;
+	firstAt: string | null;
+	lastAt: string | null;
+}
+
+/** 하루치 참가자 목록. 통계가 아니라 그날의 화면이다. */
+export async function fetchDay(date: string): Promise<DayDetail> {
+	const url = new URL(`${API_BASE}/api/day`, window.location.origin);
+	url.searchParams.set("date", date);
+
+	const response = await fetch(url, {
+		headers: apiHeaders({ accept: "application/json" }),
+	});
+
+	if (!response.ok) throw new Error(`요청 실패 (${response.status})`);
+
+	return (await response.json()) as DayDetail;
 }

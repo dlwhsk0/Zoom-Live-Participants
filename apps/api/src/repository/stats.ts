@@ -29,6 +29,8 @@ const LOOKBEHIND_DAYS = 1;
  */
 const LOOKAHEAD_DAYS = 1;
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 /**
  * 여러 회의 세션에 걸쳐 사람별 접속 구간을 모은다.
  *
@@ -213,7 +215,6 @@ export async function getStats(
 	days: number,
 	now: Date = new Date(),
 ): Promise<Stats> {
-	const DAY_MS = 24 * 60 * 60 * 1000;
 	const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
 	// 오늘 자정(한국 시간)을 기준으로 days 일 전부터 내일 자정까지
@@ -230,6 +231,55 @@ export async function getStats(
 	const stats = buildStats(people, from, to, now);
 
 	return fillFromSnapshots(stats, await findSnapshots(db, stats.from));
+}
+
+export interface DayDetail {
+	date: string;
+	/** 그날 한 번이라도 들어온 사람 */
+	people: { displayName: string; seconds: number }[];
+	/** 그 순간 가장 많이 모였던 인원 */
+	peak: number;
+	totalSeconds: number;
+	/** 그 밤의 첫 입장 / 마지막 퇴장. HH:MM */
+	firstAt: string | null;
+	lastAt: string | null;
+}
+
+/**
+ * 하루치 참가자 목록.
+ *
+ * 통계가 아니라 **그날의 화면**이다. 현재 접속자 목록과 같은 모양으로 그리려고
+ * 사람과 시간만 준다.
+ *
+ * 앞뒤로 하루씩 넓게 세고 가운데 날만 꺼낸다. 하루 창으로 세면 밤을 넘긴
+ * 구간이 자정에서 잘린다 — snapshotDay 와 같은 이유다.
+ */
+export async function getDayDetail(db: Db, date: string): Promise<DayDetail> {
+	const midnight = new Date(`${date}T00:00:00+09:00`).getTime();
+	const from = new Date(midnight - DAY_MS);
+	const to = new Date(midnight + 2 * DAY_MS);
+
+	const loaded = await findIntervalsInRange(db, from, to);
+
+	// 사람별 시간은 그 하루만 세야 한다. 넓게 센 값을 쓰면 앞뒤 날이 섞인다.
+	const day = new Date(midnight);
+	const nextDay = new Date(midnight + DAY_MS);
+	const stats = buildStats(loaded, day, nextDay, new Date());
+	const bucket = buildStats(loaded, from, to, new Date()).days.find(
+		(d) => d.date === date,
+	);
+
+	return {
+		date,
+		people: stats.people.map((p) => ({
+			displayName: p.displayName,
+			seconds: p.seconds,
+		})),
+		peak: bucket?.peak ?? 0,
+		totalSeconds: stats.totalSeconds,
+		firstAt: bucket?.firstAt ?? null,
+		lastAt: bucket?.lastAt ?? null,
+	};
 }
 
 /**
