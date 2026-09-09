@@ -85,10 +85,11 @@ describe("통계 화면", () => {
 		});
 
 		expect(html).toContain("스냅샷");
-		expect(html).toContain("통계");
-		// 통계 안의 것들은 그 탭을 골라야 나온다
-		expect(html).not.toContain("주별");
+		expect(html).toContain("주별");
+		expect(html).toContain("월별");
+		// 통계 쪽 내용은 그 탭을 골라야 나온다
 		expect(html).not.toContain("랭킹");
+		expect(html).not.toContain("range__chip");
 	});
 
 	it("요약은 통계 쪽 값이다", () => {
@@ -233,10 +234,10 @@ describe("긴 목록", () => {
 		expect(html).not.toContain("더 보기");
 	});
 
-	it("스냅샷이 통계보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
+	it("스냅샷이 주별보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
 		const html = render({ ...EMPTY, people: many(3) });
 
-		expect(html.indexOf("스냅샷")).toBeLessThan(html.indexOf("통계"));
+		expect(html.indexOf("스냅샷")).toBeLessThan(html.indexOf("주별"));
 	});
 
 	it("스냅샷에서는 통계 막대를 그리지 않는다 — 그날의 화면이다", () => {

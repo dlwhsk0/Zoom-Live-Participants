@@ -1531,9 +1531,34 @@ body {
 	margin-top: 22px;
 }
 
-/* 통계 안의 기간 선택. 최상위 탭 바로 아래라 조금 띄운다 */
-.stats__range {
+/* 얼마나 거슬러 볼지. 최상위 탭과 같은 모양이면 무엇이 위인지 흐려진다.
+   작은 칩으로 두어 한 단계 아래임을 눈으로 알게 한다 */
+.range {
+	display: flex;
+	gap: 6px;
 	margin-top: 14px;
+}
+
+.range__chip {
+	padding: 5px 11px;
+	border: 1px solid var(--line);
+	border-radius: 999px;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.range__chip:hover {
+	border-color: var(--line-strong);
+	color: var(--fg);
+}
+
+.range__chip--on {
+	border-color: var(--fg);
+	color: var(--fg);
+	font-weight: 600;
 }
 
 /* 패턴 탭 안의 작은 제목 */

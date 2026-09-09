@@ -9,24 +9,39 @@ import PersonDialog from "./PersonDialog.tsx";
 import StudyIcon from "./StudyIcon.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 
-/** 최상위. 하는 일이 다르다 — 하나는 그날의 화면, 하나는 기간의 통계다. */
-type Mode = "day" | "stats";
+/**
+ * 최상위. 셋을 한 줄에 둔다.
+ *
+ * 스냅샷은 그날의 화면이고, 주별·월별은 기간을 묶어 본 값이다. 앞서
+ * "스냅샷/통계" 위에 "주별/월별" 을 또 얹었더니 같은 모양의 줄이 두 번
+ * 나와 무엇이 상위인지 흐려졌다.
+ */
+type Mode = "day" | "weeks" | "months";
 
 const MODES: { id: Mode; label: string }[] = [
 	{ id: "day", label: "스냅샷" },
-	{ id: "stats", label: "통계" },
-];
-
-/** 통계를 무슨 단위로 볼지. 이것이 통계의 최상위다. */
-type View = "weeks" | "months";
-
-const VIEWS: { id: View; label: string }[] = [
 	{ id: "weeks", label: "주별" },
 	{ id: "months", label: "월별" },
 ];
 
-/** 주별은 최근 한 달, 월별은 한 분기쯤 본다. */
-const VIEW_DAYS: Record<View, number> = { weeks: 30, months: 90 };
+type View = "weeks" | "months";
+
+/**
+ * 얼마나 거슬러 볼지. 단위마다 말이 다르다 — 주를 보면서 "90일" 이라고
+ * 하면 몇 주인지 세어야 한다.
+ */
+const RANGES: Record<View, { label: string; days: number }[]> = {
+	weeks: [
+		{ label: "4주", days: 28 },
+		{ label: "8주", days: 56 },
+		{ label: "12주", days: 84 },
+	],
+	months: [
+		{ label: "3개월", days: 90 },
+		{ label: "6개월", days: 180 },
+		{ label: "1년", days: 365 },
+	],
+};
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const MEDAL = ["🥇", "🥈", "🥉"];
 
@@ -389,12 +404,17 @@ function Body({
 
 export default function Stats() {
 	const [mode, setMode] = useState<Mode>("day");
-	const [view, setView] = useState<View>("weeks");
+	const [range, setRange] = useState<Record<View, number>>({
+		weeks: 28,
+		months: 90,
+	});
 	const [date, setDate] = useState("");
 	const [selected, setSelected] = useState<PersonStat | null>(null);
 
+	const view: View = mode === "months" ? "months" : "weeks";
+
 	// 스냅샷도 날짜 목록이 필요하다. 넉넉히 받아 두고 화면에서 가른다.
-	const days = mode === "day" ? 90 : VIEW_DAYS[view];
+	const days = mode === "day" ? 90 : range[view];
 
 	const { data, isPending, isError, error } = useQuery({
 		queryKey: ["stats", days],
@@ -443,21 +463,24 @@ export default function Stats() {
 				</>
 			)}
 
-			{data && mode === "stats" && (
+			{data && mode !== "day" && (
 				<>
-					{/* 통계의 최상위는 단위다. 단위가 보는 기간까지 정한다 */}
-					<nav className="tabs stats__range">
-						{VIEWS.map((v) => (
+					{/* 얼마나 거슬러 볼지. 최상위 탭과 같은 모양이면 무엇이 위인지
+					    흐려진다. 작은 칩으로 둔다 */}
+					<div className="range">
+						{RANGES[view].map((r) => (
 							<button
-								key={v.id}
+								key={r.days}
 								type="button"
-								className={view === v.id ? "tab tab--on" : "tab"}
-								onClick={() => setView(v.id)}
+								className={
+									range[view] === r.days ? "range__chip range__chip--on" : "range__chip"
+								}
+								onClick={() => setRange({ ...range, [view]: r.days })}
 							>
-								{v.label}
+								{r.label}
 							</button>
 						))}
-					</nav>
+					</div>
 
 					<Summary data={data} />
 					<Body data={data} view={view} onOpen={setSelected} />

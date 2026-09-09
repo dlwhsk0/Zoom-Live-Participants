@@ -367,8 +367,9 @@ async function route(
 
 		// 너무 긴 기간을 요구하면 서버만 힘들다. 화면에서도 그만큼은 못 그린다.
 		const requested = Number(query.get("days") ?? 14);
+		// 1년까지 본다. 이벤트가 아직 수천 건이라 넉넉하다.
 		const days = Number.isFinite(requested)
-			? Math.min(Math.max(Math.trunc(requested), 1), 90)
+			? Math.min(Math.max(Math.trunc(requested), 1), 365)
 			: 14;
 
 		const stats = await getStats(getDb(), days);
