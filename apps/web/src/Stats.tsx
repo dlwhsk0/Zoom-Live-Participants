@@ -204,7 +204,10 @@ function Body({
 
 			{data.typicalStart && data.typicalEnd && (
 				<p className="stats__typical">
-					{`보통 ${data.typicalStart} 에 시작해서 ${data.typicalEnd} 에 끝납니다`}
+					{`보통 ${data.typicalStart} 에 시작해서 ${
+						// 끝이 시작보다 이르면 자정을 넘긴 것이다
+						data.typicalEnd < data.typicalStart ? "다음날 " : ""
+					}${data.typicalEnd} 에 끝납니다`}
 				</p>
 			)}
 

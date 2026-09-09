@@ -40,11 +40,13 @@ async function findIntervalsInRange(
 
 	const rows = await db.execute<{
 		display_name: string | null;
+		meeting_uuid: string;
 		started_at: string | Date;
 		ended_at: string | Date | null;
 	}>(sql`
 		select
 			p.display_name,
+			t.meeting_uuid,
 			t.started_at,
 			t.ended_at
 		from (
@@ -73,7 +75,11 @@ async function findIntervalsInRange(
 			and (t.next_type is null or t.next_type = 'left')
 	`);
 
-	const aliases = await loadAliasMap(db);
+	const [aliases, sessionEnds] = await Promise.all([
+		loadAliasMap(db),
+		findSessionEnds(db),
+	]);
+
 	const byName = new Map<string, Interval[]>();
 
 	for (const row of rows) {
@@ -83,7 +89,10 @@ async function findIntervalsInRange(
 
 		list.push({
 			start: new Date(row.started_at),
-			end: row.ended_at === null ? null : new Date(row.ended_at),
+			end:
+				row.ended_at === null
+					? closeOpen(new Date(row.started_at), sessionEnds.get(row.meeting_uuid))
+					: new Date(row.ended_at),
 		});
 		byName.set(name, list);
 	}
@@ -92,6 +101,91 @@ async function findIntervalsInRange(
 		displayName,
 		intervals,
 	}));
+}
+
+/** 회의 세션이 언제 끝났는가. 아직 안 끝났으면 null. */
+export interface SessionEnd {
+	/** meeting.ended 웹훅이 알려준 종료 시각. 못 받았으면 null. */
+	endedAt: Date | null;
+	/** 그 세션에서 마지막으로 온 이벤트. 종료를 못 받았을 때의 대안이다. */
+	lastEventAt: Date;
+}
+
+/**
+ * 세션이 아직 살아 있다고 볼 수 있는 시간.
+ *
+ * 종료 웹훅을 못 받았고 이 시간 안에 이벤트가 있었으면 회의가 진행 중이라고
+ * 본다. 그보다 오래됐으면 끝난 것으로 보고 마지막 이벤트에서 끊는다.
+ */
+const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
+
+async function findSessionEnds(db: Db): Promise<Map<string, SessionEnd>> {
+	const rows = await db.execute<{
+		meeting_uuid: string;
+		ended_at: string | null;
+		last_event_at: string | Date;
+	}>(sql`
+		select
+			e.meeting_uuid,
+			x.ended_at,
+			e.last_event_at
+		from (
+			select meeting_uuid, max(occurred_at) as last_event_at
+			from participant_events
+			group by meeting_uuid
+		) e
+		left join (
+			select
+				payload->'payload'->'object'->>'uuid' as meeting_uuid,
+				min(payload->'payload'->'object'->>'end_time') as ended_at
+			from webhook_events
+			where payload->>'event' = 'meeting.ended'
+			group by 1
+		) x on x.meeting_uuid = e.meeting_uuid
+	`);
+
+	return new Map(
+		rows.map((row) => [
+			row.meeting_uuid,
+			{
+				endedAt: row.ended_at === null ? null : new Date(row.ended_at),
+				lastEventAt: new Date(row.last_event_at),
+			},
+		]),
+	);
+}
+
+/**
+ * 퇴장 이벤트를 못 받은 구간을 어디서 끊을 것인가.
+ *
+ * 그대로 두면 "아직 접속 중" 으로 보여 지금까지의 시간이 전부 더해진다.
+ * 실제로 9월 4일에 열린 채로 남은 구간 하나가 134시간으로 잡혀 순위를
+ * 통째로 뒤집었다. 놓친 퇴장은 접속이 아니다.
+ *
+ * 회의가 끝난 시각에서 끊는다. 종료 웹훅을 못 받았으면 그 세션의 마지막
+ * 이벤트에서 끊는다. 둘 다 없거나 회의가 아직 진행 중이면 열어 둔다 —
+ * 그때는 정말로 접속해 있는 것이다.
+ *
+ * 실제보다 적게 잡힐 수는 있어도 없는 시간을 만들지는 않는다.
+ * findIntervals 가 세운 원칙과 같다.
+ */
+export function closeOpen(startedAt: Date, session: SessionEnd | undefined): Date | null {
+	if (!session) return null;
+
+	// 종료를 못 받았고 최근까지 이벤트가 있으면 진행 중이다. 정말로 접속해 있다.
+	const live =
+		session.endedAt === null &&
+		Date.now() - session.lastEventAt.getTime() < LIVE_WINDOW_MS;
+
+	if (live) return null;
+
+	const end = session.endedAt ?? session.lastEventAt;
+
+	// 끝난 뒤에 들어온 뒤늦은 이벤트가 있다. 실제로 회의 종료(02:30)보다
+	// 10분 늦게 도착한 입장(02:40)을 봤다. 이때 열어 두면 "아직 접속 중" 이
+	// 되어 지금까지의 시간이 전부 더해진다 — 가장 나쁜 쪽이다.
+	// 길이 0 으로 닫는다. 그런 구간은 합칠 때 걸러진다.
+	return end > startedAt ? end : startedAt;
 }
 
 /**
@@ -121,3 +215,6 @@ export async function getStats(
 
 	return buildStats(people, from, to, now);
 }
+
+/** 테스트에서 부르는 이름. 이 판단만 따로 시험한다. */
+export { closeOpen as closeOpenForTest };

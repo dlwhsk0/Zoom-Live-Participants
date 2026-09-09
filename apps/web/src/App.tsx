@@ -265,16 +265,19 @@ export default function App() {
 							: `누적 ${data?.totalCount}명`}
 					</p>
 				</div>
-				{/* 테마 버튼과 같은 모양. 누르면 통계로 간다 */}
-				<a
-					className="theme-toggle"
-					href="/stats"
-					aria-label="통계 보기"
-					title="통계 보기"
-				>
-					<span aria-hidden="true">📊</span>
-				</a>
-				<ThemeToggle />
+				{/* topbar 가 space-between 이라 묶지 않으면 둘이 양끝으로 벌어진다 */}
+				<div className="topbar__actions">
+					{/* 테마 버튼과 같은 모양. 누르면 통계로 간다 */}
+					<a
+						className="theme-toggle"
+						href="/stats"
+						aria-label="통계 보기"
+						title="통계 보기"
+					>
+						<span aria-hidden="true">📊</span>
+					</a>
+					<ThemeToggle />
+				</div>
 			</div>
 
 			<header className="header">

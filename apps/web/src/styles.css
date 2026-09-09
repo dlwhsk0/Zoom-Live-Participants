@@ -730,8 +730,10 @@ body {
 .topbar__actions {
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	/* 같은 모양의 버튼끼리는 붙여 둔다. 한 덩어리로 읽혀야 한다 */
+	gap: 6px;
 	flex: none;
+	margin-left: auto;
 }
 
 .chip {
