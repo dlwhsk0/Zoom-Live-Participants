@@ -123,13 +123,17 @@
 | `ZOOM_ACCOUNT_ID` | Production | 150일 | v1 잔재로 보임 |
 | `ZOOM_CLIENT_ID` | Production | 150일 | v1 잔재로 보임 |
 | `ZOOM_CLIENT_SECRET` | Production | 150일 | v1 잔재로 보임 |
-| `SUPABASE_URL` | Production | 150일 | v2 는 Supabase 를 쓰지 않는다 |
-| `SUPABASE_ANON_KEY` | Production | 150일 | v2 는 Supabase 를 쓰지 않는다 |
-| `SUPABASE_SERVICE_ROLE_KEY` | Production | 150일 | **RLS 를 우회하는 키다.** 살아 있는 프로젝트라면 로테이션 |
+| `SUPABASE_URL` | Production | 150일 | 프로젝트가 이미 없다. 죽은 값 |
+| `SUPABASE_ANON_KEY` | Production | 150일 | 프로젝트가 이미 없다. 죽은 값 |
+| `SUPABASE_SERVICE_ROLE_KEY` | Production | 150일 | 프로젝트가 이미 없다. 죽은 값 |
 | `PORT` | Production | 150일 | 정적 사이트에 의미 없음 |
 
 150일 된 값들은 v1(Supabase + Slack) 시절의 것이다. v2 백엔드는 Dokploy 에서
 자기 환경변수를 따로 쓴다.
+
+Supabase 프로젝트는 이미 없앴다. 그쪽 세 값은 가리키는 곳이 없으므로
+로테이션할 것도 없고 지우기만 하면 된다. **살아 있을 수 있는 것은 Slack 과
+Zoom 쪽이다** — 이건 값이 아직 유효한지 확인하고 정리한다.
 
 ## 6. 확인 방법
 
