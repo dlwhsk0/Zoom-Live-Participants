@@ -390,6 +390,9 @@ export interface DayBucket {
 	seconds: number;
 	/** 그 순간 가장 많이 모였던 인원 */
 	peak: number;
+	/** 그날 가장 먼저 들어온 / 마지막으로 나간 시각. HH:MM */
+	firstAt: string | null;
+	lastAt: string | null;
 }
 
 export interface HourBucket {
@@ -407,6 +410,17 @@ export interface PersonStat {
 	displayName: string;
 	seconds: number;
 	days: number;
+	/** 최근 연속 출석일 */
+	streak: number;
+	/** 끊기지 않고 이어지는 중인가. false 면 "N일 연속" 이라 부르면 안 된다 */
+	streakAlive: boolean;
+	bestStreak: number;
+	daily: { date: string; seconds: number }[];
+}
+
+export interface WeekComparison {
+	recent: { seconds: number; people: number };
+	previous: { seconds: number; people: number };
 }
 
 export interface Stats {
@@ -416,6 +430,10 @@ export interface Stats {
 	hours: HourBucket[];
 	weekdays: WeekdayBucket[];
 	people: PersonStat[];
+	week: WeekComparison;
+	/** 보통 몇 시에 시작해서 몇 시에 끝나는가 (HH:MM) */
+	typicalStart: string | null;
+	typicalEnd: string | null;
 	totalSeconds: number;
 	totalPeople: number;
 }

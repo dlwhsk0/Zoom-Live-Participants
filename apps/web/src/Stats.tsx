@@ -1,11 +1,15 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { fetchStats, type Stats as StatsData } from "./api.ts";
+import { fetchStats, type PersonStat, type Stats as StatsData } from "./api.ts";
+import { studyTier } from "./format.ts";
+import PersonDialog from "./PersonDialog.tsx";
+import StudyIcon from "./StudyIcon.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 
 const RANGES = [7, 14, 30] as const;
-const WEEKDAY_LABEL = ["일", "월", "화", "수", "목", "금", "토"];
+const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
+const MEDAL = ["🥇", "🥈", "🥉"];
 
 /** 통계는 시간 단위로 읽는다. 초까지 보여줄 이유가 없다. */
 export function hours(seconds: number): string {
@@ -21,15 +25,9 @@ export function hours(seconds: number): string {
 /** 09-08 (월) */
 function dayLabel(date: string): string {
 	const d = new Date(`${date}T00:00:00+09:00`);
-	return `${date.slice(5)} (${WEEKDAY_LABEL[d.getUTCDay()] ?? ""})`;
+	return `${date.slice(5)} (${WEEKDAY[d.getUTCDay()] ?? ""})`;
 }
 
-/**
- * 가로 막대 한 줄.
- *
- * 차트 라이브러리를 넣지 않는다. 막대 몇 개 그리자고 200KB 를 더할 이유가
- * 없고, 이 저장소는 의존성을 얇게 유지해 왔다.
- */
 function Bar({
 	label,
 	value,
@@ -41,19 +39,18 @@ function Bar({
 	label: string;
 	value: number;
 	max: number;
-	/** 값 옆에 붙는 짧은 곁가지. 한 줄을 더 쓸 만큼은 아닌 것. */
 	suffix?: string;
-	/** 줄 아래에 붙는 곁가지. 길어서 값 옆에 못 붙이는 것. */
 	note?: string;
 	dim?: boolean;
 }) {
-	const percent = max > 0 ? (value / max) * 100 : 0;
-
 	return (
 		<li className={dim ? "chart__row chart__row--dim" : "chart__row"}>
 			<span className="chart__label">{label}</span>
 			<span className="chart__track">
-				<span className="chart__fill" style={{ width: `${percent}%` }} />
+				<span
+					className="chart__fill"
+					style={{ width: `${max > 0 ? (value / max) * 100 : 0}%` }}
+				/>
 			</span>
 			<span className="chart__value">
 				{hours(value)}
@@ -64,28 +61,116 @@ function Bar({
 	);
 }
 
-function Section({
-	title,
-	hint,
-	children,
-}: {
-	title: string;
-	hint?: string;
-	children: React.ReactNode;
-}) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
 	return (
 		<section className="stats__section">
 			<h2 className="stats__title">{title}</h2>
-			{hint && <p className="stats__hint">{hint}</p>}
 			{children}
 		</section>
 	);
 }
 
-function Body({ data }: { data: StatsData }) {
+/** 지난 7일과 그 앞 7일. 늘었으면 위, 줄었으면 아래. */
+function WeekCard({ week }: { week: StatsData["week"] }) {
+	const { recent, previous } = week;
+
+	if (recent.seconds === 0 && previous.seconds === 0) return null;
+
+	const diff = previous.seconds > 0
+		? Math.round(((recent.seconds - previous.seconds) / previous.seconds) * 100)
+		: null;
+
+	const up = diff !== null && diff > 0;
+	const flat = diff === 0;
+
+	return (
+		<div className="week">
+			<div className="week__main">
+				<p className="week__label">지난 7일</p>
+				<p className="week__value">{hours(recent.seconds)}</p>
+			</div>
+			<p
+				className={
+					diff === null || flat
+						? "week__diff"
+						: up
+							? "week__diff week__diff--up"
+							: "week__diff week__diff--down"
+				}
+			>
+				{diff === null
+					? "첫 주"
+					: flat
+						? "그 전 주와 같음"
+						: `${up ? "▲" : "▼"} ${Math.abs(diff)}%`}
+				{previous.seconds > 0 && (
+					<span className="week__prev">{`그 전 7일 ${hours(previous.seconds)}`}</span>
+				)}
+			</p>
+		</div>
+	);
+}
+
+function Ranking({
+	people,
+	onOpen,
+}: {
+	people: PersonStat[];
+	onOpen: (person: PersonStat) => void;
+}) {
+	if (people.length === 0) return <p className="empty">기록이 없습니다</p>;
+
+	return (
+		<ol className="rank">
+			{people.map((person, index) => {
+				const average = person.days > 0 ? person.seconds / person.days : 0;
+				const tier = studyTier(average);
+
+				return (
+					<li key={person.displayName}>
+						<button
+							type="button"
+							className="rank__row"
+							onClick={() => onOpen(person)}
+						>
+							<span className="rank__place">
+								{MEDAL[index] ?? index + 1}
+							</span>
+							<StudyIcon
+								tier={tier}
+								face="🧑‍💻"
+								label={`하루 평균 ${hours(average)}`}
+								small
+							/>
+							<span className="rank__body">
+								<span className="rank__name">{person.displayName}</span>
+								<span className="rank__meta">
+									{`${person.days}일 · 하루 ${hours(average)}`}
+									{person.streakAlive && person.streak >= 2 && (
+										<span className="rank__streak">
+											{`🔥 ${person.streak}일 연속`}
+										</span>
+									)}
+								</span>
+							</span>
+							<span className="rank__total">{hours(person.seconds)}</span>
+						</button>
+					</li>
+				);
+			})}
+		</ol>
+	);
+}
+
+function Body({
+	data,
+	onOpen,
+}: {
+	data: StatsData;
+	onOpen: (person: PersonStat) => void;
+}) {
 	const dayMax = Math.max(...data.days.map((d) => d.seconds), 1);
 	const hourMax = Math.max(...data.hours.map((h) => h.seconds), 1);
-	const personMax = Math.max(...data.people.map((p) => p.seconds), 1);
 
 	// 요일은 그 요일이 몇 번 있었는지가 다르다. 합계로 견주면 기간에 두 번 든
 	// 요일이 유리해진다. 하루 평균으로 고쳐 놓고 본다.
@@ -107,11 +192,23 @@ function Body({ data }: { data: StatsData }) {
 				</p>
 				<p className="header__meta">
 					{`${data.totalPeople}명 참여`}
-					{busiest && busiest.seconds > 0 && ` · 가장 붐빈 시간 ${busiest.hour}시`}
+					{busiest && busiest.seconds > 0 && ` · 붐비는 시간 ${busiest.hour}시`}
 				</p>
 			</header>
 
-			<Section title="날짜별" hint="막대는 그날 머문 시간의 합">
+			<WeekCard week={data.week} />
+
+			{data.typicalStart && data.typicalEnd && (
+				<p className="stats__typical">
+					{`보통 ${data.typicalStart} 에 시작해서 ${data.typicalEnd} 에 끝납니다`}
+				</p>
+			)}
+
+			<Section title="랭킹">
+				<Ranking people={data.people} onOpen={onOpen} />
+			</Section>
+
+			<Section title="날짜별">
 				<ul className="chart">
 					{[...data.days].reverse().map((d) => (
 						<Bar
@@ -119,14 +216,20 @@ function Body({ data }: { data: StatsData }) {
 							label={dayLabel(d.date)}
 							value={d.seconds}
 							max={dayMax}
-							note={d.people > 0 ? `${d.people}명 · 동시 최대 ${d.peak}명` : undefined}
+							note={
+								d.people > 0
+									? `${d.people}명 · 동시 최대 ${d.peak}명${
+											d.firstAt && d.lastAt ? ` · ${d.firstAt}~${d.lastAt}` : ""
+										}`
+									: undefined
+							}
 							dim={d.seconds === 0}
 						/>
 					))}
 				</ul>
 			</Section>
 
-			<Section title="시간대별" hint="지나간 시간을 시각별로 나눠 담았다">
+			<Section title="시간대별">
 				<ul className="chart">
 					{data.hours.map((h) => (
 						<Bar
@@ -140,12 +243,12 @@ function Body({ data }: { data: StatsData }) {
 				</ul>
 			</Section>
 
-			<Section title="요일별" hint="그 요일 하루 평균">
+			<Section title="요일별">
 				<ul className="chart">
 					{weekdayAvg.map((w) => (
 						<Bar
 							key={w.weekday}
-							label={WEEKDAY_LABEL[w.weekday] ?? ""}
+							label={WEEKDAY[w.weekday] ?? ""}
 							value={w.average}
 							max={weekdayMax}
 							suffix={w.days > 0 ? `${w.days}일` : undefined}
@@ -154,30 +257,13 @@ function Body({ data }: { data: StatsData }) {
 					))}
 				</ul>
 			</Section>
-
-			<Section title="사람별" hint="같이 접속한 시간은 한 번만 센다">
-				{data.people.length === 0 ? (
-					<p className="empty">기록이 없습니다</p>
-				) : (
-					<ul className="chart">
-						{data.people.map((p) => (
-							<Bar
-								key={p.displayName}
-								label={p.displayName}
-								value={p.seconds}
-								max={personMax}
-								suffix={`${p.days}일`}
-							/>
-						))}
-					</ul>
-				)}
-			</Section>
 		</>
 	);
 }
 
 export default function Stats() {
 	const [days, setDays] = useState(14);
+	const [selected, setSelected] = useState<PersonStat | null>(null);
 
 	const { data, isPending, isError, error } = useQuery({
 		queryKey: ["stats", days],
@@ -214,7 +300,11 @@ export default function Stats() {
 					{error instanceof Error ? error.message : "불러오지 못했습니다"}
 				</p>
 			)}
-			{data && <Body data={data} />}
+			{data && <Body data={data} onOpen={setSelected} />}
+
+			{selected && (
+				<PersonDialog person={selected} onClose={() => setSelected(null)} />
+			)}
 		</main>
 	);
 }

@@ -35,6 +35,14 @@ export interface DayBucket {
 	seconds: number;
 	/** 그 순간 가장 많이 모였던 인원 */
 	peak: number;
+	/**
+	 * 그날 가장 먼저 들어온 시각 / 마지막으로 나간 시각. HH:MM (한국 시간).
+	 *
+	 * **그날 안에서 시작한 구간**만 본다. 전날 밤부터 이어져 온 접속을
+	 * 그날의 시작으로 치면 매일 00:00 이 되어 아무 뜻이 없다.
+	 */
+	firstAt: string | null;
+	lastAt: string | null;
 }
 
 export interface HourBucket {
@@ -56,6 +64,29 @@ export interface PersonStat {
 	seconds: number;
 	/** 며칠 나왔나 */
 	days: number;
+	/**
+	 * 최근 연속 출석일. 마지막으로 나온 날에서 거슬러 이어진 길이다.
+	 *
+	 * `streakAlive` 가 false 면 이미 끊긴 기록이다 — 마지막 출석이
+	 * 오늘도 어제도 아니라는 뜻. 화면에서 "N일 연속" 이라고 부르면 안 된다.
+	 */
+	streak: number;
+	streakAlive: boolean;
+	/** 기간 안에서 가장 길었던 연속 출석 */
+	bestStreak: number;
+	/** 날짜별 시간. 개인 상세에서 쓴다. */
+	daily: { date: string; seconds: number }[];
+}
+
+/**
+ * 최근 7일과 그 앞 7일.
+ *
+ * 오늘은 빼고 어제까지로 자른다. 오늘은 아직 끝나지 않아서 넣으면
+ * 이번 주가 늘 지는 것처럼 보인다.
+ */
+export interface WeekComparison {
+	recent: { seconds: number; people: number };
+	previous: { seconds: number; people: number };
 }
 
 export interface Stats {
@@ -65,6 +96,10 @@ export interface Stats {
 	hours: HourBucket[];
 	weekdays: WeekdayBucket[];
 	people: PersonStat[];
+	week: WeekComparison;
+	/** 보통 몇 시에 시작해서 몇 시에 끝나는가. 날짜별 값의 중앙값이다. */
+	typicalStart: string | null;
+	typicalEnd: string | null;
 	/** 기간 전체 합계 */
 	totalSeconds: number;
 	/** 기간에 한 번이라도 나온 사람 수 */
@@ -124,6 +159,58 @@ function spreadByHour(
 	}
 }
 
+/** 한국 시간 HH:MM. */
+function kstClock(ms: number): string {
+	const d = new Date(ms + KST_OFFSET_MS);
+	return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+/** 하루 차이인가. 날짜 문자열로 비교한다. */
+function isNextDay(earlier: string, later: string): boolean {
+	return kstDate(Date.parse(`${earlier}T00:00:00Z`) + DAY_MS) === later;
+}
+
+/**
+ * 연속 출석을 센다.
+ *
+ * 마지막으로 나온 날에서 거슬러 이어진 길이가 `streak`,
+ * 기간 안에서 가장 길었던 것이 `best` 다.
+ */
+export function streakOf(
+	dates: readonly string[],
+	today: string,
+): { streak: number; alive: boolean; best: number } {
+	if (dates.length === 0) return { streak: 0, alive: false, best: 0 };
+
+	const sorted = [...new Set(dates)].sort();
+
+	let best = 1;
+	let run = 1;
+	let tailRun = 1;
+
+	for (let i = 1; i < sorted.length; i++) {
+		const prev = sorted[i - 1] ?? "";
+		const cur = sorted[i] ?? "";
+
+		run = isNextDay(prev, cur) ? run + 1 : 1;
+		if (run > best) best = run;
+		tailRun = run;
+	}
+
+	const last = sorted[sorted.length - 1] ?? "";
+	const yesterday = kstDate(Date.parse(`${today}T00:00:00Z`) - DAY_MS);
+
+	// 오늘도 어제도 아니면 이미 끊긴 기록이다
+	return { streak: tailRun, alive: last === today || last === yesterday, best };
+}
+
+/** 중앙값. 빈 목록이면 null. */
+function median(values: readonly string[]): string | null {
+	if (values.length === 0) return null;
+	const sorted = [...values].sort();
+	return sorted[Math.floor(sorted.length / 2)] ?? null;
+}
+
 /** 동시에 가장 많이 모였던 인원. 사람별로 이미 합쳐진 구간을 받는다. */
 export function peakConcurrent(ranges: readonly Range[]): number {
 	const points = ranges
@@ -145,6 +232,28 @@ export function peakConcurrent(ranges: readonly Range[]): number {
 	return peak;
 }
 
+/** 창 안에 든 시간과 사람 수. 이미 합쳐진 구간을 받는다. */
+function sumWindow(
+	merged: readonly { displayName: string; ranges: Range[] }[],
+	from: number,
+	to: number,
+): { seconds: number; people: number } {
+	let seconds = 0;
+	const people = new Set<string>();
+
+	for (const person of merged) {
+		for (const range of person.ranges) {
+			const cut = clip(range, from, to);
+			if (!cut) continue;
+
+			seconds += Math.round((cut.to - cut.from) / 1000);
+			people.add(person.displayName);
+		}
+	}
+
+	return { seconds, people: people.size };
+}
+
 /**
  * 통계를 낸다.
  *
@@ -161,27 +270,70 @@ export function buildStats(
 	const toMs = to.getTime();
 
 	// 1) 사람별로 먼저 합친다. 이 뒤로는 겹침을 신경 쓰지 않아도 된다.
-	const merged = people.map((person) => ({
+	//
+	//    자르지 않은 것을 따로 들고 있는다. 주간 비교는 보고 있는 기간보다
+	//    앞을 봐야 하는데, 여기서 잘라 버리면 "그 앞 7일" 이 늘 0 이 된다.
+	const all = people.map((person) => ({
 		displayName: person.displayName ?? "이름 없음",
-		ranges: mergeIntervals(person.intervals, now)
+		ranges: mergeIntervals(person.intervals, now),
+	}));
+
+	const merged = all.map((person) => ({
+		displayName: person.displayName,
+		ranges: person.ranges
 			.map((r) => clip(r, fromMs, toMs))
 			.filter((r): r is Range => r !== null),
 	}));
+
+	// 연속 출석은 보고 있는 기간에 갇히면 안 된다. 7일만 보는 중이라고
+	// 11일 연속이 7일로 줄어들면 그건 다른 사실이다. 읽어온 만큼 다 센다.
+	const attendedAll = new Map<string, Set<string>>();
+
+	for (const person of all) {
+		const dates = attendedAll.get(person.displayName) ?? new Set<string>();
+
+		for (const range of person.ranges) {
+			for (let d = kstMidnight(range.from); d < range.to; d += DAY_MS) {
+				dates.add(kstDate(d));
+			}
+		}
+
+		attendedAll.set(person.displayName, dates);
+	}
 
 	const hours = new Map<number, number>();
 	const weekdaySeconds = new Map<number, number>();
 	const dayTotals = new Map<string, number>();
 	const dayPeople = new Map<string, Set<string>>();
 	const dayRanges = new Map<string, Range[]>();
-	const personTotals = new Map<string, { seconds: number; days: Set<string> }>();
+	const dayFirst = new Map<string, number>();
+	const dayLast = new Map<string, number>();
+	const personTotals = new Map<
+		string,
+		{ seconds: number; daily: Map<string, number> }
+	>();
 
 	for (const person of merged) {
 		const stat = personTotals.get(person.displayName) ?? {
 			seconds: 0,
-			days: new Set<string>(),
+			daily: new Map<string, number>(),
 		};
 
 		for (const range of person.ranges) {
+			// 그날 안에서 시작·종료한 것만 그날의 첫/마지막으로 친다.
+			// 전날부터 이어져 온 접속을 그날의 시작으로 치면 매일 00:00 이 된다.
+			const startDay = kstDate(range.from);
+			const prevFirst = dayFirst.get(startDay);
+			if (prevFirst === undefined || range.from < prevFirst) {
+				dayFirst.set(startDay, range.from);
+			}
+
+			const endDay = kstDate(range.to);
+			const prevLast = dayLast.get(endDay);
+			if (prevLast === undefined || range.to > prevLast) {
+				dayLast.set(endDay, range.to);
+			}
+
 			// 시간대: 시 경계마다 잘라 담는다
 			spreadByHour(range, (hour, seconds) => {
 				hours.set(hour, (hours.get(hour) ?? 0) + seconds);
@@ -208,7 +360,7 @@ export function buildStats(
 				dayRanges.set(key, list);
 
 				stat.seconds += seconds;
-				stat.days.add(key);
+				stat.daily.set(key, (stat.daily.get(key) ?? 0) + seconds);
 				cursor = end;
 			}
 		}
@@ -225,13 +377,27 @@ export function buildStats(
 		const key = kstDate(d);
 		weekdayCount.set(kstWeekday(d), (weekdayCount.get(kstWeekday(d)) ?? 0) + 1);
 
+		const first = dayFirst.get(key);
+		const last = dayLast.get(key);
+
 		days.push({
 			date: key,
 			people: dayPeople.get(key)?.size ?? 0,
 			seconds: dayTotals.get(key) ?? 0,
 			peak: peakConcurrent(dayRanges.get(key) ?? []),
+			firstAt: first === undefined ? null : kstClock(first),
+			lastAt: last === undefined ? null : kstClock(last),
 		});
 	}
+
+	// 최근 7일과 그 앞 7일. 오늘은 아직 끝나지 않아서 뺀다.
+	const todayMidnight = kstMidnight(now.getTime());
+	const week = {
+		recent: sumWindow(all, todayMidnight - 7 * DAY_MS, todayMidnight),
+		previous: sumWindow(all, todayMidnight - 14 * DAY_MS, todayMidnight - 7 * DAY_MS),
+	};
+
+	const today = kstDate(now.getTime());
 
 	return {
 		from: kstDate(fromMs),
@@ -246,12 +412,32 @@ export function buildStats(
 			seconds: weekdaySeconds.get(weekday) ?? 0,
 			days: weekdayCount.get(weekday) ?? 0,
 		})),
+		week,
+		typicalStart: median(
+			days.map((d) => d.firstAt).filter((v): v is string => v !== null),
+		),
+		typicalEnd: median(
+			days.map((d) => d.lastAt).filter((v): v is string => v !== null),
+		),
 		people: Array.from(personTotals.entries())
-			.map(([displayName, s]) => ({
-				displayName,
-				seconds: s.seconds,
-				days: s.days.size,
-			}))
+			.map(([displayName, s]) => {
+				const run = streakOf(
+					Array.from(attendedAll.get(displayName) ?? []),
+					today,
+				);
+
+				return {
+					displayName,
+					seconds: s.seconds,
+					days: s.daily.size,
+					streak: run.streak,
+					streakAlive: run.alive,
+					bestStreak: run.best,
+					daily: Array.from(s.daily.entries())
+						.map(([date, seconds]) => ({ date, seconds }))
+						.sort((a, b) => a.date.localeCompare(b.date)),
+				};
+			})
 			.filter((p) => p.seconds > 0)
 			.sort((a, b) => b.seconds - a.seconds),
 		totalSeconds: Array.from(dayTotals.values()).reduce((a, b) => a + b, 0),

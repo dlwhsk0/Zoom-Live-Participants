@@ -17,6 +17,7 @@ import {
 } from "./format.ts";
 import ProfileDialog from "./ProfileDialog.tsx";
 import StatusMessage from "./StatusMessage.tsx";
+import StudyIcon from "./StudyIcon.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 import Toast, { type ToastState, type ToastTone } from "./Toast.tsx";
 
@@ -64,30 +65,15 @@ function Card({
 				}
 				onClick={onOpen}
 			>
-				<span
-					className={`card__icon card__icon--tier${participant.isPresent ? tier : 0}`}
-					role="img"
-					aria-label={
+				<StudyIcon
+					tier={participant.isPresent ? tier : 0}
+					face={participant.isPresent ? "🧑‍💻" : (REST_ICON[rest] ?? "☕")}
+					label={
 						participant.isPresent
 							? `공부 중${tier >= 2 ? `, ${FLAME_LABEL[tier]}` : ""}`
-							: REST_LABEL[rest]
+							: (REST_LABEL[rest] ?? "자리 비움")
 					}
-				>
-					{/* 3단계부터는 불이 사람 뒤로 가고 커진다 */}
-					{participant.isPresent && tier >= 3 && (
-						<span className="card__blaze" aria-hidden="true">
-							🔥
-						</span>
-					)}
-					<span className="card__person">
-						{participant.isPresent ? "🧑‍💻" : REST_ICON[rest]}
-					</span>
-					{participant.isPresent && tier === 2 && (
-						<span className="card__flame" aria-hidden="true">
-							🔥
-						</span>
-					)}
-				</span>
+				/>
 
 				<span className="card__name">
 					{participant.displayName ?? "이름 없음"}
@@ -279,8 +265,14 @@ export default function App() {
 							: `누적 ${data?.totalCount}명`}
 					</p>
 				</div>
-				<a className="topbar__link" href="/stats">
-					통계
+				{/* 테마 버튼과 같은 모양. 누르면 통계로 간다 */}
+				<a
+					className="theme-toggle"
+					href="/stats"
+					aria-label="통계 보기"
+					title="통계 보기"
+				>
+					<span aria-hidden="true">📊</span>
 				</a>
 				<ThemeToggle />
 			</div>

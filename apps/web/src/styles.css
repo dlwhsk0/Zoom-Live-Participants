@@ -142,8 +142,13 @@ body {
 
 .theme-toggle {
 	flex: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
 	width: 28px;
 	height: 28px;
+	/* 링크로도 쓴다. 밑줄과 글자색을 버튼과 같게 맞춘다 */
+	text-decoration: none;
 	border: 1px solid var(--line);
 	border-radius: 8px;
 	background: transparent;
@@ -1351,12 +1356,6 @@ body {
 	border-bottom: 2px solid var(--line-strong);
 }
 
-.stats__hint {
-	margin: 8px 2px 0;
-	color: var(--muted-weak);
-	font-size: 11px;
-}
-
 .chart {
 	margin: 10px 0 0;
 	padding: 0;
@@ -1443,4 +1442,216 @@ body {
 
 .topbar__back {
 	margin-right: auto;
+}
+
+/* ── 작은 공부 아이콘 ──────────────────────── */
+
+/* 목록 안에 들어갈 때. 불꽃 위치가 font-size 에 딸려 있어 함께 줄인다 */
+.card__icon--sm {
+	font-size: 20px;
+}
+
+.card__icon--sm .card__flame {
+	right: -5px;
+	font-size: 13px;
+}
+
+.card__icon--sm .card__blaze {
+	font-size: 28px;
+}
+
+/* ── 주간 비교 ─────────────────────────────── */
+
+.week {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	gap: 12px;
+	margin-top: 18px;
+	padding: 14px;
+	border: 1px solid var(--line);
+	border-radius: 12px;
+}
+
+.week__label {
+	margin: 0;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.week__value {
+	margin: 2px 0 0;
+	font-size: 24px;
+	font-weight: 700;
+	letter-spacing: -0.01em;
+	font-variant-numeric: tabular-nums;
+}
+
+.week__diff {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 2px;
+	margin: 0;
+	color: var(--muted);
+	font-size: 13px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.week__diff--up {
+	color: var(--online);
+}
+
+.week__diff--down {
+	color: var(--over-fg);
+}
+
+.week__prev {
+	color: var(--muted-weak);
+	font-size: 11px;
+	font-weight: 400;
+}
+
+/* 보통 몇 시에 시작해서 몇 시에 끝나는지. 한 줄로 조용히 */
+.stats__typical {
+	margin: 10px 2px 0;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+/* ── 랭킹 ──────────────────────────────────── */
+
+.rank {
+	margin: 10px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.rank__row {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	padding: 8px 2px;
+	border: 0;
+	border-bottom: 1px solid var(--line);
+	background: none;
+	color: inherit;
+	font: inherit;
+	text-align: left;
+	cursor: pointer;
+}
+
+.rank__row:hover .rank__name {
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+/* 메달과 숫자가 같은 폭을 차지해야 이름이 들쭉날쭉하지 않다 */
+.rank__place {
+	flex: none;
+	width: 22px;
+	text-align: center;
+	color: var(--muted-weak);
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+}
+
+.rank__body {
+	display: flex;
+	flex-direction: column;
+	gap: 1px;
+	min-width: 0;
+	flex: 1;
+}
+
+.rank__name {
+	font-size: 14px;
+	font-weight: 600;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.rank__meta {
+	color: var(--muted-weak);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* 연속 출석은 이 화면에서 가장 자랑할 만한 값이다. 눈에 띄게 둔다 */
+.rank__streak {
+	margin-left: 6px;
+	color: var(--warn-fg);
+}
+
+.rank__total {
+	flex: none;
+	font-size: 14px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ── 개인 상세 ─────────────────────────────── */
+
+.person {
+	max-height: 80vh;
+	overflow-y: auto;
+}
+
+.person__head {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+}
+
+.person__name {
+	margin: 0;
+	font-size: 17px;
+	font-weight: 700;
+}
+
+.person__sub {
+	margin: 2px 0 0;
+	color: var(--muted);
+	font-size: 12px;
+}
+
+/* 누적·출석·연속·최고를 한눈에 */
+.person__facts {
+	display: grid;
+	grid-template-columns: repeat(4, 1fr);
+	gap: 6px;
+	margin: 16px 0 0;
+	padding: 12px 0;
+	border-top: 1px solid var(--line);
+	border-bottom: 1px solid var(--line);
+	text-align: center;
+}
+
+.person__facts dt {
+	color: var(--muted-weak);
+	font-size: 10px;
+}
+
+.person__facts dd {
+	margin: 3px 0 0;
+	font-size: 14px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.person__fire {
+	margin-left: 2px;
+	font-size: 11px;
+}
+
+.person__daily {
+	margin-top: 14px;
+}
+
+/* 막대 바로 아래에 버튼이 붙으면 목록의 일부처럼 보인다 */
+.person .dialog__actions {
+	margin-top: 16px;
 }

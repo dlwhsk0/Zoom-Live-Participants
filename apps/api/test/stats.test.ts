@@ -6,6 +6,7 @@ import {
 	kstHour,
 	kstWeekday,
 	peakConcurrent,
+	streakOf,
 	type PersonIntervals,
 } from "../src/domain/stats.ts";
 
@@ -81,7 +82,11 @@ describe("통계", () => {
 		);
 
 		expect(stats.totalSeconds).toBe(3 * 3600);
-		expect(stats.people[0]).toEqual({ displayName: "김하나", seconds: 3 * 3600, days: 1 });
+		expect(stats.people[0]).toMatchObject({
+			displayName: "김하나",
+			seconds: 3 * 3600,
+			days: 1,
+		});
 	});
 
 	it("자정을 넘긴 접속을 두 날로 나눈다", () => {
@@ -132,7 +137,12 @@ describe("통계", () => {
 
 		expect(stats.days).toHaveLength(3);
 		expect(stats.days.find((d) => d.date === "2026-09-08")).toEqual({
-			date: "2026-09-08", people: 0, seconds: 0, peak: 0,
+			date: "2026-09-08",
+			people: 0,
+			seconds: 0,
+			peak: 0,
+			firstAt: null,
+			lastAt: null,
 		});
 	});
 
@@ -183,6 +193,38 @@ describe("통계", () => {
 		expect(stats.weekdays.find((w) => w.weekday === 0)?.days).toBe(0);
 	});
 
+	it("그날 시작한 접속만 그날의 첫 시각으로 친다", () => {
+		const stats = buildStats(
+			[
+				// 전날 밤부터 이어져 온 접속 + 그날 아침에 들어온 접속
+				person("밤샘", ["2026-09-07T22:00:00", "2026-09-08T03:00:00"]),
+				person("아침", ["2026-09-08T09:00:00", "2026-09-08T11:00:00"]),
+			],
+			from, to, NOW,
+		);
+
+		const day = stats.days.find((d) => d.date === "2026-09-08");
+		// 00:00 이 아니라 09:00 이어야 한다. 전날부터 이어진 것은 그날의 시작이 아니다.
+		expect(day?.firstAt).toBe("09:00");
+		expect(day?.lastAt).toBe("11:00");
+	});
+
+	it("보통 시작·종료 시각은 날짜별 값의 중앙값이다", () => {
+		const stats = buildStats(
+			[
+				person("사람",
+					["2026-09-07T20:00:00", "2026-09-07T22:00:00"],
+					["2026-09-08T21:00:00", "2026-09-08T23:00:00"],
+					["2026-09-09T22:00:00", "2026-09-09T23:30:00"],
+				),
+			],
+			from, to, NOW,
+		);
+
+		expect(stats.typicalStart).toBe("21:00");
+		expect(stats.typicalEnd).toBe("23:00");
+	});
+
 	it("기록이 없어도 형태는 유지한다", () => {
 		const stats = buildStats([], from, to, NOW);
 
@@ -190,5 +232,93 @@ describe("통계", () => {
 		expect(stats.weekdays).toHaveLength(7);
 		expect(stats.people).toEqual([]);
 		expect(stats.totalSeconds).toBe(0);
+	});
+});
+
+describe("연속 출석", () => {
+	it("이어진 날을 센다", () => {
+		const run = streakOf(
+			["2026-09-08", "2026-09-09", "2026-09-10"],
+			"2026-09-10",
+		);
+
+		expect(run).toEqual({ streak: 3, alive: true, best: 3 });
+	});
+
+	it("어제까지만 나왔어도 살아 있다 — 오늘은 아직 안 끝났다", () => {
+		const run = streakOf(["2026-09-08", "2026-09-09"], "2026-09-10");
+
+		expect(run.streak).toBe(2);
+		expect(run.alive).toBe(true);
+	});
+
+	it("그제가 마지막이면 끊긴 것이다", () => {
+		const run = streakOf(["2026-09-07", "2026-09-08"], "2026-09-10");
+
+		expect(run.streak).toBe(2);
+		expect(run.alive).toBe(false);
+	});
+
+	it("중간이 비면 거기서 끊고 다시 센다", () => {
+		const run = streakOf(
+			["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-09", "2026-09-10"],
+			"2026-09-10",
+		);
+
+		// 최근 연속은 2일, 가장 길었던 것은 3일
+		expect(run.streak).toBe(2);
+		expect(run.best).toBe(3);
+		expect(run.alive).toBe(true);
+	});
+
+	it("하루만 나와도 1일이다", () => {
+		expect(streakOf(["2026-09-10"], "2026-09-10")).toEqual({
+			streak: 1, alive: true, best: 1,
+		});
+	});
+
+	it("기록이 없으면 0", () => {
+		expect(streakOf([], "2026-09-10")).toEqual({ streak: 0, alive: false, best: 0 });
+	});
+
+	it("같은 날이 여러 번 들어와도 하루로 센다", () => {
+		expect(streakOf(["2026-09-10", "2026-09-10"], "2026-09-10").streak).toBe(1);
+	});
+
+	it("달을 넘겨도 이어진다", () => {
+		const run = streakOf(["2026-08-31", "2026-09-01"], "2026-09-01");
+		expect(run.streak).toBe(2);
+	});
+});
+
+describe("주간 비교", () => {
+	const now = kst("2026-09-10T12:00:00");
+
+	it("최근 7일과 그 앞 7일을 나눠 센다", () => {
+		const stats = buildStats(
+			[
+				// 최근 7일(9/3~9/9) 안
+				person("A", ["2026-09-08T10:00:00", "2026-09-08T12:00:00"]),
+				// 그 앞 7일(8/27~9/2) 안
+				person("B", ["2026-09-01T10:00:00", "2026-09-01T11:00:00"]),
+			],
+			kst("2026-08-27T00:00:00"),
+			kst("2026-09-11T00:00:00"),
+			now,
+		);
+
+		expect(stats.week.recent).toEqual({ seconds: 2 * 3600, people: 1 });
+		expect(stats.week.previous).toEqual({ seconds: 3600, people: 1 });
+	});
+
+	it("오늘은 최근 7일에 넣지 않는다 — 아직 안 끝났다", () => {
+		const stats = buildStats(
+			[person("A", ["2026-09-10T09:00:00", "2026-09-10T11:00:00"])],
+			kst("2026-08-27T00:00:00"),
+			kst("2026-09-11T00:00:00"),
+			now,
+		);
+
+		expect(stats.week.recent.seconds).toBe(0);
 	});
 });

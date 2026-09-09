@@ -114,7 +114,10 @@ export async function getStats(
 	const from = new Date(todayMidnight - (days - 1) * DAY_MS);
 	const to = new Date(todayMidnight + DAY_MS);
 
-	const people = await findIntervalsInRange(db, from, to);
+	// 주간 비교는 보고 있는 기간보다 앞(최대 14일)을 봐야 한다.
+	// 화면에 그리는 범위와 읽어오는 범위가 다르다.
+	const loadFrom = new Date(Math.min(from.getTime(), todayMidnight - 14 * DAY_MS));
+	const people = await findIntervalsInRange(db, loadFrom, to);
 
 	return buildStats(people, from, to, now);
 }
