@@ -21,12 +21,14 @@ function sign(rawBody: string, timestamp: string): string {
 describe("서명 검증", () => {
 	const rawBody = JSON.stringify({ event: "test" });
 	const ts = "1700000000";
+	// 신선도 검사가 있으므로 기준 시각을 고정해서 넘긴다
+	const now = Number(ts) * 1000;
 
 	it("올바른 서명을 통과시킨다", () => {
 		const result = verifySignature(SECRET, {
 			"x-zm-signature": sign(rawBody, ts),
 			"x-zm-request-timestamp": ts,
-		}, rawBody);
+		}, rawBody, now);
 		expect(result.ok).toBe(true);
 	});
 
@@ -34,19 +36,19 @@ describe("서명 검증", () => {
 		const result = verifySignature("", {
 			"x-zm-signature": sign(rawBody, ts),
 			"x-zm-request-timestamp": ts,
-		}, rawBody);
+		}, rawBody, now);
 		expect(result.ok).toBe(false);
 	});
 
 	it("헤더가 없으면 거부한다", () => {
-		expect(verifySignature(SECRET, {}, rawBody).ok).toBe(false);
+		expect(verifySignature(SECRET, {}, rawBody, now).ok).toBe(false);
 	});
 
 	it("본문이 변조되면 거부한다", () => {
 		const result = verifySignature(SECRET, {
 			"x-zm-signature": sign(rawBody, ts),
 			"x-zm-request-timestamp": ts,
-		}, `${rawBody} tampered`);
+		}, `${rawBody} tampered`, now);
 		expect(result.ok).toBe(false);
 	});
 
@@ -55,8 +57,55 @@ describe("서명 검증", () => {
 			verifySignature(SECRET, {
 				"x-zm-signature": "v0=short",
 				"x-zm-request-timestamp": ts,
-			}, rawBody),
+			}, rawBody, now),
 		).not.toThrow();
+	});
+
+	it("오래된 요청은 서명이 맞아도 거부한다 — 재생 공격", () => {
+		const result = verifySignature(SECRET, {
+			"x-zm-signature": sign(rawBody, ts),
+			"x-zm-request-timestamp": ts,
+		}, rawBody, now + 6 * 60 * 1000);
+
+		expect(result).toEqual({ ok: false, reason: "timestamp out of range" });
+	});
+
+	it("미래에서 온 요청도 거부한다", () => {
+		const result = verifySignature(SECRET, {
+			"x-zm-signature": sign(rawBody, ts),
+			"x-zm-request-timestamp": ts,
+		}, rawBody, now - 6 * 60 * 1000);
+
+		expect(result.ok).toBe(false);
+	});
+
+	it("5분 안이면 통과시킨다 — 시계가 조금 어긋나도 받는다", () => {
+		const result = verifySignature(SECRET, {
+			"x-zm-signature": sign(rawBody, ts),
+			"x-zm-request-timestamp": ts,
+		}, rawBody, now + 4 * 60 * 1000);
+
+		expect(result.ok).toBe(true);
+	});
+
+	it("밀리초로 온 타임스탬프도 받는다", () => {
+		const msTs = String(Number(ts) * 1000);
+		const result = verifySignature(SECRET, {
+			"x-zm-signature": sign(rawBody, msTs),
+			"x-zm-request-timestamp": msTs,
+		}, rawBody, now);
+
+		expect(result.ok).toBe(true);
+	});
+
+	it("숫자가 아닌 타임스탬프는 거부한다", () => {
+		const bad = "어제";
+		const result = verifySignature(SECRET, {
+			"x-zm-signature": sign(rawBody, bad),
+			"x-zm-request-timestamp": bad,
+		}, rawBody, now);
+
+		expect(result).toEqual({ ok: false, reason: "invalid timestamp" });
 	});
 });
 

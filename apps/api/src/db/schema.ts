@@ -183,7 +183,13 @@ export const adminActions = pgTable(
 		createdAt: timestamp("created_at", { withTimezone: true })
 			.notNull()
 			.defaultNow(),
-		/** 무엇을 했는가. 지금은 rename 하나뿐이다. */
+		/**
+		 * 무엇을 했는가. rename | status | undo.
+		 *
+		 * status 는 어드민이 아니라 참가자 본인(혹은 아무나)이 상태 메시지를
+		 * 바꾼 것이다. 그 엔드포인트에는 인증이 없어서, 막는 대신 여기 남기고
+		 * 되돌릴 수 있게 한다.
+		 */
 		action: text("action").notNull(),
 		meetingUuid: text("meeting_uuid"),
 		/** { targets: [{ participantUuid, before }], after } */

@@ -167,7 +167,7 @@ export async function undoAction(
 			.limit(1);
 
 		if (!action) return { ok: false, reason: "없는 기록입니다", restored: 0 };
-		if (action.action !== "rename") {
+		if (action.action !== "rename" && action.action !== "status") {
 			return { ok: false, reason: "되돌릴 수 없는 기록입니다", restored: 0 };
 		}
 
@@ -179,10 +179,15 @@ export async function undoAction(
 			return { ok: false, reason: "되돌릴 내용이 없습니다", restored: 0 };
 		}
 
+		// 되돌릴 컬럼만 다르고 나머지는 같다
 		for (const target of targets) {
 			await tx
 				.update(participants)
-				.set({ displayName: target.before, updatedAt: sql`now()` })
+				.set(
+					action.action === "status"
+						? { statusMessage: target.before, updatedAt: sql`now()` }
+						: { displayName: target.before, updatedAt: sql`now()` },
+				)
 				.where(
 					and(
 						eq(participants.meetingUuid, action.meetingUuid),
@@ -194,7 +199,8 @@ export async function undoAction(
 		await tx.insert(adminActions).values({
 			action: "undo",
 			meetingUuid: action.meetingUuid,
-			detail: { undid: actionId, restored: targets },
+			// 무엇을 되돌린 것인지 남긴다. 기록만 보고도 따라갈 수 있어야 한다
+			detail: { undid: actionId, undidAction: action.action, restored: targets },
 			clientIp,
 		});
 

@@ -2,6 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
 import {
+	adminActions,
 	participantEvents,
 	participants,
 	webhookEvents,
@@ -138,23 +139,52 @@ export async function setStatusMessage(
 	meetingUuid: string,
 	participantUuid: string,
 	message: string | null,
+	clientIp: string | null = null,
 ): Promise<boolean> {
-	const rows = await db
-		.update(participants)
-		.set({
-			statusMessage: message,
-			statusUpdatedAt: new Date(),
-			updatedAt: new Date(),
-		})
-		.where(
-			and(
-				eq(participants.meetingUuid, meetingUuid),
-				eq(participants.participantUuid, participantUuid),
-			),
-		)
-		.returning({ id: participants.id });
+	return db.transaction(async (tx) => {
+		// 바꾸기 전 값을 먼저 집는다. 되돌릴 때 이게 필요하다.
+		const [before] = await tx
+			.select({ statusMessage: participants.statusMessage })
+			.from(participants)
+			.where(
+				and(
+					eq(participants.meetingUuid, meetingUuid),
+					eq(participants.participantUuid, participantUuid),
+				),
+			)
+			.limit(1);
 
-	return rows.length > 0;
+		if (!before) return false;
+
+		await tx
+			.update(participants)
+			.set({
+				statusMessage: message,
+				statusUpdatedAt: new Date(),
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(participants.meetingUuid, meetingUuid),
+					eq(participants.participantUuid, participantUuid),
+				),
+			);
+
+		// 이 엔드포인트는 인증이 없다. 누구나 남의 상태를 덮어쓸 수 있으므로
+		// 막는 대신 남긴다. detail 모양은 rename 과 같게 맞춘다 —
+		// 되돌리기가 같은 코드를 쓴다.
+		await tx.insert(adminActions).values({
+			action: "status",
+			meetingUuid,
+			detail: {
+				targets: [{ participantUuid, before: before.statusMessage }],
+				after: message,
+			},
+			clientIp,
+		});
+
+		return true;
+	});
 }
 
 /**
