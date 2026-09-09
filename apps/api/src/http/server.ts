@@ -78,6 +78,8 @@ interface Reply {
 	status: number;
 	body: unknown;
 	headers?: Record<string, string>;
+	/** JSON 이 아닌 본문. robots.txt 처럼 그대로 내보낼 때 쓴다. */
+	raw?: string;
 }
 
 function toHeaderRecord(
@@ -169,6 +171,23 @@ async function route(
 	headers: Record<string, string | string[] | undefined>,
 	rawBody: string,
 ): Promise<Reply> {
+	/**
+	 * 검색엔진 차단.
+	 *
+	 * 조회 API 는 인증 없이 참가자 실명을 내준다. JSON 응답도 색인 대상이라
+	 * 화면 쪽만 막아서는 부족하다. 이 도메인 전체를 크롤링 대상에서 뺀다.
+	 *
+	 * 팻말이지 잠금장치가 아니다 — 지키는 크롤러에만 통한다.
+	 */
+	if (method === "GET" && path === "/robots.txt") {
+		return {
+			status: 200,
+			body: null,
+			raw: "User-agent: *\nDisallow: /\n",
+			headers: { "content-type": "text/plain; charset=utf-8" },
+		};
+	}
+
 	// 컨테이너 헬스체크용. DB 를 건드리지 않는다.
 	// version 은 실행 중인 소스의 지문이다. 배포 반영 여부를 이걸로 확인한다.
 	if (method === "GET" && path === "/health") {
@@ -497,14 +516,17 @@ export function createApiServer(): Server {
 
 				res.writeHead(reply.status, {
 					"content-type": "application/json; charset=utf-8",
+					// robots.txt 를 거치지 않고 URL 로 바로 온 크롤러까지 막는다
+					"x-robots-tag": "noindex, nofollow",
 					...cors,
 					...reply.headers,
 				});
-				res.end(JSON.stringify(reply.body));
+				res.end(reply.raw ?? JSON.stringify(reply.body));
 			} catch (error) {
 				console.error("[unhandled]", error);
 				res.writeHead(500, {
 					"content-type": "application/json; charset=utf-8",
+					"x-robots-tag": "noindex, nofollow",
 					...cors,
 				});
 				res.end(JSON.stringify({ ok: false, reason: "internal error" }));
