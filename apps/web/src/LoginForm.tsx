@@ -32,10 +32,7 @@ export default function LoginForm() {
 					if (!submit.isPending) submit.mutate();
 				}}
 			>
-				<h1 className="login__title">어드민</h1>
-				<p className="login__hint">
-					참가자 이름과 IP 를 다루는 화면입니다. 로그인이 필요합니다.
-				</p>
+				<h1 className="login__title">Admin</h1>
 
 				<label className="login__label" htmlFor="username">
 					아이디

@@ -1205,17 +1205,10 @@ body {
 }
 
 .login__title {
-	margin: 0;
+	margin: 0 0 14px;
 	font-size: 22px;
 	font-weight: 700;
 	letter-spacing: -0.01em;
-}
-
-.login__hint {
-	margin: 0 0 14px;
-	color: var(--muted);
-	font-size: 13px;
-	line-height: 1.5;
 }
 
 .login__label {
