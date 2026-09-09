@@ -49,7 +49,7 @@
 
 `robots.txt` 로 막으면 크롤러가 페이지를 **다시 읽지 못해서** 이미 올라간
 검색 결과가 오히려 안 내려갈 수 있다. 색인을 지우는 것은 `noindex` 헤더
-쪽이다. 확인은 검색창에 `site:techeer-comeon.vercel.app` 으로 한다.
+쪽이다. 확인은 검색창에 `site:techeer-up.vercel.app` 으로 한다.
 이미 걸려 있으면 Search Console 의 삭제 요청이 가장 빠르다.
 
 ## 3. 접근 구조
@@ -261,8 +261,8 @@ Zoom 앱은 살아 있지만 **현재 코드가 REST API 를 쓰지 않는다** 
 
 ```bash
 # 검색 차단이 살아 있는지
-curl -s https://techeer-comeon.vercel.app/robots.txt
-curl -sI https://techeer-comeon.vercel.app | grep -i x-robots-tag
+curl -s https://techeer-up.vercel.app/robots.txt
+curl -sI https://techeer-up.vercel.app | grep -i x-robots-tag
 curl -s https://techeerzoom.techeer.cloud-yaho.cloud/robots.txt
 curl -sI https://techeerzoom.techeer.cloud-yaho.cloud/health | grep -i x-robots-tag
 
@@ -276,14 +276,24 @@ curl -sI -H "Origin: https://example.com" \
 
 ```bash
 # 사이트가 잠겼는지 (BASIC_AUTH_* 를 넣은 뒤)
-curl -sI https://techeer-comeon.vercel.app | head -1        # 401 이어야 한다
-curl -sI -u '아이디:비밀번호' https://techeer-comeon.vercel.app | head -1   # 200
+curl -sI https://techeer-up.vercel.app | head -1        # 401 이어야 한다
+curl -sI -u ':비밀번호' https://techeer-up.vercel.app | head -1   # 200 (아이디는 비운다)
 
 # 로그인이 되는지
 curl -s -X POST https://<api>/api/auth/login \
   -H 'content-type: application/json' \
   -d '{"username":"...","password":"..."}' -i | head -20
 ```
+
+### 별칭 주의
+
+Vercel 별칭은 셋이지만 **API 의 `CORS_ALLOWED_ORIGINS` 에는
+`https://techeer-up.vercel.app` 하나만 들어 있다.** 나머지 두 개
+(`techeer-comeon`, `zoom-live-participants`)로 열면 정적 파일은 뜨지만
+참가자 목록이 "불러오지 못했습니다" 로 뜬다 — CORS 가 응답을 막기 때문이다.
+
+확인할 때도 `techeer-up` 을 쓴다. 다른 별칭을 계속 쓸 거면 API 쪽 허용 목록에
+추가하고, 안 쓸 거면 Vercel 에서 별칭을 정리하는 편이 헷갈리지 않는다.
 
 ## 7. 배포 순서
 
