@@ -14,6 +14,8 @@ const BASE: Stats = {
 	hours: [],
 	weekdays: [],
 	people: [],
+	weeks: [],
+	months: [],
 	week: { recent: { seconds: 0, people: 0 }, previous: { seconds: 0, people: 0 } },
 	typicalStart: null,
 	typicalEnd: null,

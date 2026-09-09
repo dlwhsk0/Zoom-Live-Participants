@@ -22,6 +22,8 @@ const EMPTY: StatsData = {
 	hours: Array.from({ length: 24 }, (_, hour) => ({ hour, seconds: 0 })),
 	weekdays: Array.from({ length: 7 }, (_, weekday) => ({ weekday, seconds: 0, days: 2 })),
 	people: [],
+	weeks: [],
+	months: [],
 	week: { recent: { seconds: 0, people: 0 }, previous: { seconds: 0, people: 0 } },
 	typicalStart: null,
 	typicalEnd: null,
@@ -79,8 +81,9 @@ describe("통계 화면", () => {
 
 		// 탭 이름
 		expect(html).toContain("일별");
-		expect(html).toContain("시간대");
-		expect(html).toContain("요일");
+		expect(html).toContain("주별");
+		expect(html).toContain("월별");
+		expect(html).toContain("패턴");
 		expect(html).toContain("랭킹");
 		// 요약은 탭과 무관하게 늘 보인다
 		expect(html).toContain("붐비는 시간 22시");
@@ -94,9 +97,24 @@ describe("통계 화면", () => {
 			people: [person()],
 		});
 
+		// 기록이 있는 날만 고를 수 있게 칩으로 내놓는다
+		expect(html).toContain("daypick__day");
 		expect(html).toContain("09-09");
 		// 랭킹 탭을 고르기 전에는 사람 목록이 나오지 않는다
 		expect(html).not.toContain("rank__row");
+	});
+
+	it("기록이 없는 날은 고를 수 없다", () => {
+		const html = render({
+			...EMPTY,
+			days: [
+				{ date: "2026-09-08", people: 0, seconds: 0, peak: 0, firstAt: null, lastAt: null },
+				{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" },
+			],
+		});
+
+		expect(html).toContain("09-09");
+		expect(html).not.toContain("09-08");
 	});
 
 	it("설명 문장을 늘어놓지 않는다", () => {
@@ -203,5 +221,15 @@ describe("긴 목록", () => {
 		const html = render({ ...EMPTY, people: many(3) });
 
 		expect(html.indexOf("일별")).toBeLessThan(html.indexOf("랭킹"));
+	});
+
+	it("일별 탭에서는 통계 막대를 그리지 않는다 — 그날의 화면이다", () => {
+		const html = render({
+			...EMPTY,
+			days: [{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" }],
+			weeks: [{ key: "2026-09-07", seconds: 7200, people: 3, activeDays: 1 }],
+		});
+
+		expect(html).not.toContain("chart__row");
 	});
 });

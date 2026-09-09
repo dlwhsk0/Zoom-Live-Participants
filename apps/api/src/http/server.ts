@@ -25,7 +25,7 @@ import {
 	getLogs,
 	getPresenceSnapshot,
 } from "../repository/query.ts";
-import { getStats } from "../repository/stats.ts";
+import { getDayDetail, getStats } from "../repository/stats.ts";
 import { handleWebhook } from "../webhook/handle.ts";
 import { SOURCE_FINGERPRINT, STARTED_AT } from "../version.ts";
 import { clientIpFrom } from "./client-ip.ts";
@@ -376,6 +376,31 @@ async function route(
 		return {
 			status: 200,
 			body: stats,
+			headers: { "cache-control": "no-store" },
+		};
+	}
+
+	/**
+	 * 하루치 참가자 목록.
+	 *
+	 * 통계가 아니라 그날의 화면이다. 조회와 같은 문지기를 쓴다.
+	 */
+	if (method === "GET" && path === "/api/day") {
+		const denied = deniedByAccessToken(headers);
+		if (denied) return denied;
+
+		const date = query.get("date")?.trim() ?? "";
+
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+			return {
+				status: 400,
+				body: { ok: false, reason: "date 는 YYYY-MM-DD 여야 합니다" },
+			};
+		}
+
+		return {
+			status: 200,
+			body: await getDayDetail(getDb(), date),
 			headers: { "cache-control": "no-store" },
 		};
 	}

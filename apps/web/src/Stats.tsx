@@ -3,18 +3,20 @@ import { useState } from "react";
 
 import { fetchStats, type PersonStat, type Stats as StatsData } from "./api.ts";
 import { studyTier } from "./format.ts";
+import DayView from "./DayView.tsx";
 import PersonDialog from "./PersonDialog.tsx";
 import StudyIcon from "./StudyIcon.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 
 const RANGES = [7, 14, 30] as const;
 
-type View = "days" | "hours" | "weekdays" | "rank";
+type View = "day" | "weeks" | "months" | "pattern" | "rank";
 
 const VIEWS: { id: View; label: string }[] = [
-	{ id: "days", label: "일별" },
-	{ id: "hours", label: "시간대" },
-	{ id: "weekdays", label: "요일" },
+	{ id: "day", label: "일별" },
+	{ id: "weeks", label: "주별" },
+	{ id: "months", label: "월별" },
+	{ id: "pattern", label: "패턴" },
 	{ id: "rank", label: "랭킹" },
 ];
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
@@ -35,6 +37,11 @@ export function hours(seconds: number): string {
 function dayLabel(date: string): string {
 	const d = new Date(`${date}T00:00:00+09:00`);
 	return `${date.slice(5)} (${WEEKDAY[d.getUTCDay()] ?? ""})`;
+}
+
+/** 주는 시작일로, 달은 그대로 읽는다. */
+function periodLabel(key: string): string {
+	return key.length === 7 ? `${Number(key.slice(5))}월` : `${key.slice(5)} 주`;
 }
 
 function Bar({
@@ -187,6 +194,61 @@ export function Ranking({
 	);
 }
 
+/** 기록이 있는 날짜만 고르게 한다. 빈 날을 눌러 봐야 볼 것이 없다. */
+function DayPicker({
+	days,
+	value,
+	onChange,
+}: {
+	days: StatsData["days"];
+	value: string;
+	onChange: (date: string) => void;
+}) {
+	const withRecords = [...days].filter((d) => d.seconds > 0).reverse();
+
+	if (withRecords.length === 0) return null;
+
+	return (
+		<div className="daypick">
+			{withRecords.map((d) => (
+				<button
+					key={d.date}
+					type="button"
+					className={d.date === value ? "daypick__day daypick__day--on" : "daypick__day"}
+					onClick={() => onChange(d.date)}
+				>
+					{dayLabel(d.date)}
+				</button>
+			))}
+		</div>
+	);
+}
+
+function Periods({ buckets }: { buckets: StatsData["weeks"] }) {
+	if (buckets.length === 0) return <p className="empty">기록이 없습니다</p>;
+
+	const max = Math.max(...buckets.map((b) => b.seconds), 1);
+
+	return (
+		<ul className="chart">
+			{[...buckets].reverse().map((b) => (
+				<Bar
+					key={b.key}
+					label={periodLabel(b.key)}
+					value={b.seconds}
+					max={max}
+					note={
+						b.people > 0
+							? `${b.people}명 · ${b.activeDays}일 · 하루 ${hours(b.seconds / Math.max(b.activeDays, 1))}`
+							: undefined
+					}
+					dim={b.seconds === 0}
+				/>
+			))}
+		</ul>
+	);
+}
+
 function Summary({ data }: { data: StatsData }) {
 	const busiest = [...data.hours].sort((a, b) => b.seconds - a.seconds)[0];
 
@@ -227,7 +289,6 @@ function Body({
 	view: View;
 	onOpen: (person: PersonStat) => void;
 }) {
-	const dayMax = Math.max(...data.days.map((d) => d.seconds), 1);
 	const hourMax = Math.max(...data.hours.map((h) => h.seconds), 1);
 
 	// 요일은 그 요일이 몇 번 있었는지가 다르다. 합계로 견주면 기간에 두 번 든
@@ -240,54 +301,38 @@ function Body({
 
 	return (
 		<>
-			{view === "days" && (
-				<ul className="chart">
-					{[...data.days].reverse().map((d) => (
-						<Bar
-							key={d.date}
-							label={dayLabel(d.date)}
-							value={d.seconds}
-							max={dayMax}
-							note={
-								d.people > 0
-									? `${d.people}명 · 동시 최대 ${d.peak}명${
-											d.firstAt && d.lastAt ? ` · ${d.firstAt}~${d.lastAt}` : ""
-										}`
-									: undefined
-							}
-							dim={d.seconds === 0}
-						/>
-					))}
-				</ul>
-			)}
+			{view === "weeks" && <Periods buckets={data.weeks} />}
+			{view === "months" && <Periods buckets={data.months} />}
 
-			{view === "hours" && (
-				<ul className="chart">
-					{data.hours.map((h) => (
-						<Bar
-							key={h.hour}
-							label={`${h.hour}시`}
-							value={h.seconds}
-							max={hourMax}
-							dim={h.seconds === 0}
-						/>
-					))}
-				</ul>
-			)}
+			{view === "pattern" && (
+				<>
+					<h3 className="stats__title">시간대</h3>
+					<ul className="chart">
+						{data.hours.map((h) => (
+							<Bar
+								key={h.hour}
+								label={`${h.hour}시`}
+								value={h.seconds}
+								max={hourMax}
+								dim={h.seconds === 0}
+							/>
+						))}
+					</ul>
 
-			{view === "weekdays" && (
-				<ul className="chart">
-					{weekdayAvg.map((w) => (
-						<Bar
-							key={w.weekday}
-							label={WEEKDAY[w.weekday] ?? ""}
-							value={w.average}
-							max={weekdayMax}
-							suffix={w.days > 0 ? `${w.days}일` : undefined}
-							dim={w.average === 0}
-						/>
-					))}
-				</ul>
+					<h3 className="stats__title stats__title--gap">요일</h3>
+					<ul className="chart">
+						{weekdayAvg.map((w) => (
+							<Bar
+								key={w.weekday}
+								label={WEEKDAY[w.weekday] ?? ""}
+								value={w.average}
+								max={weekdayMax}
+								suffix={w.days > 0 ? `${w.days}일` : undefined}
+								dim={w.average === 0}
+							/>
+						))}
+					</ul>
+				</>
 			)}
 
 			{view === "rank" && <Ranking people={data.people} onOpen={onOpen} />}
@@ -297,13 +342,18 @@ function Body({
 
 export default function Stats() {
 	const [days, setDays] = useState(14);
-	const [view, setView] = useState<View>("days");
+	const [view, setView] = useState<View>("day");
+	const [date, setDate] = useState("");
 	const [selected, setSelected] = useState<PersonStat | null>(null);
 
 	const { data, isPending, isError, error } = useQuery({
 		queryKey: ["stats", days],
 		queryFn: () => fetchStats(days),
 	});
+
+	// 처음에는 기록이 있는 가장 최근 날을 연다. 오늘이 비어 있으면 어제다.
+	const latest = data?.days.filter((d) => d.seconds > 0).at(-1)?.date ?? "";
+	const shown = date || latest;
 
 	return (
 		<main className="screen">
@@ -350,7 +400,15 @@ export default function Stats() {
 					{error instanceof Error ? error.message : "불러오지 못했습니다"}
 				</p>
 			)}
-			{data && <Body data={data} view={view} onOpen={setSelected} />}
+			{data && view === "day" && (
+				<DayPicker days={data.days} value={shown} onChange={setDate} />
+			)}
+
+			{view === "day" ? (
+				shown && <DayView date={shown} />
+			) : (
+				data && <Body data={data} view={view} onOpen={setSelected} />
+			)}
 
 			{selected && (
 				<PersonDialog person={selected} onClose={() => setSelected(null)} />

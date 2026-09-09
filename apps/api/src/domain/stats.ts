@@ -51,6 +51,16 @@ export interface HourBucket {
 	seconds: number;
 }
 
+/** 주 또는 달 한 칸. */
+export interface PeriodBucket {
+	/** 주는 그 주 월요일(YYYY-MM-DD), 달은 YYYY-MM */
+	key: string;
+	seconds: number;
+	people: number;
+	/** 이 칸에 실제로 기록이 있던 날 수. 하루 평균을 낼 때 쓴다. */
+	activeDays: number;
+}
+
 export interface WeekdayBucket {
 	/** 0=일 … 6=토 */
 	weekday: number;
@@ -96,6 +106,10 @@ export interface Stats {
 	hours: HourBucket[];
 	weekdays: WeekdayBucket[];
 	people: PersonStat[];
+	/** 주별. 월요일 시작. */
+	weeks: PeriodBucket[];
+	/** 달별. */
+	months: PeriodBucket[];
 	week: WeekComparison;
 	/** 보통 몇 시에 시작해서 몇 시에 끝나는가. 날짜별 값의 중앙값이다. */
 	typicalStart: string | null;
@@ -221,6 +235,58 @@ export function streakOf(
 
 	// 오늘도 어제도 아니면 이미 끊긴 기록이다
 	return { streak: tailRun, alive: last === today || last === yesterday, best };
+}
+
+/** 그 날짜가 속한 주의 월요일. YYYY-MM-DD. */
+export function weekKey(date: string): string {
+	const ms = Date.parse(`${date}T00:00:00Z`);
+	// getUTCDay: 0=일 … 6=토. 월요일 시작으로 옮긴다.
+	const weekday = (new Date(ms).getUTCDay() + 6) % 7;
+
+	return new Date(ms - weekday * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** 그 날짜가 속한 달. YYYY-MM. */
+export function monthKey(date: string): string {
+	return date.slice(0, 7);
+}
+
+/**
+ * 날짜별 칸을 주/달로 묶는다.
+ *
+ * 사람 수는 그 기간에 한 번이라도 나온 사람이다. 날짜별 인원을 더하면
+ * 같은 사람이 여러 번 세어진다 — 그래서 여기서는 더하지 않고 이름을 모은다.
+ */
+function groupDays(
+	days: readonly DayBucket[],
+	peopleByDate: ReadonlyMap<string, ReadonlySet<string>>,
+	keyOf: (date: string) => string,
+): PeriodBucket[] {
+	const seconds = new Map<string, number>();
+	const names = new Map<string, Set<string>>();
+	const activeDays = new Map<string, number>();
+
+	for (const day of days) {
+		const key = keyOf(day.date);
+
+		seconds.set(key, (seconds.get(key) ?? 0) + day.seconds);
+		if (day.seconds > 0) {
+			activeDays.set(key, (activeDays.get(key) ?? 0) + 1);
+		}
+
+		const set = names.get(key) ?? new Set<string>();
+		for (const name of peopleByDate.get(day.date) ?? []) set.add(name);
+		names.set(key, set);
+	}
+
+	return Array.from(seconds.entries())
+		.map(([key, total]) => ({
+			key,
+			seconds: total,
+			people: names.get(key)?.size ?? 0,
+			activeDays: activeDays.get(key) ?? 0,
+		}))
+		.sort((a, b) => a.key.localeCompare(b.key));
 }
 
 /** 중앙값. 빈 목록이면 null. */
@@ -431,6 +497,8 @@ export function buildStats(
 			seconds: weekdaySeconds.get(weekday) ?? 0,
 			days: weekdayCount.get(weekday) ?? 0,
 		})),
+		weeks: groupDays(days, dayPeople, weekKey),
+		months: groupDays(days, dayPeople, monthKey),
 		week,
 		typicalStart: median(
 			days.map((d) => d.firstAt).filter((v): v is string => v !== null),

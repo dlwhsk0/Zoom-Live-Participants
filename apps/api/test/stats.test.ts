@@ -6,7 +6,9 @@ import {
 	kstHour,
 	kstWeekday,
 	peakConcurrent,
+	monthKey,
 	streakOf,
+	weekKey,
 	type PersonIntervals,
 } from "../src/domain/stats.ts";
 
@@ -330,5 +332,73 @@ describe("주간 비교", () => {
 		);
 
 		expect(stats.week.recent.seconds).toBe(0);
+	});
+});
+
+describe("주별·월별 묶기", () => {
+	const now = kst("2026-09-10T12:00:00");
+
+	it("주는 월요일에서 시작한다", () => {
+		// 2026-09-10 은 목요일, 그 주 월요일은 09-07
+		expect(weekKey("2026-09-10")).toBe("2026-09-07");
+		expect(weekKey("2026-09-07")).toBe("2026-09-07");
+		// 일요일은 앞 주에 붙는다
+		expect(weekKey("2026-09-06")).toBe("2026-08-31");
+	});
+
+	it("달은 YYYY-MM 이다", () => {
+		expect(monthKey("2026-09-10")).toBe("2026-09");
+	});
+
+	it("주별로 시간을 모은다", () => {
+		const stats = buildStats(
+			[
+				person("A",
+					["2026-09-07T10:00:00", "2026-09-07T12:00:00"],
+					["2026-09-08T10:00:00", "2026-09-08T11:00:00"],
+				),
+			],
+			kst("2026-09-07T00:00:00"),
+			kst("2026-09-14T00:00:00"),
+			now,
+		);
+
+		const week = stats.weeks.find((w) => w.key === "2026-09-07");
+		expect(week?.seconds).toBe(3 * 3600);
+		expect(week?.activeDays).toBe(2);
+	});
+
+	it("같은 사람이 여러 날 나와도 한 명으로 센다", () => {
+		const stats = buildStats(
+			[
+				person("A",
+					["2026-09-07T10:00:00", "2026-09-07T12:00:00"],
+					["2026-09-08T10:00:00", "2026-09-08T11:00:00"],
+				),
+				person("B", ["2026-09-08T10:00:00", "2026-09-08T11:00:00"]),
+			],
+			kst("2026-09-07T00:00:00"),
+			kst("2026-09-14T00:00:00"),
+			now,
+		);
+
+		// 날짜별 인원을 더하면 3명이 된다. 이름을 모아야 2명이다.
+		expect(stats.weeks.find((w) => w.key === "2026-09-07")?.people).toBe(2);
+	});
+
+	it("주가 갈리면 따로 담는다", () => {
+		const stats = buildStats(
+			[
+				person("A",
+					["2026-09-06T10:00:00", "2026-09-06T11:00:00"],
+					["2026-09-07T10:00:00", "2026-09-07T11:00:00"],
+				),
+			],
+			kst("2026-08-31T00:00:00"),
+			kst("2026-09-14T00:00:00"),
+			now,
+		);
+
+		expect(stats.weeks.map((w) => w.key)).toEqual(["2026-08-31", "2026-09-07"]);
 	});
 });
