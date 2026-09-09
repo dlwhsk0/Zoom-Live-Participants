@@ -380,3 +380,57 @@ export async function login(params: {
 export async function logout(): Promise<void> {
 	await fetch(adminUrl("/api/auth/logout"), adminInit({ method: "POST" }));
 }
+
+// ── 통계 ───────────────────────────────────
+
+export interface DayBucket {
+	/** YYYY-MM-DD (한국 시간) */
+	date: string;
+	people: number;
+	seconds: number;
+	/** 그 순간 가장 많이 모였던 인원 */
+	peak: number;
+}
+
+export interface HourBucket {
+	hour: number;
+	seconds: number;
+}
+
+export interface WeekdayBucket {
+	weekday: number;
+	seconds: number;
+	days: number;
+}
+
+export interface PersonStat {
+	displayName: string;
+	seconds: number;
+	days: number;
+}
+
+export interface Stats {
+	from: string;
+	to: string;
+	days: DayBucket[];
+	hours: HourBucket[];
+	weekdays: WeekdayBucket[];
+	people: PersonStat[];
+	totalSeconds: number;
+	totalPeople: number;
+}
+
+export async function fetchStats(days: number): Promise<Stats> {
+	const url = new URL(`${API_BASE}/api/stats`, window.location.origin);
+	url.searchParams.set("days", String(days));
+
+	const response = await fetch(url, {
+		headers: apiHeaders({ accept: "application/json" }),
+	});
+
+	if (!response.ok) {
+		throw new Error(`요청 실패 (${response.status})`);
+	}
+
+	return (await response.json()) as Stats;
+}

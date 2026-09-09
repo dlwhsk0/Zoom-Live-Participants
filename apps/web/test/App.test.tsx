@@ -88,6 +88,15 @@ const snapshot: PresenceSnapshot = {
 	],
 };
 
+/** 타일이 그려지는 부분만 잘라낸다. 상단바나 헤더는 빼고 본다. */
+function tiles(html: string): string {
+	return html
+		.split('<ul class="grid">')
+		.slice(1)
+		.map((part) => part.split("</ul>")[0] ?? "")
+		.join("");
+}
+
 describe("App", () => {
 	const html = render(snapshot);
 
@@ -187,8 +196,9 @@ describe("App", () => {
 		expect(html).toContain("공부 브금");
 		expect(html).toContain("status__play");
 		expect(html).not.toContain("youtu.be/dQw4w9WgXcQ");
-		// 타일에서는 링크를 열지 않는다
-		expect(html).not.toContain("<a");
+		// 타일에서는 링크를 열지 않는다. 화면의 다른 곳(상단 통계 링크)은
+		// 상관없으므로 타일 영역만 본다.
+		expect(tiles(html)).not.toContain("<a");
 	});
 
 	it("글 없이 링크만 있으면 빈 자리를 두지 않는다", () => {

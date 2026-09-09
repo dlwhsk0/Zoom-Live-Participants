@@ -279,6 +279,9 @@ export default function App() {
 							: `누적 ${data?.totalCount}명`}
 					</p>
 				</div>
+				<a className="topbar__link" href="/stats">
+					통계
+				</a>
 				<ThemeToggle />
 			</div>
 

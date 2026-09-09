@@ -25,6 +25,7 @@ import {
 	getLogs,
 	getPresenceSnapshot,
 } from "../repository/query.ts";
+import { getStats } from "../repository/stats.ts";
 import { handleWebhook } from "../webhook/handle.ts";
 import { SOURCE_FINGERPRINT, STARTED_AT } from "../version.ts";
 import { clientIpFrom } from "./client-ip.ts";
@@ -352,6 +353,31 @@ async function route(
 
 		statusUpdates.inc({ action: message ? "set" : "clear" });
 		return { status: 200, body: { ok: true, statusMessage: message } };
+	}
+
+	/**
+	 * 최근 며칠의 통계.
+	 *
+	 * 조회와 같은 문지기를 쓴다. 사람 이름이 들어 있으므로 참가자 목록과
+	 * 같은 등급으로 다룬다.
+	 */
+	if (method === "GET" && path === "/api/stats") {
+		const denied = deniedByAccessToken(headers);
+		if (denied) return denied;
+
+		// 너무 긴 기간을 요구하면 서버만 힘들다. 화면에서도 그만큼은 못 그린다.
+		const requested = Number(query.get("days") ?? 14);
+		const days = Number.isFinite(requested)
+			? Math.min(Math.max(Math.trunc(requested), 1), 90)
+			: 14;
+
+		const stats = await getStats(getDb(), days);
+
+		return {
+			status: 200,
+			body: stats,
+			headers: { "cache-control": "no-store" },
+		};
 	}
 
 	// ── 로그인 ──────────────────────────────────
