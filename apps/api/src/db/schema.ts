@@ -227,3 +227,27 @@ export const nameAliases = pgTable("name_aliases", {
 		.defaultNow(),
 	clientIp: text("client_ip"),
 });
+
+/**
+ * 로그인 계정.
+ *
+ * 지금 쓰는 곳은 어드민 화면 하나다. 그런데도 토큰이 아니라 테이블로 두는
+ * 이유는 두 가지다 — 사람 단위로 지우고 바꿀 수 있어야 하고, 비밀번호를
+ * 바꾸자고 서버를 다시 띄우고 싶지 않다.
+ *
+ * `role` 을 처음부터 두는 것은 나중에 팀원 계정을 열 여지를 남기기 위해서다.
+ * 지금은 admin 만 넣는다. 참가자는 여전히 로그인 없이 쓴다 —
+ * 이 앱의 참가자는 Zoom 웹훅이 만든 존재이고, 이 테이블과는 신원 공간이
+ * 다르다. 둘을 잇는 것은 별도의 일이다(상세는 docs/security.md).
+ */
+export const users = pgTable("users", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	/** 로그인 아이디. 대소문자를 구분하지 않으려고 소문자로만 저장한다. */
+	username: text("username").notNull().unique(),
+	/** scrypt 해시. 형식은 http/password.ts 참고. 원문은 어디에도 남기지 않는다. */
+	passwordHash: text("password_hash").notNull(),
+	/** admin | member. 지금 실제로 쓰는 것은 admin 뿐이다. */
+	role: text("role").notNull().default("member"),
+	createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+	lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
+});
