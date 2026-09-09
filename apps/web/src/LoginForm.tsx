@@ -32,7 +32,7 @@ export default function LoginForm() {
 					if (!submit.isPending) submit.mutate();
 				}}
 			>
-				<h1 className="login__title">Admin</h1>
+				<h1 className="login__title">로그인</h1>
 
 				<label className="login__label" htmlFor="username">
 					아이디
