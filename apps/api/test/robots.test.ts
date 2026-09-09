@@ -40,6 +40,13 @@ describe("검색엔진 차단", () => {
 		expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
 	});
 
+	it("HEAD 로 물어도 200 이다 — 404 면 크롤러가 파일이 없다고 본다", async () => {
+		const response = await fetch(`${origin}/robots.txt`, { method: "HEAD" });
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toContain("text/plain");
+	});
+
 	it("없는 경로의 응답에도 붙는다", async () => {
 		const response = await fetch(`${origin}/이런건없다`);
 

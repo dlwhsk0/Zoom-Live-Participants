@@ -28,6 +28,7 @@ import { handleWebhook } from "../webhook/handle.ts";
 import { SOURCE_FINGERPRINT, STARTED_AT } from "../version.ts";
 import { clientIpFrom } from "./client-ip.ts";
 import { corsHeaders } from "./cors.ts";
+import { bearerFrom, tokensMatch } from "./token.ts";
 
 /** 한 줄에 들어가야 하므로 길이를 제한한다. */
 export const STATUS_MAX_LENGTH = 50;
@@ -148,11 +149,9 @@ function checkToken(
 		};
 	}
 
-	const provided =
-		query.get("key") ??
-		(headers.authorization === `Bearer ${token}` ? token : null);
+	const provided = query.get("key") ?? bearerFrom(headers.authorization);
 
-	if (provided !== token) {
+	if (!tokensMatch(provided, token)) {
 		return { status: 401, body: { ok: false, reason: "unauthorized" } };
 	}
 
@@ -165,12 +164,16 @@ function resolveMeetingId(query: URLSearchParams): string {
 }
 
 async function route(
-	method: string,
+	rawMethod: string,
 	path: string,
 	query: URLSearchParams,
 	headers: Record<string, string | string[] | undefined>,
 	rawBody: string,
 ): Promise<Reply> {
+	// HEAD 는 본문 없는 GET 이다. 라우팅은 같이 받고, 본문은 Node 가 알아서 뺀다.
+	// 이게 없으면 HEAD /robots.txt 가 404 라 크롤러가 파일이 없다고 볼 수 있다.
+	const method = rawMethod === "HEAD" ? "GET" : rawMethod;
+
 	/**
 	 * 검색엔진 차단.
 	 *
@@ -268,11 +271,13 @@ async function route(
 
 		// 빈 문자열은 상태 지우기로 본다
 		const message = result.data.message.trim() || null;
+		// 이 엔드포인트는 인증이 없다. 막는 대신 누가 바꿨는지 남긴다.
 		const updated = await setStatusMessage(
 			getDb(),
 			session.meetingUuid,
 			participantUuid,
 			message,
+			clientIpFrom(headers),
 		);
 
 		if (!updated) {
