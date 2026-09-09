@@ -34,7 +34,8 @@ export default function PersonDialog({
 }) {
 	const average = person.days > 0 ? person.seconds / person.days : 0;
 	const tier = studyTier(average);
-	const max = Math.max(...person.daily.map((d) => d.seconds), 1);
+	const daily = person.daily ?? [];
+	const max = Math.max(...daily.map((d) => d.seconds), 1);
 
 	return (
 		<Portal>
@@ -87,7 +88,7 @@ export default function PersonDialog({
 					</dl>
 
 					<ul className="chart person__daily">
-						{person.daily.map((d) => (
+						{daily.map((d) => (
 							<li key={d.date} className="chart__row">
 								<span className="chart__label">{short(d.date)}</span>
 								<span className="chart__track">

@@ -193,23 +193,33 @@ describe("통계", () => {
 		expect(stats.weekdays.find((w) => w.weekday === 0)?.days).toBe(0);
 	});
 
-	it("그날 시작한 접속만 그날의 첫 시각으로 친다", () => {
+	it("새벽까지 이어진 모임을 하룻밤으로 본다", () => {
+		// 9/7 밤 10시에 모여 9/8 새벽 2시에 흩어졌다. 한 번의 모임이다.
 		const stats = buildStats(
-			[
-				// 전날 밤부터 이어져 온 접속 + 그날 아침에 들어온 접속
-				person("밤샘", ["2026-09-07T22:00:00", "2026-09-08T03:00:00"]),
-				person("아침", ["2026-09-08T09:00:00", "2026-09-08T11:00:00"]),
-			],
+			[person("밤샘", ["2026-09-07T22:00:00", "2026-09-08T02:00:00"])],
 			from, to, NOW,
 		);
 
-		const day = stats.days.find((d) => d.date === "2026-09-08");
-		// 00:00 이 아니라 09:00 이어야 한다. 전날부터 이어진 것은 그날의 시작이 아니다.
-		expect(day?.firstAt).toBe("09:00");
-		expect(day?.lastAt).toBe("11:00");
+		const day = stats.days.find((d) => d.date === "2026-09-07");
+		expect(day?.firstAt).toBe("22:00");
+		// 자정으로 잘랐다면 끝이 23:59 로 보였을 것이다
+		expect(day?.lastAt).toBe("02:00");
+
+		// 다음날에는 첫·마지막이 잡히지 않는다. 그 밤의 몫이 아니다.
+		const next = stats.days.find((d) => d.date === "2026-09-08");
+		expect(next?.firstAt).toBeNull();
 	});
 
-	it("보통 시작·종료 시각은 날짜별 값의 중앙값이다", () => {
+	it("새벽 5시가 지나면 새 날의 시작이다", () => {
+		const stats = buildStats(
+			[person("아침형", ["2026-09-08T06:00:00", "2026-09-08T08:00:00"])],
+			from, to, NOW,
+		);
+
+		expect(stats.days.find((d) => d.date === "2026-09-08")?.firstAt).toBe("06:00");
+	});
+
+	it("보통 시작·종료 시각은 밤별 값의 중앙값이다", () => {
 		const stats = buildStats(
 			[
 				person("사람",

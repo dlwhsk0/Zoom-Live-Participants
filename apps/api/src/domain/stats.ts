@@ -159,6 +159,25 @@ function spreadByHour(
 	}
 }
 
+/**
+ * "그날 밤" 의 경계. 새벽 5시.
+ *
+ * 이 모임은 밤 9시에 모여 새벽 2시에 흩어진다. 자정으로 하루를 자르면
+ * 한 번의 모임이 이틀로 쪼개지고, "그날 가장 먼저 들어온 시각" 이 00:17,
+ * "마지막으로 나간 시각" 이 23:47 이 되어 순서가 뒤집혀 보인다.
+ *
+ * 첫·마지막 시각은 이 경계로 센다. 새벽 2시는 전날 밤의 끝이다.
+ *
+ * 날짜별·요일별 합계는 그대로 달력 날짜를 쓴다 — 그쪽은 "9월 9일에 몇 시간"
+ * 이라는 뜻이라 달력이 맞고, 여기만 "한 번의 모임" 을 봐야 한다.
+ */
+const NIGHT_START_HOUR = 5;
+
+/** 그 시각이 속한 "밤" 의 날짜. 새벽 5시 이전은 전날로 친다. */
+function nightDate(ms: number): string {
+	return kstDate(ms - NIGHT_START_HOUR * HOUR_MS);
+}
+
 /** 한국 시간 HH:MM. */
 function kstClock(ms: number): string {
 	const d = new Date(ms + KST_OFFSET_MS);
@@ -320,18 +339,18 @@ export function buildStats(
 		};
 
 		for (const range of person.ranges) {
-			// 그날 안에서 시작·종료한 것만 그날의 첫/마지막으로 친다.
-			// 전날부터 이어져 온 접속을 그날의 시작으로 치면 매일 00:00 이 된다.
-			const startDay = kstDate(range.from);
-			const prevFirst = dayFirst.get(startDay);
+			// 첫·마지막은 "밤" 단위로 본다. 자정으로 자르면 새벽까지 이어진
+			// 모임이 이틀로 쪼개져 시작이 00:17, 끝이 23:47 처럼 뒤집힌다.
+			const night = nightDate(range.from);
+			const prevFirst = dayFirst.get(night);
 			if (prevFirst === undefined || range.from < prevFirst) {
-				dayFirst.set(startDay, range.from);
+				dayFirst.set(night, range.from);
 			}
 
-			const endDay = kstDate(range.to);
-			const prevLast = dayLast.get(endDay);
+			const endNight = nightDate(range.to);
+			const prevLast = dayLast.get(endNight);
 			if (prevLast === undefined || range.to > prevLast) {
-				dayLast.set(endDay, range.to);
+				dayLast.set(endNight, range.to);
 			}
 
 			// 시간대: 시 경계마다 잘라 담는다

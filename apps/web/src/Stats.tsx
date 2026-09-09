@@ -71,7 +71,11 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /** 지난 7일과 그 앞 7일. 늘었으면 위, 줄었으면 아래. */
-function WeekCard({ week }: { week: StatsData["week"] }) {
+function WeekCard({ week }: { week: StatsData["week"] | undefined }) {
+	// 웹은 즉시 배포되고 API 는 수동이다. 그 사이에 옛 응답이 올 수 있으므로
+	// 없는 필드를 읽고 화면 전체가 죽는 일은 없어야 한다.
+	if (!week) return null;
+
 	const { recent, previous } = week;
 
 	if (recent.seconds === 0 && previous.seconds === 0) return null;
@@ -146,7 +150,7 @@ function Ranking({
 								<span className="rank__name">{person.displayName}</span>
 								<span className="rank__meta">
 									{`${person.days}일 · 하루 ${hours(average)}`}
-									{person.streakAlive && person.streak >= 2 && (
+									{person.streakAlive === true && person.streak >= 2 && (
 										<span className="rank__streak">
 											{`🔥 ${person.streak}일 연속`}
 										</span>
