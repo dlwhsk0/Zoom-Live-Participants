@@ -21,6 +21,7 @@ import {
 	toParticipantEvent,
 	URL_VALIDATION,
 } from "./normalize.ts";
+import { snapshotAround } from "../repository/snapshot.ts";
 import { buildUrlValidationResponse, verifySignature } from "./signature.ts";
 
 type Db = ReturnType<typeof getDb>;
@@ -148,6 +149,11 @@ export async function handleWebhook(
 		const meetingUuid = body.payload.object?.uuid;
 		if (meetingUuid) {
 			const cleared = await markSessionEnded(db, meetingUuid);
+
+			// 회의가 끝났으니 그날 기록을 굳혀 둔다. 실패해도 응답은 막지 않는다 —
+			// 던지면 Zoom 이 같은 웹훅을 계속 다시 보낸다.
+			await snapshotAround(db, now);
+
 			return { status: 200, body: { ok: true, sessionEnded: true, cleared } };
 		}
 	}

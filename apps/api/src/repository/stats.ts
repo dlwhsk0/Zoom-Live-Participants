@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import type { getDb } from "../db/client.ts";
 import type { Interval } from "../domain/presence.ts";
 import { buildStats, type PersonIntervals, type Stats } from "../domain/stats.ts";
+import { findSnapshots, type SnapshotRow } from "./snapshot.ts";
 import { loadAliasMap } from "./query.ts";
 
 type Db = ReturnType<typeof getDb>;
@@ -17,6 +18,18 @@ type Db = ReturnType<typeof getDb>;
 const LOOKBEHIND_DAYS = 1;
 
 /**
+ * 기간 뒤로도 얼마나 더 볼지.
+ *
+ * 구간의 끝은 **다음 이벤트**(left)로 정해진다. 그 이벤트가 창 밖이면
+ * lead() 가 null 을 주고 구간이 열린 것처럼 보인다 — 밤을 넘겨 끝난 접속이
+ * 통째로 짧아진다.
+ *
+ * 하루치만 다시 셀 때 이게 드러났다. 같은 날을 14일 창에서 셀 때와 하루 창에서
+ * 셀 때 20시간 넘게 달랐다. 세는 범위와 읽는 범위는 다르다.
+ */
+const LOOKAHEAD_DAYS = 1;
+
+/**
  * 여러 회의 세션에 걸쳐 사람별 접속 구간을 모은다.
  *
  * 화면의 현재 접속자 조회(query.ts)는 한 세션만 본다. 통계는 날짜를 가로지르고
@@ -26,7 +39,7 @@ const LOOKBEHIND_DAYS = 1;
  * 같은 사람이 세션마다 다른 값을 갖는다. 별칭까지 적용한 이름이 세션을 넘어
  * 같은 사람을 가리키는 유일한 열쇠다.
  */
-async function findIntervalsInRange(
+export async function findIntervalsInRange(
 	db: Db,
 	from: Date,
 	to: Date,
@@ -36,7 +49,9 @@ async function findIntervalsInRange(
 	const lookbehind = new Date(
 		from.getTime() - LOOKBEHIND_DAYS * 24 * 60 * 60 * 1000,
 	).toISOString();
-	const until = to.toISOString();
+	const until = new Date(
+		to.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000,
+	).toISOString();
 
 	const rows = await db.execute<{
 		display_name: string | null;
@@ -212,9 +227,51 @@ export async function getStats(
 	// 화면에 그리는 범위와 읽어오는 범위가 다르다.
 	const loadFrom = new Date(Math.min(from.getTime(), todayMidnight - 14 * DAY_MS));
 	const people = await findIntervalsInRange(db, loadFrom, to);
+	const stats = buildStats(people, from, to, now);
 
-	return buildStats(people, from, to, now);
+	return fillFromSnapshots(stats, await findSnapshots(db, stats.from));
+}
+
+/**
+ * 원본 이벤트가 없는 날을 저장된 기록으로 채운다.
+ *
+ * 지금은 이벤트를 지우지 않으므로 채울 일이 거의 없다. 나중에 원본을
+ * 정리하더라도 날짜별 막대는 계속 보이라고 두는 길이다.
+ *
+ * **채운 날은 날짜별 합계에만 들어간다.** 시간대·요일·사람은 구간을 다시
+ * 쪼개야 나오는 값이라 스냅샷만으로는 만들 수 없다. 그래서 그 구역들은
+ * 원본이 남아 있는 기간만 말한다 — 상세는 docs/stats.md.
+ */
+export function fillFromSnapshots(stats: Stats, snapshots: SnapshotRow[]): Stats {
+	const byDate = new Map(snapshots.map((row) => [row.date, row]));
+	let added = 0;
+
+	const days = stats.days.map((day) => {
+		// 원본에서 나온 값이 있으면 그쪽이 진실이다. 스냅샷은 그것을 굳힌 것뿐이다.
+		if (day.seconds > 0) return day;
+
+		const saved = byDate.get(day.date);
+		if (!saved || saved.seconds === 0) return day;
+
+		added += saved.seconds;
+
+		return {
+			date: day.date,
+			people: saved.people,
+			seconds: saved.seconds,
+			peak: saved.peak,
+			firstAt: saved.firstAt,
+			lastAt: saved.lastAt,
+		};
+	});
+
+	if (added === 0) return stats;
+
+	return { ...stats, days, totalSeconds: stats.totalSeconds + added };
 }
 
 /** 테스트에서 부르는 이름. 이 판단만 따로 시험한다. */
 export { closeOpen as closeOpenForTest };
+
+/** 테스트에서 부르는 이름. 채우는 판단만 따로 시험한다. */
+export { fillFromSnapshots as fillFromSnapshotsForTest };
