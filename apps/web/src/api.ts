@@ -122,31 +122,22 @@ export interface LogPage {
 }
 
 export async function fetchLogs(params: {
-	key: string;
 	cursor?: string | null;
 	raw: boolean;
 	limit?: number;
 }): Promise<LogPage> {
 	const url = new URL(`${API_BASE}/api/logs`, window.location.origin);
-	url.searchParams.set("key", params.key);
 	url.searchParams.set("limit", String(params.limit ?? 50));
 	if (params.raw) url.searchParams.set("raw", "1");
 	if (params.cursor) url.searchParams.set("cursor", params.cursor);
 	if (MEETING_ID) url.searchParams.set("meeting_id", MEETING_ID);
 
-	const response = await fetch(url, { headers: { accept: "application/json" } });
+	const response = await fetch(url, {
+		headers: { accept: "application/json" },
+		credentials: "include",
+	});
 
-	if (response.status === 401) {
-		throw new Error("접근 키가 올바르지 않습니다");
-	}
-	if (!response.ok) {
-		const body = (await response.json().catch(() => null)) as
-			| { reason?: string }
-			| null;
-		throw new Error(body?.reason ?? `요청 실패 (${response.status})`);
-	}
-
-	return (await response.json()) as LogPage;
+	return readOrThrow<LogPage>(response);
 }
 
 // ── 어드민 ──────────────────────────────────
@@ -181,16 +172,25 @@ export interface AdminAction {
 	clientIp: string | null;
 }
 
-function adminUrl(path: string, key: string): URL {
+function adminUrl(path: string): URL {
 	const url = new URL(`${API_BASE}${path}`, window.location.origin);
-	url.searchParams.set("key", key);
 	if (MEETING_ID) url.searchParams.set("meeting_id", MEETING_ID);
 	return url;
 }
 
+/**
+ * 어드민 요청 공통.
+ *
+ * 세션 쿠키로 인증한다. 화면과 API 가 다른 도메인이라 credentials 를
+ * 명시해야 쿠키가 실린다 — 기본값은 실지 않는다.
+ */
+function adminInit(init: RequestInit = {}): RequestInit {
+	return { ...init, credentials: "include" };
+}
+
 async function readOrThrow<T>(response: Response): Promise<T> {
 	if (response.status === 401) {
-		throw new Error("접근 키가 올바르지 않습니다");
+		throw new Error("로그인이 필요합니다");
 	}
 
 	const body = (await response.json().catch(() => null)) as
@@ -206,10 +206,11 @@ async function readOrThrow<T>(response: Response): Promise<T> {
 }
 
 /** 합치기 전의 원본 행. 어느 행을 고칠지 고르려면 이쪽을 봐야 한다. */
-export async function fetchIdentities(key: string): Promise<IdentityList> {
-	const response = await fetch(adminUrl("/api/admin/identities", key), {
-		headers: { accept: "application/json" },
-	});
+export async function fetchIdentities(): Promise<IdentityList> {
+	const response = await fetch(
+		adminUrl("/api/admin/identities"),
+		adminInit({ headers: { accept: "application/json" } }),
+	);
 	return readOrThrow<IdentityList>(response);
 }
 
@@ -220,40 +221,45 @@ export async function fetchIdentities(key: string): Promise<IdentityList> {
  * 이름을 같게 하면 합쳐지고 다르게 하면 떨어진다.
  */
 export async function renameIdentities(params: {
-	key: string;
 	meetingUuid: string;
 	participantUuids: string[];
 	displayName: string;
 }): Promise<{ changed: number }> {
-	const response = await fetch(adminUrl("/api/admin/rename", params.key), {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({
-			meetingUuid: params.meetingUuid,
-			participantUuids: params.participantUuids,
-			displayName: params.displayName,
+	const response = await fetch(
+		adminUrl("/api/admin/rename"),
+		adminInit({
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({
+				meetingUuid: params.meetingUuid,
+				participantUuids: params.participantUuids,
+				displayName: params.displayName,
+			}),
 		}),
-	});
+	);
 	return readOrThrow<{ changed: number }>(response);
 }
 
-export async function fetchAdminActions(key: string): Promise<AdminAction[]> {
-	const response = await fetch(adminUrl("/api/admin/actions", key), {
-		headers: { accept: "application/json" },
-	});
+export async function fetchAdminActions(): Promise<AdminAction[]> {
+	const response = await fetch(
+		adminUrl("/api/admin/actions"),
+		adminInit({ headers: { accept: "application/json" } }),
+	);
 	const body = await readOrThrow<{ actions: AdminAction[] }>(response);
 	return body.actions;
 }
 
 export async function undoAdminAction(params: {
-	key: string;
 	actionId: string;
 }): Promise<{ restored: number }> {
-	const response = await fetch(adminUrl("/api/admin/undo", params.key), {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({ actionId: params.actionId }),
-	});
+	const response = await fetch(
+		adminUrl("/api/admin/undo"),
+		adminInit({
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ actionId: params.actionId }),
+		}),
+	);
 	return readOrThrow<{ restored: number }>(response);
 }
 
@@ -263,34 +269,90 @@ export interface NameAlias {
 	createdAt: string;
 }
 
-export async function fetchAliases(key: string): Promise<NameAlias[]> {
-	const response = await fetch(adminUrl("/api/admin/aliases", key), {
-		headers: { accept: "application/json" },
-	});
+export async function fetchAliases(): Promise<NameAlias[]> {
+	const response = await fetch(
+		adminUrl("/api/admin/aliases"),
+		adminInit({ headers: { accept: "application/json" } }),
+	);
 	const body = await readOrThrow<{ aliases: NameAlias[] }>(response);
 	return body.aliases;
 }
 
 /** 고정 닉네임을 대표 이름에 잇는다. 예: Chloe → 이도경. */
 export async function putAlias(params: {
-	key: string;
 	alias: string;
 	canonical: string;
 }): Promise<{ ok: boolean }> {
-	const response = await fetch(adminUrl("/api/admin/aliases", params.key), {
-		method: "POST",
-		headers: { "content-type": "application/json" },
-		body: JSON.stringify({ alias: params.alias, canonical: params.canonical }),
-	});
+	const response = await fetch(
+		adminUrl("/api/admin/aliases"),
+		adminInit({
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ alias: params.alias, canonical: params.canonical }),
+		}),
+	);
 	return readOrThrow<{ ok: boolean }>(response);
 }
 
 export async function deleteAlias(params: {
-	key: string;
 	alias: string;
 }): Promise<{ ok: boolean }> {
-	const url = adminUrl("/api/admin/aliases", params.key);
+	const url = adminUrl("/api/admin/aliases");
 	url.searchParams.set("alias", params.alias);
-	const response = await fetch(url, { method: "DELETE" });
+	const response = await fetch(url, adminInit({ method: "DELETE" }));
 	return readOrThrow<{ ok: boolean }>(response);
+}
+
+// ── 로그인 ──────────────────────────────────
+
+export interface AuthUser {
+	username: string;
+	role: string;
+}
+
+/**
+ * 지금 로그인돼 있는가.
+ *
+ * 로그인하지 않은 상태는 오류가 아니라 정상이다. 401 이면 null 을 준다.
+ */
+export async function fetchMe(): Promise<AuthUser | null> {
+	const response = await fetch(
+		adminUrl("/api/auth/me"),
+		adminInit({ headers: { accept: "application/json" } }),
+	);
+
+	if (response.status === 401) return null;
+
+	const body = await readOrThrow<{ user: AuthUser }>(response);
+	return body.user;
+}
+
+export async function login(params: {
+	username: string;
+	password: string;
+}): Promise<AuthUser> {
+	const response = await fetch(
+		adminUrl("/api/auth/login"),
+		adminInit({
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(params),
+		}),
+	);
+
+	// 401 은 "아이디나 비번이 틀렸다" 이지 "로그인이 필요하다" 가 아니다.
+	// readOrThrow 의 문구를 쓰면 엉뚱한 말이 나온다.
+	if (response.status === 401 || response.status === 429) {
+		const body = (await response.json().catch(() => null)) as
+			| { reason?: string }
+			| null;
+		throw new Error(body?.reason ?? "로그인하지 못했습니다");
+	}
+
+	const body = await readOrThrow<{ user: AuthUser }>(response);
+	return body.user;
+}
+
+export async function logout(): Promise<void> {
+	await fetch(adminUrl("/api/auth/logout"), adminInit({ method: "POST" }));
 }

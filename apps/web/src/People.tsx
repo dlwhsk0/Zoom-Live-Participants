@@ -44,10 +44,8 @@ function groupByName(identities: Identity[]): [string, Identity[]][] {
 }
 
 export default function People({
-	accessKey,
 	onToast,
 }: {
-	accessKey: string;
 	onToast: (message: string, ok: boolean) => void;
 }) {
 	const queryClient = useQueryClient();
@@ -55,8 +53,8 @@ export default function People({
 	const [name, setName] = useState("");
 
 	const { data, isPending, isError, error } = useQuery({
-		queryKey: ["identities", accessKey],
-		queryFn: () => fetchIdentities(accessKey),
+		queryKey: ["identities"],
+		queryFn: fetchIdentities,
 		retry: false,
 	});
 
@@ -68,7 +66,6 @@ export default function People({
 	const rename = useMutation({
 		mutationFn: (displayName: string) =>
 			renameIdentities({
-				key: accessKey,
 				meetingUuid: data?.meetingUuid ?? "",
 				participantUuids: [...picked],
 				displayName,

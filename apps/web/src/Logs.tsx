@@ -1,22 +1,13 @@
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 
 import AdminActions from "./AdminActions.tsx";
 import Aliases from "./Aliases.tsx";
-import { fetchLogs, type LogEntry } from "./api.ts";
+import { fetchLogs, fetchMe, logout, type LogEntry } from "./api.ts";
+import LoginForm from "./LoginForm.tsx";
 import People from "./People.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 import Toast, { type ToastState } from "./Toast.tsx";
-
-/**
- * 접근 키는 주소에서 읽는다. 로그에는 이름과 IP 가 들어 있다.
- *
- * 서버 렌더에서는 window 가 없다. 테스트와 미리보기가 renderToString 을 쓰므로 방어한다.
- */
-function readKey(): string {
-	if (typeof window === "undefined") return "";
-	return new URLSearchParams(window.location.search).get("key") ?? "";
-}
 
 type Tab = "people" | "aliases" | "logs" | "history";
 
@@ -110,16 +101,15 @@ function Row({ entry, showRaw }: { entry: LogEntry; showRaw: boolean }) {
 	);
 }
 
-function LogList({ accessKey: key }: { accessKey: string }) {
+function LogList() {
 	const [showRaw, setShowRaw] = useState(false);
 
 	const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
 		useInfiniteQuery({
-			queryKey: ["logs", key, showRaw],
-			enabled: key.length > 0,
+			queryKey: ["logs", showRaw],
 			initialPageParam: null as string | null,
 			queryFn: ({ pageParam }) =>
-				fetchLogs({ key, cursor: pageParam, raw: showRaw }),
+				fetchLogs({ cursor: pageParam, raw: showRaw }),
 			getNextPageParam: (last) => last.nextCursor,
 			retry: false,
 		});
@@ -177,10 +167,10 @@ function LogList({ accessKey: key }: { accessKey: string }) {
  * 어드민 화면.
  *
  * 로그만 보던 페이지에 사람 합치기와 편집 기록을 더했다.
- * 참가자 이름과 IP 를 그대로 다루므로 접근 키 없이는 아무것도 보이지 않는다.
+ * 참가자 이름과 IP 를 그대로 다루므로 로그인 없이는 아무것도 보이지 않는다.
  */
 export default function Admin() {
-	const [key] = useState(readKey);
+	const queryClient = useQueryClient();
 	const [tab, setTab] = useState<Tab>(readTab);
 	const [toast, setToast] = useState<ToastState | null>(null);
 
@@ -193,14 +183,27 @@ export default function Admin() {
 		setToast({ key: Date.now(), message, tone: ok ? "success" : "error" });
 	}, []);
 
-	if (!key) {
+	// 로그인 여부만 묻는다. 실패는 "안 되어 있음" 이지 오류가 아니다.
+	const me = useQuery({ queryKey: ["me"], queryFn: fetchMe, retry: false });
+
+	const signOut = useMutation({
+		mutationFn: logout,
+		onSettled: () => {
+			// 로그아웃 뒤에 남은 어드민 데이터를 화면에 두지 않는다
+			queryClient.clear();
+		},
+	});
+
+	if (me.isPending) {
 		return (
 			<main className="screen">
-				<p className="empty">
-					접근 키가 필요합니다. 주소 끝에 <code>?key=...</code> 를 붙여주세요.
-				</p>
+				<p className="empty">확인하는 중…</p>
 			</main>
 		);
+	}
+
+	if (!me.data) {
+		return <LoginForm />;
 	}
 
 	return (
@@ -210,6 +213,14 @@ export default function Admin() {
 			<div className="topbar">
 				<p className="topbar__total">어드민</p>
 				<div className="topbar__actions">
+					<span className="topbar__who">{me.data.username}</span>
+					<button
+						type="button"
+						className="topbar__signout"
+						onClick={() => signOut.mutate()}
+					>
+						로그아웃
+					</button>
 					<ThemeToggle />
 				</div>
 			</div>
@@ -227,10 +238,10 @@ export default function Admin() {
 				))}
 			</nav>
 
-			{tab === "people" && <People accessKey={key} onToast={onToast} />}
-			{tab === "aliases" && <Aliases accessKey={key} onToast={onToast} />}
-			{tab === "logs" && <LogList accessKey={key} />}
-			{tab === "history" && <AdminActions accessKey={key} onToast={onToast} />}
+			{tab === "people" && <People onToast={onToast} />}
+			{tab === "aliases" && <Aliases onToast={onToast} />}
+			{tab === "logs" && <LogList />}
+			{tab === "history" && <AdminActions onToast={onToast} />}
 		</main>
 	);
 }
