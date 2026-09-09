@@ -68,3 +68,17 @@ describe("저장된 기록으로 채우기", () => {
 		expect(fillFromSnapshotsForTest(BASE, [])).toBe(BASE);
 	});
 });
+
+describe("하루치를 셀 때의 창", () => {
+	it("밤을 넘긴 구간이 자정에서 잘리면 안 된다", () => {
+		// snapshotDay 는 앞뒤로 하루씩 넓게 세고 가운데 날만 꺼낸다.
+		// 하루 창으로 세면 22:00~04:00 구간의 끝이 00:00 으로 잘려
+		// "마지막으로 나간 시각" 이 매일 00:00 으로 굳는다. 실제로 그랬다.
+		const clipped = { ...SAVED, date: "2026-09-01", lastAt: "00:00" };
+		const filled = fillFromSnapshotsForTest(BASE, [clipped]);
+
+		// 저장된 값을 그대로 쓰므로, 잘린 값이 저장되면 화면에도 그대로 나온다.
+		// 자르지 않는 책임은 snapshotDay 에 있다.
+		expect(filled.days[0]?.lastAt).toBe("00:00");
+	});
+});

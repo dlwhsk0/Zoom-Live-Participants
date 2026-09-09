@@ -26,12 +26,17 @@ function kstMidnight(ms: number): number {
  * 이미 있으면 덮어쓴다. 규칙이 바뀌면 다시 만들 수 있어야 한다.
  */
 export async function snapshotDay(db: Db, date: string): Promise<DayBucket> {
-	const from = new Date(`${date}T00:00:00+09:00`);
-	const to = new Date(from.getTime() + DAY_MS);
+	const midnight = new Date(`${date}T00:00:00+09:00`).getTime();
+
+	// 하루 창으로 세면 밤을 넘긴 구간이 자정에서 잘리고, 그 잘린 끝(00:00)이
+	// "마지막으로 나간 시각" 으로 굳는다. 실제로 매일 00:00 이 저장됐다.
+	// 앞뒤로 하루씩 넓게 세고 그 가운데 날만 꺼낸다.
+	const from = new Date(midnight - DAY_MS);
+	const to = new Date(midnight + 2 * DAY_MS);
 
 	const people = await findIntervalsInRange(db, from, to);
 	const stats = buildStats(people, from, to, new Date());
-	const bucket = stats.days[0];
+	const bucket = stats.days.find((day) => day.date === date);
 
 	if (!bucket) throw new Error(`${date} 를 세지 못했습니다`);
 
