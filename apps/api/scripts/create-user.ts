@@ -17,7 +17,9 @@ import { closeDb, getDb } from "../src/db/client.ts";
 import { hashPassword } from "../src/http/password.ts";
 import { createUser, findUserByUsername } from "../src/repository/users.ts";
 
-const [username, role = "admin"] = process.argv.slice(2);
+// pnpm run 은 인자 앞의 -- 를 그대로 넘긴다. 걸러내지 않으면 "--" 가 아이디가 된다.
+const args = process.argv.slice(2).filter((arg) => arg !== "--");
+const [username, role = "admin"] = args;
 
 if (!username) {
 	console.error("아이디가 필요합니다. 예: create-user.ts hana admin");
