@@ -11,7 +11,7 @@ export function corsHeaders(requestOrigin: string | null): Record<string, string
 
 	const base: Record<string, string> = {
 		"access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
-		"access-control-allow-headers": "content-type,accept",
+		"access-control-allow-headers": "content-type,accept,x-access-token",
 		"access-control-max-age": "86400",
 	};
 

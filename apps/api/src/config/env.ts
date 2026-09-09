@@ -70,6 +70,20 @@ const schema = z.object({
 	 * 비우면 모두 허용 — 로컬 개발용이며 운영에서는 반드시 지정한다.
 	 */
 	/**
+	 * 공개 조회 API 의 공유 토큰.
+	 *
+	 * 설정하면 /api/participants 와 상태 메시지 쓰기에 x-access-token 을
+	 * 요구한다. 비워두면 검사하지 않는다 — 상세는 http/access.ts 주석.
+	 */
+	ACCESS_TOKEN: z
+		.string()
+		.default("")
+		// HTTP 헤더는 Latin-1 만 담는다. 한글 토큰을 넣으면 브라우저가 아예
+		// 보내지 못해 화면이 조용히 401 로 죽는다. 기동할 때 잡는 편이 낫다.
+		.refine((v) => /^[\x21-\x7e]*$/.test(v), {
+			message: "ACCESS_TOKEN 은 공백 없는 ASCII 여야 합니다 (HTTP 헤더 제약)",
+		}),
+	/**
 	 * 세션 쿠키 서명 키.
 	 *
 	 * 비워두면 로그인 기능 자체가 꺼진다. 서명 없는 세션을 발급하느니

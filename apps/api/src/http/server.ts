@@ -38,6 +38,7 @@ import {
 	readSessionValue,
 	SESSION_COOKIE,
 } from "./session.ts";
+import { accessAllowed } from "./access.ts";
 import { bearerFrom, tokensMatch } from "./token.ts";
 
 /** 한 줄에 들어가야 하므로 길이를 제한한다. */
@@ -180,6 +181,20 @@ function checkToken(
 	return null;
 }
 
+/**
+ * 공개 조회 API 의 문지기.
+ *
+ * 웹훅(Zoom 이 부른다)과 헬스체크(컨테이너가 부른다)에는 걸지 않는다.
+ * 어드민 쪽은 이미 세션이나 토큰으로 막혀 있다.
+ */
+function deniedByAccessToken(
+	headers: Record<string, string | string[] | undefined>,
+): Reply | null {
+	if (accessAllowed(getEnv().ACCESS_TOKEN, headers)) return null;
+
+	return { status: 401, body: { ok: false, reason: "unauthorized" } };
+}
+
 /** 요청에 실려 온 로그인 세션. 없거나 서명이 틀리면 null. */
 function sessionFrom(headers: Record<string, string | string[] | undefined>) {
 	return readSessionValue(
@@ -261,6 +276,9 @@ async function route(
 	}
 
 	if (method === "GET" && path === "/api/participants") {
+		const denied = deniedByAccessToken(headers);
+		if (denied) return denied;
+
 		const meetingId =
 			query.get("meeting_id")?.trim() || getEnv().ZOOM_MEETING_ID || "";
 
@@ -286,6 +304,9 @@ async function route(
 	// PUT /api/participants/:participantUuid/status
 	const statusMatch = path.match(/^\/api\/participants\/([^/]+)\/status$/);
 	if (statusMatch && (method === "PUT" || method === "POST")) {
+		const denied = deniedByAccessToken(headers);
+		if (denied) return denied;
+
 		const participantUuid = decodeURIComponent(statusMatch[1] ?? "");
 
 		let parsed: unknown;

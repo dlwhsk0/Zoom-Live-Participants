@@ -53,13 +53,33 @@ export interface PresenceSnapshot {
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
 const MEETING_ID = import.meta.env.VITE_MEETING_ID ?? "";
 
+/**
+ * 조회 API 공유 토큰. 서버의 ACCESS_TOKEN 과 같은 값이다.
+ *
+ * 빌드에 박혀 나가므로 감추는 값이 아니다. **번들을 받을 수 있는 사람에게만
+ * 주는 값**이다 — 사이트가 공용 비밀번호 뒤에 있으면 토큰을 얻으려면 먼저
+ * 그 문을 통과해야 한다. 사이트를 잠그지 않으면 이 토큰도 같이 공개된다.
+ *
+ * 비어 있으면 헤더를 붙이지 않는다. 서버도 비어 있으면 검사하지 않는다.
+ */
+const ACCESS_TOKEN = import.meta.env.VITE_ACCESS_TOKEN ?? "";
+
+/** 우리 API 로 나가는 요청의 공통 헤더. */
+function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+	return ACCESS_TOKEN
+		? { ...extra, "x-access-token": ACCESS_TOKEN }
+		: { ...extra };
+}
+
 export async function fetchPresence(): Promise<PresenceSnapshot> {
 	const url = new URL(`${API_BASE}/api/participants`, window.location.origin);
 	if (MEETING_ID) {
 		url.searchParams.set("meeting_id", MEETING_ID);
 	}
 
-	const response = await fetch(url, { headers: { accept: "application/json" } });
+	const response = await fetch(url, {
+		headers: apiHeaders({ accept: "application/json" }),
+	});
 
 	if (!response.ok) {
 		throw new Error(`요청 실패 (${response.status})`);
@@ -82,7 +102,7 @@ export async function saveStatusMessage(
 
 	const response = await fetch(url, {
 		method: "PUT",
-		headers: { "content-type": "application/json" },
+		headers: apiHeaders({ "content-type": "application/json" }),
 		body: JSON.stringify({ message }),
 	});
 
@@ -185,7 +205,11 @@ function adminUrl(path: string): URL {
  * 명시해야 쿠키가 실린다 — 기본값은 실지 않는다.
  */
 function adminInit(init: RequestInit = {}): RequestInit {
-	return { ...init, credentials: "include" };
+	return {
+		...init,
+		headers: apiHeaders((init.headers as Record<string, string>) ?? {}),
+		credentials: "include",
+	};
 }
 
 async function readOrThrow<T>(response: Response): Promise<T> {
