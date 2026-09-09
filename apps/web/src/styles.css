@@ -1595,6 +1595,24 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 
+.rank__more {
+	width: 100%;
+	margin-top: 10px;
+	padding: 9px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: none;
+	color: var(--muted);
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
+.rank__more:hover {
+	border-color: var(--line-strong);
+	color: var(--fg);
+}
+
 /* ── 개인 상세 ─────────────────────────────── */
 
 .person {

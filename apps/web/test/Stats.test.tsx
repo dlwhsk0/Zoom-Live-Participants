@@ -162,3 +162,32 @@ describe("통계 화면", () => {
 		expect(html).not.toContain("랭킹");
 	});
 });
+
+describe("긴 목록", () => {
+	function many(n: number) {
+		return Array.from({ length: n }, (_, i) =>
+			person({ displayName: `사람${i}`, seconds: (n - i) * 60 }),
+		);
+	}
+
+	it("랭킹을 10명까지만 펼친다 — 다 그리면 아래 구역이 화면 밖으로 밀린다", () => {
+		const html = render({ ...EMPTY, people: many(76) });
+
+		expect(html).toContain("사람0");
+		expect(html).toContain("사람9");
+		expect(html).not.toContain("사람10");
+		expect(html).toContain("66명 더 보기");
+	});
+
+	it("열 명 이하면 더 보기를 두지 않는다", () => {
+		const html = render({ ...EMPTY, people: many(4) });
+
+		expect(html).not.toContain("더 보기");
+	});
+
+	it("날짜별이 랭킹보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
+		const html = render({ ...EMPTY, people: many(3) });
+
+		expect(html.indexOf("날짜별")).toBeLessThan(html.indexOf("랭킹"));
+	});
+});

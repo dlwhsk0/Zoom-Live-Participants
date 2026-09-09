@@ -115,6 +115,9 @@ function WeekCard({ week }: { week: StatsData["week"] | undefined }) {
 	);
 }
 
+/** 처음에 보여줄 인원. 76명을 다 펼치면 아래 구역들이 화면 밖으로 밀린다. */
+const RANK_PREVIEW = 10;
+
 function Ranking({
 	people,
 	onOpen,
@@ -122,11 +125,17 @@ function Ranking({
 	people: PersonStat[];
 	onOpen: (person: PersonStat) => void;
 }) {
+	const [expanded, setExpanded] = useState(false);
+
 	if (people.length === 0) return <p className="empty">기록이 없습니다</p>;
 
+	const shown = expanded ? people : people.slice(0, RANK_PREVIEW);
+	const rest = people.length - shown.length;
+
 	return (
+		<>
 		<ol className="rank">
-			{people.map((person, index) => {
+			{shown.map((person, index) => {
 				const average = person.days > 0 ? person.seconds / person.days : 0;
 				const tier = studyTier(average);
 
@@ -163,6 +172,16 @@ function Ranking({
 				);
 			})}
 		</ol>
+		{rest > 0 && (
+			<button
+				type="button"
+				className="rank__more"
+				onClick={() => setExpanded(true)}
+			>
+				{`${rest}명 더 보기`}
+			</button>
+		)}
+		</>
 	);
 }
 
@@ -211,10 +230,6 @@ function Body({
 				</p>
 			)}
 
-			<Section title="랭킹">
-				<Ranking people={data.people} onOpen={onOpen} />
-			</Section>
-
 			<Section title="날짜별">
 				<ul className="chart">
 					{[...data.days].reverse().map((d) => (
@@ -248,6 +263,10 @@ function Body({
 						/>
 					))}
 				</ul>
+			</Section>
+
+			<Section title="랭킹">
+				<Ranking people={data.people} onOpen={onOpen} />
 			</Section>
 
 			<Section title="요일별">
