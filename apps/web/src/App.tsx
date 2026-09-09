@@ -121,9 +121,13 @@ function Section({
 		return null;
 	}
 
+	// section 으로 감싸지 않는다. sticky 는 제 부모 안에서만 붙어 있어서,
+	// 구역마다 감싸면 구역이 끝날 때 제목이 자기 높이만큼 밀려 나가고 다음
+	// 제목은 아직 도착하지 않아 아무 라벨도 없는 틈이 생긴다.
+	// 제목들이 같은 부모(main)를 쓰면 다음 제목이 앞 제목을 덮으며 넘겨받는다.
 	return (
-		<section className={`section section--${tone}`}>
-			<h2 className="section__title">
+		<>
+			<h2 className={`section__title section__title--${tone}`}>
 				<span className={`section__dot section__dot--${tone}`} aria-hidden="true" />
 				{title}
 				<span className="section__count">{`${people.length}명`}</span>
@@ -143,7 +147,7 @@ function Section({
 					))}
 				</ul>
 			)}
-		</section>
+		</>
 	);
 }
 

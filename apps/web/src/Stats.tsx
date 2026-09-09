@@ -3,22 +3,30 @@ import { useState } from "react";
 
 import { fetchStats, type PersonStat, type Stats as StatsData } from "./api.ts";
 import { studyTier } from "./format.ts";
+import Columns from "./Columns.tsx";
 import DayView from "./DayView.tsx";
 import PersonDialog from "./PersonDialog.tsx";
 import StudyIcon from "./StudyIcon.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 
-const RANGES = [7, 14, 30] as const;
+/** 최상위. 하는 일이 다르다 — 하나는 그날의 화면, 하나는 기간의 통계다. */
+type Mode = "day" | "stats";
 
-type View = "day" | "weeks" | "months" | "pattern" | "rank";
+const MODES: { id: Mode; label: string }[] = [
+	{ id: "day", label: "스냅샷" },
+	{ id: "stats", label: "통계" },
+];
+
+/** 통계를 무슨 단위로 볼지. 이것이 통계의 최상위다. */
+type View = "weeks" | "months";
 
 const VIEWS: { id: View; label: string }[] = [
-	{ id: "day", label: "일별" },
 	{ id: "weeks", label: "주별" },
 	{ id: "months", label: "월별" },
-	{ id: "pattern", label: "패턴" },
-	{ id: "rank", label: "랭킹" },
 ];
+
+/** 주별은 최근 한 달, 월별은 한 분기쯤 본다. */
+const VIEW_DAYS: Record<View, number> = { weeks: 30, months: 90 };
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const MEDAL = ["🥇", "🥈", "🥉"];
 
@@ -194,7 +202,14 @@ export function Ranking({
 	);
 }
 
-/** 기록이 있는 날짜만 고르게 한다. 빈 날을 눌러 봐야 볼 것이 없다. */
+/**
+ * 날짜 고르기.
+ *
+ * 화살표로 앞뒤 날을 오가고, 달력으로 아무 날이나 바로 짚는다.
+ *
+ * 화살표는 **기록이 있는 날로** 건너뛴다. 하루씩 옮기면 빈 날에서 멈춰
+ * 몇 번을 더 눌러야 하는지 알 수 없다. 더 갈 곳이 없으면 눌리지 않는다.
+ */
 function DayPicker({
 	days,
 	value,
@@ -204,52 +219,93 @@ function DayPicker({
 	value: string;
 	onChange: (date: string) => void;
 }) {
-	const withRecords = [...days].filter((d) => d.seconds > 0).reverse();
+	const withRecords = days.filter((d) => d.seconds > 0).map((d) => d.date);
+	const index = withRecords.indexOf(value);
 
-	if (withRecords.length === 0) return null;
+	// 목록에 없는 날(달력으로 직접 짚은 빈 날)이면 앞뒤로 가장 가까운 날을 찾는다
+	const prev =
+		index > 0
+			? withRecords[index - 1]
+			: [...withRecords].reverse().find((d) => d < value);
+	const next =
+		index >= 0
+			? withRecords[index + 1]
+			: withRecords.find((d) => d > value);
 
 	return (
-		<div className="daypick">
-			{withRecords.map((d) => (
-				<button
-					key={d.date}
-					type="button"
-					className={d.date === value ? "daypick__day daypick__day--on" : "daypick__day"}
-					onClick={() => onChange(d.date)}
-				>
-					{dayLabel(d.date)}
-				</button>
-			))}
+		<div className="daynav">
+			<button
+				type="button"
+				className="daynav__arrow"
+				onClick={() => prev && onChange(prev)}
+				disabled={!prev}
+				aria-label="이전 날"
+			>
+				←
+			</button>
+
+			<div className="daynav__center">
+				<input
+					type="date"
+					className="daynav__field"
+					value={value}
+					min={withRecords[0]}
+					max={withRecords[withRecords.length - 1]}
+					onChange={(event) => onChange(event.target.value)}
+					aria-label="날짜"
+				/>
+				<span className="daynav__weekday">
+					{value ? dayLabel(value).slice(-3) : ""}
+				</span>
+			</div>
+
+			<button
+				type="button"
+				className="daynav__arrow"
+				onClick={() => next && onChange(next)}
+				disabled={!next}
+				aria-label="다음 날"
+			>
+				→
+			</button>
 		</div>
 	);
 }
 
 function Periods({ buckets }: { buckets: StatsData["weeks"] }) {
-	if (buckets.length === 0) return <p className="empty">기록이 없습니다</p>;
+	const withRecords = buckets.filter((b) => b.seconds > 0);
 
-	const max = Math.max(...buckets.map((b) => b.seconds), 1);
+	if (withRecords.length === 0) return <p className="empty">기록이 없습니다</p>;
 
 	return (
-		<ul className="chart">
-			{[...buckets].reverse().map((b) => (
-				<Bar
-					key={b.key}
-					label={periodLabel(b.key)}
-					value={b.seconds}
-					max={max}
-					note={
-						b.people > 0
-							? `${b.people}명 · ${b.activeDays}일 · 하루 ${hours(b.seconds / Math.max(b.activeDays, 1))}`
-							: undefined
-					}
-					dim={b.seconds === 0}
-				/>
-			))}
-		</ul>
+		<>
+			<Columns
+				items={buckets.map((b) => ({
+					key: b.key,
+					label: periodLabel(b.key),
+					value: b.seconds,
+				}))}
+				format={hours}
+				labelEvery={buckets.length > 8 ? 2 : 1}
+				peakLabel="가장 많았던"
+			/>
+
+			<ul className="facts">
+				{[...withRecords].reverse().map((b) => (
+					<li key={b.key} className="facts__row">
+						<span className="facts__label">{periodLabel(b.key)}</span>
+						<span className="facts__value">{hours(b.seconds)}</span>
+						<span className="facts__note">
+							{`${b.people}명 · 하루 ${hours(b.seconds / Math.max(b.activeDays, 1))}`}
+						</span>
+					</li>
+				))}
+			</ul>
+		</>
 	);
 }
 
-function Summary({ data }: { data: StatsData }) {
+export function Summary({ data }: { data: StatsData }) {
 	const busiest = [...data.hours].sort((a, b) => b.seconds - a.seconds)[0];
 
 	return (
@@ -289,7 +345,6 @@ function Body({
 	view: View;
 	onOpen: (person: PersonStat) => void;
 }) {
-	const hourMax = Math.max(...data.hours.map((h) => h.seconds), 1);
 
 	// 요일은 그 요일이 몇 번 있었는지가 다르다. 합계로 견주면 기간에 두 번 든
 	// 요일이 유리해진다. 하루 평균으로 고쳐 놓고 본다.
@@ -297,54 +352,49 @@ function Body({
 		...w,
 		average: w.days > 0 ? w.seconds / w.days : 0,
 	}));
-	const weekdayMax = Math.max(...weekdayAvg.map((w) => w.average), 1);
 
 	return (
 		<>
-			{view === "weeks" && <Periods buckets={data.weeks} />}
-			{view === "months" && <Periods buckets={data.months} />}
+			<Periods buckets={view === "weeks" ? data.weeks : data.months} />
 
-			{view === "pattern" && (
-				<>
-					<h3 className="stats__title">시간대</h3>
-					<ul className="chart">
-						{data.hours.map((h) => (
-							<Bar
-								key={h.hour}
-								label={`${h.hour}시`}
-								value={h.seconds}
-								max={hourMax}
-								dim={h.seconds === 0}
-							/>
-						))}
-					</ul>
+			<h3 className="stats__title stats__title--gap">랭킹</h3>
+			<Ranking people={data.people} onOpen={onOpen} />
 
-					<h3 className="stats__title stats__title--gap">요일</h3>
-					<ul className="chart">
-						{weekdayAvg.map((w) => (
-							<Bar
-								key={w.weekday}
-								label={WEEKDAY[w.weekday] ?? ""}
-								value={w.average}
-								max={weekdayMax}
-								suffix={w.days > 0 ? `${w.days}일` : undefined}
-								dim={w.average === 0}
-							/>
-						))}
-					</ul>
-				</>
-			)}
+			{/* 하루의 모양. 24칸이라 라벨은 세 시간마다 */}
+			<h3 className="stats__title stats__title--gap">시간대</h3>
+			<Columns
+				items={data.hours.map((h) => ({
+					key: String(h.hour),
+					label: `${h.hour}`,
+					value: h.seconds,
+				}))}
+				format={hours}
+				labelEvery={3}
+				peakLabel="가장 붐비는 시간"
+			/>
 
-			{view === "rank" && <Ranking people={data.people} onOpen={onOpen} />}
+			<h3 className="stats__title stats__title--gap">요일</h3>
+			<Columns
+				items={weekdayAvg.map((w) => ({
+					key: String(w.weekday),
+					label: WEEKDAY[w.weekday] ?? "",
+					value: w.average,
+				}))}
+				format={hours}
+				peakLabel="가장 많이 모이는 요일"
+			/>
 		</>
 	);
 }
 
 export default function Stats() {
-	const [days, setDays] = useState(14);
-	const [view, setView] = useState<View>("day");
+	const [mode, setMode] = useState<Mode>("day");
+	const [view, setView] = useState<View>("weeks");
 	const [date, setDate] = useState("");
 	const [selected, setSelected] = useState<PersonStat | null>(null);
+
+	// 스냅샷도 날짜 목록이 필요하다. 넉넉히 받아 두고 화면에서 가른다.
+	const days = mode === "day" ? 90 : VIEW_DAYS[view];
 
 	const { data, isPending, isError, error } = useQuery({
 		queryKey: ["stats", days],
@@ -367,29 +417,14 @@ export default function Stats() {
 			</div>
 
 			<nav className="tabs">
-				{RANGES.map((r) => (
+				{MODES.map((m) => (
 					<button
-						key={r}
+						key={m.id}
 						type="button"
-						className={days === r ? "tab tab--on" : "tab"}
-						onClick={() => setDays(r)}
+						className={mode === m.id ? "tab tab--on" : "tab"}
+						onClick={() => setMode(m.id)}
 					>
-						{`${r}일`}
-					</button>
-				))}
-			</nav>
-
-			{data && <Summary data={data} />}
-
-			<nav className="tabs stats__views">
-				{VIEWS.map((v) => (
-					<button
-						key={v.id}
-						type="button"
-						className={view === v.id ? "tab tab--on" : "tab"}
-						onClick={() => setView(v.id)}
-					>
-						{v.label}
+						{m.label}
 					</button>
 				))}
 			</nav>
@@ -400,14 +435,33 @@ export default function Stats() {
 					{error instanceof Error ? error.message : "불러오지 못했습니다"}
 				</p>
 			)}
-			{data && view === "day" && (
-				<DayPicker days={data.days} value={shown} onChange={setDate} />
+
+			{data && mode === "day" && (
+				<>
+					<DayPicker days={data.days} value={shown} onChange={setDate} />
+					{shown && <DayView date={shown} />}
+				</>
 			)}
 
-			{view === "day" ? (
-				shown && <DayView date={shown} />
-			) : (
-				data && <Body data={data} view={view} onOpen={setSelected} />
+			{data && mode === "stats" && (
+				<>
+					{/* 통계의 최상위는 단위다. 단위가 보는 기간까지 정한다 */}
+					<nav className="tabs stats__range">
+						{VIEWS.map((v) => (
+							<button
+								key={v.id}
+								type="button"
+								className={view === v.id ? "tab tab--on" : "tab"}
+								onClick={() => setView(v.id)}
+							>
+								{v.label}
+							</button>
+						))}
+					</nav>
+
+					<Summary data={data} />
+					<Body data={data} view={view} onOpen={setSelected} />
+				</>
 			)}
 
 			{selected && (

@@ -109,13 +109,20 @@ describe("App", () => {
 	it("온라인과 오프라인 구역을 나눠 보여준다", () => {
 		expect(html).toContain("온라인");
 		expect(html).toContain("오프라인");
-		expect(html).toContain("section--online");
-		expect(html).toContain("section--offline");
+		expect(html).toContain("section__title--online");
+		expect(html).toContain("section__title--offline");
+	});
+
+	it("제목을 구역 상자로 감싸지 않는다 — 감싸면 sticky 가 끊긴다", () => {
+		// sticky 는 제 부모 안에서만 붙어 있다. 구역마다 감싸면 구역이 끝날 때
+		// 제목이 자기 높이만큼 밀려 나가고, 다음 제목은 아직 도착하지 않아
+		// 아무 라벨도 없는 틈이 생긴다.
+		expect(html).not.toContain("<section");
 	});
 
 	it("온라인 구역이 오프라인 구역보다 위에 온다", () => {
-		expect(html.indexOf("section--online")).toBeLessThan(
-			html.indexOf("section--offline"),
+		expect(html.indexOf("section__title--online")).toBeLessThan(
+			html.indexOf("section__title--offline"),
 		);
 	});
 
@@ -290,8 +297,8 @@ describe("App", () => {
 			totalCount: 3,
 			participants: snapshot.participants.filter((p) => p.isPresent),
 		});
-		expect(onlyOnline).toContain("section--online");
-		expect(onlyOnline).not.toContain("section--offline");
+		expect(onlyOnline).toContain("section__title--online");
+		expect(onlyOnline).not.toContain("section__title--offline");
 	});
 
 	it("참가자 이름을 보여준다", () => {
@@ -381,7 +388,7 @@ describe("App", () => {
 			participants: snapshot.participants.map((p) => ({ ...p, isPresent: false })),
 		});
 		expect(allLeft).toContain("접속 중인 사람이 없습니다");
-		expect(allLeft).toContain("section--offline");
+		expect(allLeft).toContain("section__title--offline");
 		expect(allLeft).toContain("조하나");
 	});
 

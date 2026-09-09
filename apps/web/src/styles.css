@@ -211,15 +211,8 @@ body {
 	opacity: 0.7;
 }
 
-/* 두 구역 사이를 넉넉히 벌려 경계를 분명히 한다 */
-.section {
-	margin-top: 40px;
-}
-
-.section--online {
-	margin-top: 4px;
-}
-
+/* 구역을 감싸는 상자가 없다. 제목들이 같은 부모를 써야 sticky 가 서로
+   넘겨받는다 — 상세는 App.tsx 의 Section 주석. 간격은 제목이 직접 준다. */
 .section__title {
 	display: flex;
 	align-items: center;
@@ -236,6 +229,15 @@ body {
 	background: var(--bg);
 	/* 카드 이모지(불꽃 z-index: 2)보다 위에 있어야 스크롤 시 라벨을 덮지 않는다 */
 	z-index: 3;
+}
+
+/* 두 구역 사이를 넉넉히 벌려 경계를 분명히 한다 */
+.section__title--offline {
+	margin-top: 40px;
+}
+
+.section__title--online {
+	margin-top: 4px;
 }
 
 .section__dot {
@@ -1529,54 +1531,87 @@ body {
 	margin-top: 22px;
 }
 
+/* 통계 안의 기간 선택. 최상위 탭 바로 아래라 조금 띄운다 */
+.stats__range {
+	margin-top: 14px;
+}
+
 /* 패턴 탭 안의 작은 제목 */
 .stats__title--gap {
 	margin-top: 26px;
 }
 
-/* 날짜 고르기. 옆으로 넘긴다 — 세로로 쌓으면 화면을 다 먹는다 */
-.daypick {
+/* ── 날짜 이동 ─────────────────────────────── */
+
+.daynav {
 	display: flex;
-	gap: 6px;
-	margin-top: 14px;
-	padding-bottom: 4px;
-	overflow-x: auto;
-	scrollbar-width: none;
+	align-items: center;
+	gap: 8px;
+	margin-top: 16px;
 }
 
-.daypick::-webkit-scrollbar {
-	display: none;
-}
-
-.daypick__day {
+.daynav__arrow {
 	flex: none;
-	padding: 6px 10px;
+	width: 34px;
+	height: 34px;
 	border: 1px solid var(--line);
-	border-radius: 999px;
+	border-radius: 8px;
 	background: none;
-	color: var(--muted);
+	color: var(--fg);
 	font: inherit;
-	font-size: 12px;
-	font-variant-numeric: tabular-nums;
-	white-space: nowrap;
+	font-size: 15px;
 	cursor: pointer;
 }
 
-.daypick__day--on {
-	border-color: var(--accent);
-	background: var(--accent);
-	color: #ffffff;
+.daynav__arrow:hover:not(:disabled) {
+	border-color: var(--line-strong);
 }
 
-:root[data-theme="dark"] .daypick__day--on,
-:root:not([data-theme="light"]) .daypick__day--on {
-	color: #10131a;
+/* 더 갈 곳이 없으면 눌리지 않는다. 그것이 곧 "여기가 끝" 이라는 표시다 */
+.daynav__arrow:disabled {
+	opacity: 0.3;
+	cursor: default;
+}
+
+.daynav__center {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+}
+
+.daynav__field {
+	padding: 7px 10px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--field);
+	color: var(--fg);
+	font: inherit;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+}
+
+.daynav__field:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+/* 다크에서 달력 아이콘이 검게 묻힌다 */
+:root[data-theme="dark"] .daynav__field::-webkit-calendar-picker-indicator,
+:root:not([data-theme="light"]) .daynav__field::-webkit-calendar-picker-indicator {
+	filter: invert(1) opacity(0.6);
 }
 
 @media (prefers-color-scheme: light) {
-	:root:not([data-theme="dark"]) .daypick__day--on {
-		color: #ffffff;
+	:root:not([data-theme="dark"]) .daynav__field::-webkit-calendar-picker-indicator {
+		filter: none;
 	}
+}
+
+.daynav__weekday {
+	color: var(--muted);
+	font-size: 13px;
 }
 
 /* 그날 요약 한 줄 */
@@ -1742,4 +1777,90 @@ body {
 /* 막대 바로 아래에 버튼이 붙으면 목록의 일부처럼 보인다 */
 .person .dialog__actions {
 	margin-top: 16px;
+}
+
+/* 세로 막대 아래 붙는 숫자 목록. 그림은 모양을, 여기는 값을 말한다 */
+.facts {
+	margin: 16px 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.facts__row {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 5px 2px;
+	border-bottom: 1px solid var(--line);
+	font-size: 12px;
+}
+
+.facts__label {
+	flex: none;
+	width: 62px;
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
+.facts__value {
+	flex: none;
+	width: 62px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+}
+
+.facts__note {
+	color: var(--muted-weak);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+/* ── 세로 막대 ─────────────────────────────── */
+
+.cols {
+	display: flex;
+	align-items: flex-end;
+	gap: 2px;
+	height: 150px;
+	margin-top: 14px;
+}
+
+.cols__item {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: flex-end;
+	height: 100%;
+	min-width: 0;
+}
+
+.cols__bar {
+	width: 100%;
+	min-height: 1px;
+	border-radius: 2px 2px 0 0;
+	background: var(--accent);
+	opacity: 0.55;
+}
+
+/* 가장 높은 칸만 진하게. 어디가 봉우리인지 먼저 보이게 한다 */
+.cols__bar--peak {
+	opacity: 1;
+}
+
+/* 봉우리가 무엇이었는지. 그림 아래에 조용히 */
+.cols__peak {
+	margin: 8px 2px 0;
+	color: var(--muted);
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+}
+
+.cols__label {
+	margin-top: 5px;
+	height: 13px;
+	color: var(--muted-weak);
+	font-size: 10px;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
 }

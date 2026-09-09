@@ -4,11 +4,12 @@ import { renderToString } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import type { Stats as StatsData } from "../src/api.ts";
-import Stats, { hours, Ranking } from "../src/Stats.tsx";
+import Stats, { hours, Ranking, Summary } from "../src/Stats.tsx";
 
 function render(data?: StatsData): string {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-	if (data) client.setQueryData(["stats", 14], data);
+	// 스냅샷 화면은 날짜 목록이 필요해 넉넉히 받는다. 그 키로 심어야 한다.
+	if (data) client.setQueryData(["stats", 90], data);
 
 	return renderToString(
 		createElement(QueryClientProvider, { client }, createElement(Stats)),
@@ -67,7 +68,11 @@ describe("통계 화면", () => {
 		);
 	}
 
-	it("구역을 탭으로 나눈다", () => {
+	function renderSummary(data: StatsData): string {
+		return renderToString(createElement(Summary, { data }));
+	}
+
+	it("스냅샷과 통계를 최상위에서 가른다", () => {
 		const html = render({
 			...EMPTY,
 			days: [{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" }],
@@ -79,32 +84,43 @@ describe("통계 화면", () => {
 			totalPeople: 3,
 		});
 
-		// 탭 이름
-		expect(html).toContain("일별");
-		expect(html).toContain("주별");
-		expect(html).toContain("월별");
-		expect(html).toContain("패턴");
-		expect(html).toContain("랭킹");
-		// 요약은 탭과 무관하게 늘 보인다
+		expect(html).toContain("스냅샷");
+		expect(html).toContain("통계");
+		// 통계 안의 것들은 그 탭을 골라야 나온다
+		expect(html).not.toContain("주별");
+		expect(html).not.toContain("랭킹");
+	});
+
+	it("요약은 통계 쪽 값이다", () => {
+		const html = renderSummary({
+			...EMPTY,
+			hours: EMPTY.hours.map((h) => (h.hour === 22 ? { ...h, seconds: 7200 } : h)),
+			typicalStart: "21:00",
+			typicalEnd: "23:00",
+			totalSeconds: 7200,
+			totalPeople: 3,
+		});
+
 		expect(html).toContain("붐비는 시간 22시");
 		expect(html).toContain("21:00");
 	});
 
-	it("처음에는 일별을 보여준다 — 처음에 물어본 것이 그쪽이다", () => {
+	it("처음에는 스냅샷을 보여준다 — 처음에 물어본 것이 그쪽이다", () => {
 		const html = render({
 			...EMPTY,
 			days: [{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" }],
 			people: [person()],
 		});
 
-		// 기록이 있는 날만 고를 수 있게 칩으로 내놓는다
-		expect(html).toContain("daypick__day");
-		expect(html).toContain("09-09");
+		// 화살표로 앞뒤를 오가고, 달력으로 아무 날이나 짚는다
+		expect(html).toContain('type="date"');
+		expect(html).toContain("daynav__arrow");
+		expect(html).toContain("2026-09-09");
 		// 랭킹 탭을 고르기 전에는 사람 목록이 나오지 않는다
 		expect(html).not.toContain("rank__row");
 	});
 
-	it("기록이 없는 날은 고를 수 없다", () => {
+	it("더 갈 곳이 없으면 화살표가 눌리지 않는다", () => {
 		const html = render({
 			...EMPTY,
 			days: [
@@ -113,8 +129,8 @@ describe("통계 화면", () => {
 			],
 		});
 
-		expect(html).toContain("09-09");
-		expect(html).not.toContain("09-08");
+		// 기록이 있는 날이 하나뿐이라 양쪽 다 막힌다
+		expect(html.split("disabled").length - 1).toBe(2);
 	});
 
 	it("설명 문장을 늘어놓지 않는다", () => {
@@ -150,7 +166,7 @@ describe("통계 화면", () => {
 	});
 
 	it("지난 주와 견준다", () => {
-		const html = render({
+		const html = renderSummary({
 			...EMPTY,
 			week: {
 				recent: { seconds: 11 * 3600, people: 3 },
@@ -163,7 +179,7 @@ describe("통계 화면", () => {
 	});
 
 	it("견줄 지난 주가 없으면 첫 주라고 한다", () => {
-		const html = render({
+		const html = renderSummary({
 			...EMPTY,
 			week: {
 				recent: { seconds: 3600, people: 1 },
@@ -178,8 +194,8 @@ describe("통계 화면", () => {
 	it("기록이 없어도 화면이 선다", () => {
 		const html = render(EMPTY);
 
-		expect(html).toContain("일별");
-		expect(html).not.toContain("붐비는 시간");
+		expect(html).toContain("스냅샷");
+		expect(renderSummary(EMPTY)).not.toContain("붐비는 시간");
 		expect(renderRanking([])).toContain("기록이 없습니다");
 	});
 
@@ -217,13 +233,13 @@ describe("긴 목록", () => {
 		expect(html).not.toContain("더 보기");
 	});
 
-	it("일별 탭이 랭킹 탭보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
+	it("스냅샷이 통계보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
 		const html = render({ ...EMPTY, people: many(3) });
 
-		expect(html.indexOf("일별")).toBeLessThan(html.indexOf("랭킹"));
+		expect(html.indexOf("스냅샷")).toBeLessThan(html.indexOf("통계"));
 	});
 
-	it("일별 탭에서는 통계 막대를 그리지 않는다 — 그날의 화면이다", () => {
+	it("스냅샷에서는 통계 막대를 그리지 않는다 — 그날의 화면이다", () => {
 		const html = render({
 			...EMPTY,
 			days: [{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" }],
