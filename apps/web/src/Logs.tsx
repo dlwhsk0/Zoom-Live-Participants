@@ -211,7 +211,7 @@ export default function Admin() {
 			<Toast toast={toast} onDismiss={dismissToast} />
 
 			<div className="topbar">
-				<p className="topbar__total">어드민</p>
+				<p className="topbar__total">Admin</p>
 				<div className="topbar__actions">
 					<span className="topbar__who">{me.data.username}</span>
 					<button
