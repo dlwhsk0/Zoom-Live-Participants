@@ -12,6 +12,9 @@
 export const config = {
 	// robots.txt 는 열어 둔다. 크롤러가 "들어오지 마라"를 읽기는 해야 한다.
 	matcher: "/((?!robots.txt).*)",
+	// edge 런타임은 Vercel 이 더 이상 권하지 않는다(빌드 경고).
+	// 여기서 쓰는 것은 헤더 읽기와 atob 뿐이라 어느 쪽이든 똑같이 돈다.
+	runtime: "nodejs",
 };
 
 const REALM = "techeer-up";
