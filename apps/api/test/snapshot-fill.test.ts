@@ -16,7 +16,7 @@ const BASE: Stats = {
 	people: [],
 	weeks: [],
 	months: [],
-	week: { recent: { seconds: 0, people: 0 }, previous: { seconds: 0, people: 0 } },
+	comparison: { current: { seconds: 0, people: 0 }, previous: { seconds: 0, people: 0 } },
 	typicalStart: null,
 	typicalEnd: null,
 	totalSeconds: 7200,

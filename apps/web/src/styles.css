@@ -1531,39 +1531,52 @@ body {
 	margin-top: 22px;
 }
 
-/* 얼마나 거슬러 볼지. 최상위 탭과 같은 모양이면 무엇이 위인지 흐려진다.
-   작은 칩으로 두어 한 단계 아래임을 눈으로 알게 한다 */
-.range {
-	display: flex;
-	gap: 6px;
-	margin-top: 14px;
-}
-
-.range__chip {
-	padding: 5px 11px;
-	border: 1px solid var(--line);
-	border-radius: 999px;
-	background: none;
-	color: var(--muted);
-	font: inherit;
-	font-size: 12px;
-	cursor: pointer;
-}
-
-.range__chip:hover {
-	border-color: var(--line-strong);
-	color: var(--fg);
-}
-
-.range__chip--on {
-	border-color: var(--fg);
-	color: var(--fg);
-	font-weight: 600;
-}
-
 /* 패턴 탭 안의 작은 제목 */
 .stats__title--gap {
 	margin-top: 26px;
+}
+
+/* 기간·월 고르기 */
+.pick {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.pick__field {
+	flex: 1;
+	min-width: 0;
+	padding: 8px 10px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--field);
+	color: var(--fg);
+	font: inherit;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+}
+
+.pick__field:focus {
+	outline: none;
+	border-color: var(--accent);
+}
+
+:root[data-theme="dark"] .pick__field::-webkit-calendar-picker-indicator,
+:root:not([data-theme="light"]) .pick__field::-webkit-calendar-picker-indicator {
+	filter: invert(1) opacity(0.6);
+}
+
+@media (prefers-color-scheme: light) {
+	:root:not([data-theme="dark"]) .pick__field::-webkit-calendar-picker-indicator {
+		filter: none;
+	}
+}
+
+.pick__tilde {
+	flex: none;
+	color: var(--muted-weak);
+	font-size: 13px;
 }
 
 /* ── 날짜 이동 ─────────────────────────────── */
