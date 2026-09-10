@@ -10,40 +10,46 @@ import StudyIcon from "./StudyIcon.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 
 /**
- * 최상위. 셋을 한 줄에 둔다.
+ * 최상위 셋. 무엇을 고르느냐가 다르다.
  *
- * 스냅샷은 그날의 화면이고, 주별·월별은 기간을 묶어 본 값이다. 앞서
- * "스냅샷/통계" 위에 "주별/월별" 을 또 얹었더니 같은 모양의 줄이 두 번
- * 나와 무엇이 상위인지 흐려졌다.
+ *   스냅샷   날짜 하나       그날의 참가자 목록
+ *   기간별   시작일~종료일   그 기간의 통계
+ *   월별     달 하나         그 달의 통계
+ *
+ * 미리 정한 보기(4주·8주…)를 고르게 하지 않는다. 보고 싶은 기간은 사람마다
+ * 다르고, 고정 보기는 늘 어긋난다.
  */
-type Mode = "day" | "weeks" | "months";
+type Mode = "day" | "range" | "month";
 
 const MODES: { id: Mode; label: string }[] = [
 	{ id: "day", label: "스냅샷" },
-	{ id: "weeks", label: "주별" },
-	{ id: "months", label: "월별" },
+	{ id: "range", label: "기간별" },
+	{ id: "month", label: "월별" },
 ];
 
-type View = "weeks" | "months";
-
-/**
- * 얼마나 거슬러 볼지. 단위마다 말이 다르다 — 주를 보면서 "90일" 이라고
- * 하면 몇 주인지 세어야 한다.
- */
-const RANGES: Record<View, { label: string; days: number }[]> = {
-	weeks: [
-		{ label: "4주", days: 28 },
-		{ label: "8주", days: 56 },
-		{ label: "12주", days: 84 },
-	],
-	months: [
-		{ label: "3개월", days: 90 },
-		{ label: "6개월", days: 180 },
-		{ label: "1년", days: 365 },
-	],
-};
 const WEEKDAY = ["일", "월", "화", "수", "목", "금", "토"];
 const MEDAL = ["🥇", "🥈", "🥉"];
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** 한국 시간 기준 오늘. */
+function today(): string {
+	return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+}
+
+function shiftDays(date: string, days: number): string {
+	return new Date(Date.parse(`${date}T00:00:00Z`) + days * DAY_MS)
+		.toISOString()
+		.slice(0, 10);
+}
+
+/** 그 달의 첫날과 마지막날. */
+function monthRange(month: string): { from: string; to: string } {
+	const [year, mm] = month.split("-").map(Number);
+	const last = new Date(Date.UTC(year ?? 2026, mm ?? 1, 0)).getUTCDate();
+
+	return { from: `${month}-01`, to: `${month}-${String(last).padStart(2, "0")}` };
+}
 
 /** 통계는 시간 단위로 읽는다. 초까지 보여줄 이유가 없다. */
 export function hours(seconds: number): string {
@@ -62,9 +68,14 @@ function dayLabel(date: string): string {
 	return `${date.slice(5)} (${WEEKDAY[d.getUTCDay()] ?? ""})`;
 }
 
-/** 주는 시작일로, 달은 그대로 읽는다. */
+/**
+ * 칸 이름.
+ *
+ *   2026-09  →  9월
+ *   2026-09-07  →  09-07   (주로 묶였으면 그 주의 시작일)
+ */
 function periodLabel(key: string): string {
-	return key.length === 7 ? `${Number(key.slice(5))}월` : `${key.slice(5)} 주`;
+	return key.length === 7 ? `${Number(key.slice(5))}월` : key.slice(5);
 }
 
 function Bar({
@@ -103,12 +114,12 @@ function Bar({
 
 
 /** 지난 7일과 그 앞 7일. 늘었으면 위, 줄었으면 아래. */
-function WeekCard({ week }: { week: StatsData["week"] | undefined }) {
+function WeekCard({ week }: { week: StatsData["comparison"] | undefined }) {
 	// 웹은 즉시 배포되고 API 는 수동이다. 그 사이에 옛 응답이 올 수 있으므로
 	// 없는 필드를 읽고 화면 전체가 죽는 일은 없어야 한다.
 	if (!week) return null;
 
-	const { recent, previous } = week;
+	const { current: recent, previous } = week;
 
 	if (recent.seconds === 0 && previous.seconds === 0) return null;
 
@@ -122,7 +133,7 @@ function WeekCard({ week }: { week: StatsData["week"] | undefined }) {
 	return (
 		<div className="week">
 			<div className="week__main">
-				<p className="week__label">지난 7일</p>
+				<p className="week__label">이 기간</p>
 				<p className="week__value">{hours(recent.seconds)}</p>
 			</div>
 			<p
@@ -135,12 +146,12 @@ function WeekCard({ week }: { week: StatsData["week"] | undefined }) {
 				}
 			>
 				{diff === null
-					? "첫 주"
+					? "견줄 앞 기간 없음"
 					: flat
-						? "그 전 주와 같음"
+						? "직전과 같음"
 						: `${up ? "▲" : "▼"} ${Math.abs(diff)}%`}
 				{previous.seconds > 0 && (
-					<span className="week__prev">{`그 전 7일 ${hours(previous.seconds)}`}</span>
+					<span className="week__prev">{`직전 같은 기간 ${hours(previous.seconds)}`}</span>
 				)}
 			</p>
 		</div>
@@ -337,7 +348,7 @@ export function Summary({ data }: { data: StatsData }) {
 				</p>
 			</header>
 
-			<WeekCard week={data.week} />
+			<WeekCard week={data.comparison} />
 
 			{data.typicalStart && data.typicalEnd && (
 				<p className="stats__typical">
@@ -353,13 +364,15 @@ export function Summary({ data }: { data: StatsData }) {
 
 function Body({
 	data,
-	view,
 	onOpen,
 }: {
 	data: StatsData;
-	view: View;
 	onOpen: (person: PersonStat) => void;
 }) {
+	// 기간이 길면 날짜 하나하나가 너무 잘다. 칸 수가 감당할 만한 단위를 고른다.
+	const span = data.days.length;
+	const buckets =
+		span <= 45 ? data.days.map((d) => ({ key: d.date, seconds: d.seconds, people: d.people, activeDays: d.seconds > 0 ? 1 : 0 })) : span <= 200 ? data.weeks : data.months;
 
 	// 요일은 그 요일이 몇 번 있었는지가 다르다. 합계로 견주면 기간에 두 번 든
 	// 요일이 유리해진다. 하루 평균으로 고쳐 놓고 본다.
@@ -370,7 +383,7 @@ function Body({
 
 	return (
 		<>
-			<Periods buckets={view === "weeks" ? data.weeks : data.months} />
+			<Periods buckets={buckets} />
 
 			<h3 className="stats__title stats__title--gap">랭킹</h3>
 			<Ranking people={data.people} onOpen={onOpen} />
@@ -402,28 +415,51 @@ function Body({
 	);
 }
 
+function DaySection({
+	days,
+	date,
+	onChange,
+}: {
+	days: StatsData["days"];
+	date: string;
+	onChange: (date: string) => void;
+}) {
+	const latest = days.filter((d) => d.seconds > 0).at(-1)?.date;
+	const shown = date || latest || today();
+
+	return (
+		<>
+			<DayPicker days={days} value={shown} onChange={onChange} />
+			<DayView date={shown} />
+		</>
+	);
+}
+
 export default function Stats() {
 	const [mode, setMode] = useState<Mode>("day");
-	const [range, setRange] = useState<Record<View, number>>({
-		weeks: 28,
-		months: 90,
-	});
+	// 비워 두고 데이터가 오면 기록이 있는 가장 최근 날을 연다. 오늘 아직
+	// 아무도 안 왔으면 어제를 보여주는 편이 빈 화면보다 낫다.
 	const [date, setDate] = useState("");
+	const [from, setFrom] = useState(() => shiftDays(today(), -13));
+	const [to, setTo] = useState(today);
+	const [month, setMonth] = useState(() => today().slice(0, 7));
 	const [selected, setSelected] = useState<PersonStat | null>(null);
 
-	const view: View = mode === "months" ? "months" : "weeks";
-
-	// 스냅샷도 날짜 목록이 필요하다. 넉넉히 받아 두고 화면에서 가른다.
-	const days = mode === "day" ? 90 : range[view];
+	// 스냅샷은 날짜를 고르는 화면이라 어느 날에 기록이 있는지 알아야 한다.
+	// 그래서 통계와 다른 범위를 받는다.
+	const asked =
+		mode === "day"
+			? { from: shiftDays(today(), -89), to: today() }
+			: mode === "month"
+				? monthRange(month)
+				: { from, to };
 
 	const { data, isPending, isError, error } = useQuery({
-		queryKey: ["stats", days],
-		queryFn: () => fetchStats(days),
+		queryKey: ["stats", asked.from, asked.to],
+		queryFn: () => fetchStats(asked.from, asked.to),
+		// 시작일이 종료일보다 늦으면 물어볼 것이 없다
+		enabled: asked.from <= asked.to,
 	});
-
-	// 처음에는 기록이 있는 가장 최근 날을 연다. 오늘이 비어 있으면 어제다.
-	const latest = data?.days.filter((d) => d.seconds > 0).at(-1)?.date ?? "";
-	const shown = date || latest;
 
 	return (
 		<main className="screen">
@@ -449,6 +485,42 @@ export default function Stats() {
 				))}
 			</nav>
 
+			{mode === "range" && (
+				<div className="pick">
+					<input
+						type="date"
+						className="pick__field"
+						value={from}
+						max={to}
+						onChange={(event) => setFrom(event.target.value)}
+						aria-label="시작일"
+					/>
+					<span className="pick__tilde">~</span>
+					<input
+						type="date"
+						className="pick__field"
+						value={to}
+						min={from}
+						max={today()}
+						onChange={(event) => setTo(event.target.value)}
+						aria-label="종료일"
+					/>
+				</div>
+			)}
+
+			{mode === "month" && (
+				<div className="pick">
+					<input
+						type="month"
+						className="pick__field"
+						value={month}
+						max={today().slice(0, 7)}
+						onChange={(event) => setMonth(event.target.value)}
+						aria-label="월"
+					/>
+				</div>
+			)}
+
 			{isPending && <p className="empty">불러오는 중…</p>}
 			{isError && (
 				<p className="empty">
@@ -457,33 +529,13 @@ export default function Stats() {
 			)}
 
 			{data && mode === "day" && (
-				<>
-					<DayPicker days={data.days} value={shown} onChange={setDate} />
-					{shown && <DayView date={shown} />}
-				</>
+				<DaySection days={data.days} date={date} onChange={setDate} />
 			)}
 
 			{data && mode !== "day" && (
 				<>
-					{/* 얼마나 거슬러 볼지. 최상위 탭과 같은 모양이면 무엇이 위인지
-					    흐려진다. 작은 칩으로 둔다 */}
-					<div className="range">
-						{RANGES[view].map((r) => (
-							<button
-								key={r.days}
-								type="button"
-								className={
-									range[view] === r.days ? "range__chip range__chip--on" : "range__chip"
-								}
-								onClick={() => setRange({ ...range, [view]: r.days })}
-							>
-								{r.label}
-							</button>
-						))}
-					</div>
-
 					<Summary data={data} />
-					<Body data={data} view={view} onOpen={setSelected} />
+					<Body data={data} onOpen={setSelected} />
 				</>
 			)}
 

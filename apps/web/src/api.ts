@@ -418,8 +418,8 @@ export interface PersonStat {
 	daily: { date: string; seconds: number }[];
 }
 
-export interface WeekComparison {
-	recent: { seconds: number; people: number };
+export interface Comparison {
+	current: { seconds: number; people: number };
 	previous: { seconds: number; people: number };
 }
 
@@ -432,7 +432,7 @@ export interface Stats {
 	hours: HourBucket[];
 	weekdays: WeekdayBucket[];
 	people: PersonStat[];
-	week: WeekComparison;
+	comparison: Comparison;
 	/** 보통 몇 시에 시작해서 몇 시에 끝나는가 (HH:MM) */
 	typicalStart: string | null;
 	typicalEnd: string | null;
@@ -440,9 +440,11 @@ export interface Stats {
 	totalPeople: number;
 }
 
-export async function fetchStats(days: number): Promise<Stats> {
+/** 양끝을 포함하는 기간. YYYY-MM-DD. */
+export async function fetchStats(from: string, to: string): Promise<Stats> {
 	const url = new URL(`${API_BASE}/api/stats`, window.location.origin);
-	url.searchParams.set("days", String(days));
+	url.searchParams.set("from", from);
+	url.searchParams.set("to", to);
 
 	const response = await fetch(url, {
 		headers: apiHeaders({ accept: "application/json" }),

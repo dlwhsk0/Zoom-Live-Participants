@@ -89,13 +89,16 @@ export interface PersonStat {
 }
 
 /**
- * 최근 7일과 그 앞 7일.
+ * 고른 기간과 **직전 같은 길이**의 기간.
  *
- * 오늘은 빼고 어제까지로 자른다. 오늘은 아직 끝나지 않아서 넣으면
- * 이번 주가 늘 지는 것처럼 보인다.
+ * 처음에는 "지난 7일 대 그 앞 7일" 로 오늘에 붙여 두었다. 기간을 직접
+ * 고르게 되면서 그 기준이 뜻을 잃는다 — 8월을 보는데 "지난 7일" 을 말하면
+ * 무엇과 견주는지 알 수 없다.
+ *
+ * 지금 보는 기간이 7일이면 그 앞 7일과, 한 달이면 그 앞 한 달과 견준다.
  */
-export interface WeekComparison {
-	recent: { seconds: number; people: number };
+export interface Comparison {
+	current: { seconds: number; people: number };
 	previous: { seconds: number; people: number };
 }
 
@@ -110,7 +113,7 @@ export interface Stats {
 	weeks: PeriodBucket[];
 	/** 달별. */
 	months: PeriodBucket[];
-	week: WeekComparison;
+	comparison: Comparison;
 	/** 보통 몇 시에 시작해서 몇 시에 끝나는가. 날짜별 값의 중앙값이다. */
 	typicalStart: string | null;
 	typicalEnd: string | null;
@@ -475,11 +478,11 @@ export function buildStats(
 		});
 	}
 
-	// 최근 7일과 그 앞 7일. 오늘은 아직 끝나지 않아서 뺀다.
-	const todayMidnight = kstMidnight(now.getTime());
-	const week = {
-		recent: sumWindow(all, todayMidnight - 7 * DAY_MS, todayMidnight),
-		previous: sumWindow(all, todayMidnight - 14 * DAY_MS, todayMidnight - 7 * DAY_MS),
+	// 고른 기간과 직전 같은 길이의 기간
+	const span = toMs - fromMs;
+	const comparison = {
+		current: sumWindow(all, fromMs, toMs),
+		previous: sumWindow(all, fromMs - span, fromMs),
 	};
 
 	const today = kstDate(now.getTime());
@@ -499,7 +502,7 @@ export function buildStats(
 		})),
 		weeks: groupDays(days, dayPeople, weekKey),
 		months: groupDays(days, dayPeople, monthKey),
-		week,
+		comparison,
 		typicalStart: median(
 			days.map((d) => d.firstAt).filter((v): v is string => v !== null),
 		),

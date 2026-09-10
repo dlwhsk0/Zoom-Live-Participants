@@ -8,8 +8,12 @@ import Stats, { hours, Ranking, Summary } from "../src/Stats.tsx";
 
 function render(data?: StatsData): string {
 	const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-	// 스냅샷 화면은 날짜 목록이 필요해 넉넉히 받는다. 그 키로 심어야 한다.
-	if (data) client.setQueryData(["stats", 90], data);
+	// 스냅샷은 최근 90일을 받아 어느 날에 기록이 있는지 본다. 그 키로 심는다.
+	const to = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10);
+	const from = new Date(Date.parse(`${to}T00:00:00Z`) - 89 * 24 * 60 * 60 * 1000)
+		.toISOString()
+		.slice(0, 10);
+	if (data) client.setQueryData(["stats", from, to], data);
 
 	return renderToString(
 		createElement(QueryClientProvider, { client }, createElement(Stats)),
@@ -25,7 +29,7 @@ const EMPTY: StatsData = {
 	people: [],
 	weeks: [],
 	months: [],
-	week: { recent: { seconds: 0, people: 0 }, previous: { seconds: 0, people: 0 } },
+	comparison: { current: { seconds: 0, people: 0 }, previous: { seconds: 0, people: 0 } },
 	typicalStart: null,
 	typicalEnd: null,
 	totalSeconds: 0,
@@ -85,10 +89,11 @@ describe("통계 화면", () => {
 		});
 
 		expect(html).toContain("스냅샷");
-		expect(html).toContain("주별");
+		expect(html).toContain("기간별");
 		expect(html).toContain("월별");
 		// 통계 쪽 내용은 그 탭을 골라야 나온다
 		expect(html).not.toContain("랭킹");
+		// 미리 정한 보기를 고르게 하지 않는다
 		expect(html).not.toContain("range__chip");
 	});
 
@@ -166,30 +171,30 @@ describe("통계 화면", () => {
 		expect(html).toContain(">4<");
 	});
 
-	it("지난 주와 견준다", () => {
+	it("직전 같은 기간과 견준다", () => {
 		const html = renderSummary({
 			...EMPTY,
-			week: {
-				recent: { seconds: 11 * 3600, people: 3 },
+			comparison: {
+				current: { seconds: 11 * 3600, people: 3 },
 				previous: { seconds: 10 * 3600, people: 3 },
 			},
 		});
 
-		expect(html).toContain("지난 7일");
+		expect(html).toContain("이 기간");
 		expect(html).toContain("10%");
 	});
 
-	it("견줄 지난 주가 없으면 첫 주라고 한다", () => {
+	it("견줄 앞 기간이 없으면 그렇다고 말한다", () => {
 		const html = renderSummary({
 			...EMPTY,
-			week: {
-				recent: { seconds: 3600, people: 1 },
+			comparison: {
+				current: { seconds: 3600, people: 1 },
 				previous: { seconds: 0, people: 0 },
 			},
 		});
 
-		expect(html).toContain("첫 주");
-		expect(html).not.toContain("그 전 7일");
+		expect(html).toContain("견줄 앞 기간 없음");
+		expect(html).not.toContain("직전 같은 기간");
 	});
 
 	it("기록이 없어도 화면이 선다", () => {
@@ -234,19 +239,20 @@ describe("긴 목록", () => {
 		expect(html).not.toContain("더 보기");
 	});
 
-	it("스냅샷이 주별보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
+	it("스냅샷이 기간별보다 먼저 온다 — 처음에 물어본 것이 그쪽이다", () => {
 		const html = render({ ...EMPTY, people: many(3) });
 
-		expect(html.indexOf("스냅샷")).toBeLessThan(html.indexOf("주별"));
+		expect(html.indexOf("스냅샷")).toBeLessThan(html.indexOf("기간별"));
 	});
 
-	it("스냅샷에서는 통계 막대를 그리지 않는다 — 그날의 화면이다", () => {
+	it("스냅샷에서는 통계 그림을 그리지 않는다 — 그날의 화면이다", () => {
 		const html = render({
 			...EMPTY,
 			days: [{ date: "2026-09-09", people: 3, seconds: 7200, peak: 2, firstAt: "21:00", lastAt: "23:00" }],
 			weeks: [{ key: "2026-09-07", seconds: 7200, people: 3, activeDays: 1 }],
 		});
 
-		expect(html).not.toContain("chart__row");
+		expect(html).not.toContain("cols__bar");
+		expect(html).not.toContain("facts__row");
 	});
 });

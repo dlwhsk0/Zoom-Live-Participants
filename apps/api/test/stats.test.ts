@@ -303,35 +303,39 @@ describe("연속 출석", () => {
 	});
 });
 
-describe("주간 비교", () => {
-	const now = kst("2026-09-10T12:00:00");
+describe("직전 기간과 견주기", () => {
+	const now = kst("2026-09-30T12:00:00");
 
-	it("최근 7일과 그 앞 7일을 나눠 센다", () => {
+	it("고른 기간과 직전 같은 길이를 나눠 센다", () => {
 		const stats = buildStats(
 			[
-				// 최근 7일(9/3~9/9) 안
-				person("A", ["2026-09-08T10:00:00", "2026-09-08T12:00:00"]),
-				// 그 앞 7일(8/27~9/2) 안
-				person("B", ["2026-09-01T10:00:00", "2026-09-01T11:00:00"]),
+				// 보는 기간(9/8~9/14) 안
+				person("A", ["2026-09-10T10:00:00", "2026-09-10T12:00:00"]),
+				// 직전 같은 길이(9/1~9/7) 안
+				person("B", ["2026-09-03T10:00:00", "2026-09-03T11:00:00"]),
 			],
-			kst("2026-08-27T00:00:00"),
-			kst("2026-09-11T00:00:00"),
+			kst("2026-09-08T00:00:00"),
+			kst("2026-09-15T00:00:00"),
 			now,
 		);
 
-		expect(stats.week.recent).toEqual({ seconds: 2 * 3600, people: 1 });
-		expect(stats.week.previous).toEqual({ seconds: 3600, people: 1 });
+		expect(stats.comparison.current).toEqual({ seconds: 2 * 3600, people: 1 });
+		expect(stats.comparison.previous).toEqual({ seconds: 3600, people: 1 });
 	});
 
-	it("오늘은 최근 7일에 넣지 않는다 — 아직 안 끝났다", () => {
+	it("기간 길이를 따라간다 — 하루를 보면 그 전날과 견준다", () => {
 		const stats = buildStats(
-			[person("A", ["2026-09-10T09:00:00", "2026-09-10T11:00:00"])],
-			kst("2026-08-27T00:00:00"),
+			[
+				person("A", ["2026-09-10T10:00:00", "2026-09-10T12:00:00"]),
+				person("B", ["2026-09-09T10:00:00", "2026-09-09T13:00:00"]),
+			],
+			kst("2026-09-10T00:00:00"),
 			kst("2026-09-11T00:00:00"),
 			now,
 		);
 
-		expect(stats.week.recent.seconds).toBe(0);
+		expect(stats.comparison.current.seconds).toBe(2 * 3600);
+		expect(stats.comparison.previous.seconds).toBe(3 * 3600);
 	});
 });
 

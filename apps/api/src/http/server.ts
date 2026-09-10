@@ -365,14 +365,38 @@ async function route(
 		const denied = deniedByAccessToken(headers);
 		if (denied) return denied;
 
-		// 너무 긴 기간을 요구하면 서버만 힘들다. 화면에서도 그만큼은 못 그린다.
-		const requested = Number(query.get("days") ?? 14);
-		// 1년까지 본다. 이벤트가 아직 수천 건이라 넉넉하다.
-		const days = Number.isFinite(requested)
-			? Math.min(Math.max(Math.trunc(requested), 1), 365)
-			: 14;
+		const from = query.get("from")?.trim() ?? "";
+		const to = query.get("to")?.trim() ?? "";
+		const looksLikeDate = /^\d{4}-\d{2}-\d{2}$/;
 
-		const stats = await getStats(getDb(), days);
+		if (!looksLikeDate.test(from) || !looksLikeDate.test(to)) {
+			return {
+				status: 400,
+				body: { ok: false, reason: "from, to 는 YYYY-MM-DD 여야 합니다" },
+			};
+		}
+
+		if (from > to) {
+			return {
+				status: 400,
+				body: { ok: false, reason: "시작일이 종료일보다 늦습니다" },
+			};
+		}
+
+		// 너무 긴 기간을 요구하면 서버만 힘들다. 화면에서도 그만큼은 못 그린다.
+		const spanDays =
+			(Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) /
+				(24 * 60 * 60 * 1000) +
+			1;
+
+		if (spanDays > 400) {
+			return {
+				status: 400,
+				body: { ok: false, reason: "기간은 400일까지입니다" },
+			};
+		}
+
+		const stats = await getStats(getDb(), from, to);
 
 		return {
 			status: 200,

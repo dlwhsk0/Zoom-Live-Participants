@@ -210,23 +210,27 @@ export function closeOpen(startedAt: Date, session: SessionEnd | undefined): Dat
  *
  * 오늘은 아직 끝나지 않았으므로 함께 넣는다 — "지금까지" 로 읽으면 된다.
  */
+/**
+ * 고른 기간의 통계.
+ *
+ * `fromDate`, `toDate` 는 한국 시간 기준 YYYY-MM-DD 이고 **양끝을 포함한다** —
+ * "9월 1일부터 9월 30일까지" 라고 말했으면 30일도 들어가야 한다.
+ */
 export async function getStats(
 	db: Db,
-	days: number,
+	fromDate: string,
+	toDate: string,
 	now: Date = new Date(),
 ): Promise<Stats> {
-	const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+	const from = new Date(`${fromDate}T00:00:00+09:00`);
+	// 끝나는 날의 다음 자정까지가 그날을 포함하는 범위다
+	const to = new Date(new Date(`${toDate}T00:00:00+09:00`).getTime() + DAY_MS);
 
-	// 오늘 자정(한국 시간)을 기준으로 days 일 전부터 내일 자정까지
-	const shifted = now.getTime() + KST_OFFSET_MS;
-	const todayMidnight = shifted - (shifted % DAY_MS) - KST_OFFSET_MS;
-
-	const from = new Date(todayMidnight - (days - 1) * DAY_MS);
-	const to = new Date(todayMidnight + DAY_MS);
-
-	// 주간 비교는 보고 있는 기간보다 앞(최대 14일)을 봐야 한다.
+	// 직전 같은 길이의 기간까지 읽어야 견줄 수 있다.
 	// 화면에 그리는 범위와 읽어오는 범위가 다르다.
-	const loadFrom = new Date(Math.min(from.getTime(), todayMidnight - 14 * DAY_MS));
+	const span = to.getTime() - from.getTime();
+	const loadFrom = new Date(from.getTime() - span);
+
 	const people = await findIntervalsInRange(db, loadFrom, to);
 	const stats = buildStats(people, from, to, now);
 
