@@ -24,6 +24,7 @@ import {
 	findCurrentSession,
 	getLogs,
 	getPresenceSnapshot,
+	getWebhookLog,
 } from "../repository/query.ts";
 import { getDayDetail, getStats } from "../repository/stats.ts";
 import { handleWebhook } from "../webhook/handle.ts";
@@ -555,6 +556,24 @@ async function route(
 			limit: Number(query.get("limit") ?? 50),
 			cursor: query.get("cursor"),
 			raw: query.get("raw") === "1",
+		});
+
+		return { status: 200, body: page, headers: { "cache-control": "no-store" } };
+	}
+
+	/**
+	 * 들어온 웹훅 원본. `/api/logs` 와 달리 입퇴장만이 아니라 전부 보여준다.
+	 *
+	 * 원본에는 이름·이메일·IP 가 그대로 들어 있다. 로그와 같은 문으로 막는다.
+	 */
+	if (method === "GET" && path === "/api/webhook-log") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		const page = await getWebhookLog(getDb(), {
+			limit: Number(query.get("limit") ?? 50),
+			cursor: query.get("cursor"),
+			event: query.get("event"),
 		});
 
 		return { status: 200, body: page, headers: { "cache-control": "no-store" } };

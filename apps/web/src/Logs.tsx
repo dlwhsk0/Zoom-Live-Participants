@@ -3,18 +3,26 @@ import { useCallback, useState } from "react";
 
 import AdminActions from "./AdminActions.tsx";
 import Aliases from "./Aliases.tsx";
-import { fetchLogs, fetchMe, logout, type LogEntry } from "./api.ts";
+import {
+	fetchLogs,
+	fetchMe,
+	fetchWebhookLog,
+	logout,
+	type LogEntry,
+	type WebhookLogEntry,
+} from "./api.ts";
 import LoginForm from "./LoginForm.tsx";
 import People from "./People.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 import Toast, { type ToastState } from "./Toast.tsx";
 
-type Tab = "people" | "aliases" | "logs" | "history";
+type Tab = "people" | "aliases" | "logs" | "webhook" | "history";
 
 const TABS: { id: Tab; label: string }[] = [
 	{ id: "people", label: "사람" },
 	{ id: "aliases", label: "별칭" },
 	{ id: "logs", label: "로그" },
+	{ id: "webhook", label: "웹훅" },
 	{ id: "history", label: "기록" },
 ];
 
@@ -163,6 +171,152 @@ function LogList() {
 	);
 }
 
+/** `meeting.participant_joined` → `participant_joined`. 앞의 meeting. 은 늘 같다. */
+function shortEvent(event: string | null): string {
+	if (!event) return "(이름 없음)";
+	return event.replace(/^meeting\./, "");
+}
+
+/**
+ * 이벤트마다 payload 모양이 다르다. 사람이 한 줄로 알아볼 만한 것만 뽑는다.
+ *
+ * Zoom 이 보낸 그대로라 모양을 보장할 수 없다 — 없으면 조용히 비운다.
+ */
+function summarize(payload: unknown): string {
+	const object = (payload as { payload?: { object?: Record<string, unknown> } })
+		?.payload?.object;
+	if (!object) return "";
+
+	const participant = object.participant as Record<string, unknown> | undefined;
+	if (!participant) {
+		// 참가자가 없는 이벤트(meeting.started/ended)는 회의 제목이 그나마 낫다
+		return typeof object.topic === "string" ? object.topic : "";
+	}
+
+	const name =
+		typeof participant.user_name === "string" ? participant.user_name : "?";
+	const from = participant.old_role;
+	const to = participant.new_role;
+	if (typeof to === "string") {
+		// 역할 이벤트는 old → new 가 같아도 그 시점의 역할을 말해준다
+		return from === to ? `${name} · ${to}` : `${name} · ${from} → ${to}`;
+	}
+
+	const reason = participant.leave_reason;
+	return typeof reason === "string" && reason
+		? `${name} · ${shortReason(reason)}`
+		: name;
+}
+
+function WebhookRow({ entry }: { entry: WebhookLogEntry }) {
+	const [open, setOpen] = useState(false);
+	const summary = summarize(entry.payload);
+
+	return (
+		<li className="log">
+			<button
+				type="button"
+				className="log__head"
+				onClick={() => setOpen((v) => !v)}
+				aria-expanded={open}
+			>
+				<span className="log__time">{formatTime(entry.receivedAt)}</span>
+				<span className="log__event">{shortEvent(entry.event)}</span>
+				<span className="log__name">{summary}</span>
+			</button>
+			{open && (
+				<pre className="log__raw">{JSON.stringify(entry.payload, null, 2)}</pre>
+			)}
+		</li>
+	);
+}
+
+/**
+ * 들어온 웹훅을 그대로 보여주는 탭.
+ *
+ * "로그" 탭은 정규화된 입퇴장만 보여준다 — 역할 변경도 소회의실 이벤트도
+ * 거기엔 없다. 이 탭은 webhook_events 원본을 그대로 읽는다.
+ *
+ * 종류로 거를 수 있게 둔 이유: 소회의실 이벤트가 수천 건이라 최신순으로만
+ * 보면 드물게 오는 것(역할 변경 등)이 묻힌다.
+ */
+function WebhookList() {
+	const [event, setEvent] = useState<string | null>(null);
+
+	const { data, isPending, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
+		useInfiniteQuery({
+			queryKey: ["webhook-log", event],
+			initialPageParam: null as string | null,
+			queryFn: ({ pageParam }) => fetchWebhookLog({ cursor: pageParam, event }),
+			getNextPageParam: (last) => last.nextCursor,
+			retry: false,
+		});
+
+	const entries = data?.pages.flatMap((p) => p.entries) ?? [];
+	// 종류 목록은 첫 페이지에만 온다. 거르는 중에도 전체 목록을 유지한다.
+	const counts = data?.pages[0]?.counts ?? [];
+
+	return (
+		<>
+			<div className="admin__toolbar">
+				<span className="admin__hint">
+					{isPending ? " " : `원본 ${entries.length}건 · 항목을 누르면 펼쳐집니다`}
+				</span>
+			</div>
+
+			{counts.length > 0 && (
+				<div className="chips">
+					<button
+						type="button"
+						className={event === null ? "chip chip--on" : "chip"}
+						onClick={() => setEvent(null)}
+					>
+						전체
+					</button>
+					{counts.map((c) => (
+						<button
+							key={c.event}
+							type="button"
+							className={event === c.event ? "chip chip--on" : "chip"}
+							onClick={() => setEvent(c.event)}
+						>
+							{`${shortEvent(c.event)} ${c.count}`}
+						</button>
+					))}
+				</div>
+			)}
+
+			{isError ? (
+				<p className="empty">
+					{error instanceof Error ? error.message : "불러오지 못했습니다"}
+				</p>
+			) : isPending ? (
+				<p className="empty">불러오는 중…</p>
+			) : entries.length === 0 ? (
+				<p className="empty">기록이 없습니다</p>
+			) : (
+				<>
+					<ul className="list">
+						{entries.map((e) => (
+							<WebhookRow key={e.id} entry={e} />
+						))}
+					</ul>
+					{hasNextPage && (
+						<button
+							type="button"
+							className="more"
+							onClick={() => fetchNextPage()}
+							disabled={isFetchingNextPage}
+						>
+							{isFetchingNextPage ? "불러오는 중…" : "더 보기"}
+						</button>
+					)}
+				</>
+			)}
+		</>
+	);
+}
+
 /**
  * 어드민 화면.
  *
@@ -241,6 +395,7 @@ export default function Admin() {
 			{tab === "people" && <People onToast={onToast} />}
 			{tab === "aliases" && <Aliases onToast={onToast} />}
 			{tab === "logs" && <LogList />}
+			{tab === "webhook" && <WebhookList />}
 			{tab === "history" && <AdminActions onToast={onToast} />}
 		</main>
 	);

@@ -402,6 +402,112 @@ export interface LogPage {
 	nextCursor: string | null;
 }
 
+/** 들어온 웹훅 요청 한 건. 정규화 전 원본이다. */
+export interface WebhookLogEntry {
+	id: string;
+	receivedAt: Date;
+	/** `meeting.participant_joined` 같은 이벤트 이름. 없으면 null. */
+	event: string | null;
+	/** 어느 회의 세션의 것인가. 회의와 무관한 이벤트면 null. */
+	meetingUuid: string | null;
+	/** Zoom 이 보낸 그대로. */
+	payload: unknown;
+}
+
+export interface WebhookLogPage {
+	entries: WebhookLogEntry[];
+	nextCursor: string | null;
+	/**
+	 * 이벤트 종류별 건수. 첫 페이지에만 담는다.
+	 *
+	 * 소회의실 이벤트가 수천 건이라 그냥 최신순으로 보면 다른 이벤트가
+	 * 묻힌다. 화면이 종류로 거를 수 있도록 목록을 같이 준다.
+	 */
+	counts?: { event: string; count: number }[];
+}
+
+/**
+ * 들어온 웹훅을 **정규화하지 않고** 최신순으로 읽는다.
+ *
+ * `/api/logs` 는 참가자 입퇴장만 보여준다 — 그 경로는 participant_events 를
+ * 읽으므로 역할 변경이나 소회의실 이벤트는 아예 보이지 않는다.
+ * 이 조회는 webhook_events 를 직접 읽어 **들어온 것 전부**를 보여준다.
+ *
+ * 세션으로 자르지 않는다. 지금 세션이 아니어도 들어온 것은 들어온 것이다.
+ *
+ * 커서는 received_at 이다. 같은 시각이 여러 건일 수 있어 id 를 보조
+ * 정렬키로 쓴다.
+ */
+export async function getWebhookLog(
+	db: Db,
+	options: { limit: number; cursor?: string | null; event?: string | null },
+): Promise<WebhookLogPage> {
+	const limit = Math.min(Math.max(options.limit, 1), 200);
+	const cursorDate = options.cursor ? new Date(options.cursor) : null;
+	const validCursor =
+		cursorDate && !Number.isNaN(cursorDate.getTime()) ? cursorDate : null;
+
+	const filters = [
+		validCursor ? lt(webhookEvents.receivedAt, validCursor) : undefined,
+		options.event
+			? sql`${webhookEvents.payload}->>'event' = ${options.event}`
+			: undefined,
+	].filter((f) => f !== undefined);
+
+	const rows = await db
+		.select({
+			id: webhookEvents.id,
+			receivedAt: webhookEvents.receivedAt,
+			payload: webhookEvents.payload,
+		})
+		.from(webhookEvents)
+		.where(filters.length > 0 ? and(...filters) : undefined)
+		.orderBy(desc(webhookEvents.receivedAt), desc(webhookEvents.id))
+		// 다음 페이지가 있는지 알기 위해 하나 더 가져온다
+		.limit(limit + 1);
+
+	const hasMore = rows.length > limit;
+	const page = hasMore ? rows.slice(0, limit) : rows;
+
+	const entries: WebhookLogEntry[] = page.map((row) => {
+		// payload 는 Zoom 이 보낸 그대로라 모양을 보장할 수 없다. 조심해서 읽는다.
+		const body = row.payload as {
+			event?: unknown;
+			payload?: { object?: { uuid?: unknown } };
+		};
+
+		return {
+			id: row.id,
+			receivedAt: row.receivedAt,
+			event: typeof body?.event === "string" ? body.event : null,
+			meetingUuid:
+				typeof body?.payload?.object?.uuid === "string"
+					? body.payload.object.uuid
+					: null,
+			payload: row.payload,
+		};
+	});
+
+	const nextCursor =
+		hasMore && page.length > 0
+			? (page[page.length - 1]?.receivedAt.toISOString() ?? null)
+			: null;
+
+	// 종류 목록은 첫 페이지에만 실어 보낸다. 페이지마다 셀 이유가 없다.
+	if (validCursor) return { entries, nextCursor };
+
+	const counted = await db
+		.select({
+			event: sql<string>`coalesce(${webhookEvents.payload}->>'event', '(없음)')`,
+			count: sql<number>`count(*)::int`,
+		})
+		.from(webhookEvents)
+		.groupBy(sql`${webhookEvents.payload}->>'event'`)
+		.orderBy(desc(sql`count(*)`));
+
+	return { entries, nextCursor, counts: counted };
+}
+
 /**
  * 입퇴장 로그를 최신순으로 읽는다.
  *

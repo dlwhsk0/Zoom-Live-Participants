@@ -820,6 +820,29 @@ body {
 	color: var(--muted);
 }
 
+/* 이벤트 이름. 종류마다 길이가 달라서 고정폭으로 둔다 — 눈으로 훑기 좋게 */
+.log__event {
+	flex: none;
+	min-width: 15em;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 11.5px;
+	color: var(--accent);
+}
+
+@media (max-width: 560px) {
+	.log__event {
+		min-width: 0;
+	}
+}
+
+/* 이벤트 종류 거르개. 종류가 아홉 가지라 줄바꿈을 허용한다 */
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-bottom: 10px;
+}
+
 .log__type--in {
 	color: var(--online);
 }

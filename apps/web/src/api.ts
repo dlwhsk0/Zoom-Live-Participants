@@ -226,6 +226,47 @@ export async function fetchLogs(params: {
 	return readOrThrow<LogPage>(response);
 }
 
+/** 들어온 웹훅 요청 한 건. 정규화 전 원본이다. */
+export interface WebhookLogEntry {
+	id: string;
+	receivedAt: string;
+	/** `meeting.participant_joined` 같은 이벤트 이름. 없으면 null. */
+	event: string | null;
+	meetingUuid: string | null;
+	/** Zoom 이 보낸 그대로. 이벤트 종류마다 모양이 다르다. */
+	payload: unknown;
+}
+
+export interface WebhookLogPage {
+	entries: WebhookLogEntry[];
+	nextCursor: string | null;
+	/** 이벤트 종류별 건수. 첫 페이지에만 온다. */
+	counts?: { event: string; count: number }[];
+}
+
+/**
+ * 들어온 웹훅 원본을 읽는다.
+ *
+ * `fetchLogs` 는 입퇴장만 준다. 역할 변경·소회의실 이벤트까지 보려면 이쪽이다.
+ */
+export async function fetchWebhookLog(params: {
+	cursor?: string | null;
+	event?: string | null;
+	limit?: number;
+}): Promise<WebhookLogPage> {
+	const url = new URL(`${API_BASE}/api/webhook-log`, window.location.origin);
+	url.searchParams.set("limit", String(params.limit ?? 50));
+	if (params.cursor) url.searchParams.set("cursor", params.cursor);
+	if (params.event) url.searchParams.set("event", params.event);
+
+	const response = await fetch(url, {
+		headers: { accept: "application/json" },
+		credentials: "include",
+	});
+
+	return readOrThrow<WebhookLogPage>(response);
+}
+
 // ── 어드민 ──────────────────────────────────
 
 export interface Identity {
