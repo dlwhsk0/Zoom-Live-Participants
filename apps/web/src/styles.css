@@ -256,13 +256,19 @@ body {
 	}
 }
 
+/*
+ * 호스트.
+ *
+ * 강조하지 않는다 — 접속자 수가 이 화면의 주인공이고, 호스트는 "필요할 때
+ * 확인하는 값"이다. 한 줄로 눕히고 색도 한 단계 물린다.
+ */
 .host {
 	display: flex;
 	flex: none;
-	flex-direction: column;
-	align-items: flex-end;
-	gap: 1px;
+	align-items: baseline;
+	gap: 5px;
 	margin: 0;
+	white-space: nowrap;
 }
 
 .host__label {
@@ -271,8 +277,9 @@ body {
 }
 
 .host__name {
-	font-size: 15px;
-	font-weight: 700;
+	font-size: 12.5px;
+	font-weight: 500;
+	color: var(--muted);
 }
 
 /* 확인된 값이 아닐 때만 붙는다 */
