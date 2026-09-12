@@ -440,7 +440,8 @@ export default function Stats() {
 	// 비워 두고 데이터가 오면 기록이 있는 가장 최근 날을 연다. 오늘 아직
 	// 아무도 안 왔으면 어제를 보여주는 편이 빈 화면보다 낫다.
 	const [date, setDate] = useState("");
-	const [from, setFrom] = useState(() => shiftDays(today(), -13));
+	// 기본은 오늘까지 한 주. -6 이면 오늘을 포함해 7일이다.
+	const [from, setFrom] = useState(() => shiftDays(today(), -6));
 	const [to, setTo] = useState(today);
 	const [month, setMonth] = useState(() => today().slice(0, 7));
 	const [selected, setSelected] = useState<PersonStat | null>(null);
