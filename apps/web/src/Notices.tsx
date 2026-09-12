@@ -160,7 +160,7 @@ export default function Notices({
 					<textarea
 						className="notice__input"
 						value={draft}
-						rows={2}
+						rows={3}
 						maxLength={200}
 						placeholder="새 공지 (200자까지, 줄바꿈 가능)"
 						onChange={(e) => setDraft(e.target.value)}
@@ -227,7 +227,14 @@ export default function Notices({
 					{notices.map((notice, index) => (
 						<li
 							key={notice.id}
-							className={notice.isActive ? "notice" : "notice notice--off"}
+							className={[
+								"notice",
+								notice.isActive ? "" : "notice--off",
+								// 편집 중에는 입력칸이 행을 통째로 쓴다
+								editing === notice.id ? "notice--editing" : "",
+							]
+								.filter(Boolean)
+								.join(" ")}
 						>
 							{editing === notice.id ? (
 								<div className="notice__form">
@@ -235,7 +242,7 @@ export default function Notices({
 										<textarea
 											className="notice__input"
 											value={edit.body ?? ""}
-											rows={2}
+											rows={5}
 											maxLength={200}
 											onChange={(e) => setEdit({ ...edit, body: e.target.value })}
 										/>

@@ -1216,8 +1216,14 @@ body {
 
 .notice__new {
 	display: flex;
+	/* 입력칸이 여러 줄이라 버튼이 같이 늘어나면 안 된다. 위에 붙인다 */
+	align-items: flex-start;
 	gap: 6px;
 	margin-bottom: 12px;
+}
+
+.notice__new .chip {
+	flex: none;
 }
 
 .notice__input {
@@ -1225,6 +1231,8 @@ body {
 	min-width: 0;
 	/* 여러 줄을 받는다. 세로로만 늘릴 수 있게 둔다 — 가로로 늘리면 칸이 깨진다 */
 	resize: vertical;
+	min-height: 4.5em;
+	line-height: 1.5;
 	padding: 7px 10px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
@@ -1319,6 +1327,15 @@ body {
 	display: flex;
 	flex: none;
 	gap: 4px;
+}
+
+/* 고치는 중에는 행 전체를 입력칸에 내준다 — 좁은 칸에서 고치기 어렵다 */
+.notice--editing {
+	display: block;
+}
+
+.notice--editing .notice__input {
+	min-height: 7.5em;
 }
 
 .notice__actions .chip {
