@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 import {
 	fetchNotices,
@@ -105,6 +105,33 @@ function Card({
 	);
 }
 
+/**
+ * 오프라인 정렬.
+ *
+ * 서버는 머문 시간순으로 준다(아이콘이 그 시간으로 정해지므로 목록도 같은
+ * 기준이어야 읽힌다). 다만 "방금 누가 나갔나" 를 보고 싶을 때가 있어서
+ * 화면에서 고를 수 있게 둔다.
+ */
+type OfflineSort = "stay" | "left";
+
+const OFFLINE_SORTS: { id: OfflineSort; label: string }[] = [
+	{ id: "stay", label: "머문 시간순" },
+	{ id: "left", label: "나간 순" },
+];
+
+function sortOffline(
+	people: SessionParticipant[],
+	by: OfflineSort,
+): SessionParticipant[] {
+	// 서버가 이미 머문 시간순으로 보냈다. 그대로 두면 된다.
+	if (by === "stay") return people;
+
+	return [...people].sort(
+		(a, b) =>
+			Date.parse(b.lastOccurredAt) - Date.parse(a.lastOccurredAt),
+	);
+}
+
 function Section({
 	title,
 	tone,
@@ -112,6 +139,7 @@ function Section({
 	now,
 	emptyText,
 	onOpen,
+	control,
 }: {
 	title: string;
 	tone: "online" | "offline";
@@ -119,6 +147,8 @@ function Section({
 	now: number;
 	emptyText?: string;
 	onOpen: (participant: SessionParticipant) => void;
+	/** 제목 줄 오른쪽에 붙는 것. 지금은 오프라인 정렬 고르개다. */
+	control?: ReactNode;
 }) {
 	if (people.length === 0 && !emptyText) {
 		return null;
@@ -134,6 +164,7 @@ function Section({
 				<span className={`section__dot section__dot--${tone}`} aria-hidden="true" />
 				{title}
 				<span className="section__count">{`${people.length}명`}</span>
+				{control}
 			</h2>
 
 			{people.length === 0 ? (
@@ -254,6 +285,9 @@ export default function App() {
 	});
 	const notice = useRotatingNotice(pickNotices(noticeQuery.data ?? []));
 
+	// 오프라인 정렬 기준. 기본은 서버가 주는 머문 시간순이다.
+	const [offlineSort, setOfflineSort] = useState<OfflineSort>("stay");
+
 	const statusMutation = useMutation({
 		mutationFn: ({ uuid, message }: { uuid: string; message: string }) =>
 			saveStatusMessage(uuid, message),
@@ -297,8 +331,13 @@ export default function App() {
 	const online = (data?.participants.filter((p) => p.isPresent) ?? [])
 		.slice()
 		.sort((a, b) => b.onlineSeconds - a.onlineSeconds);
-	// 나간 사람은 서버가 준 순서를 그대로 쓴다. 최근에 나간 사람이 앞이다.
-	const offline = data?.participants.filter((p) => !p.isPresent) ?? [];
+	// 나간 사람은 서버가 머문 시간순으로 준다. 화면에서 기준을 바꿀 수 있다.
+	const offlineRaw = data?.participants.filter((p) => !p.isPresent) ?? [];
+	const offline = useMemo(
+		() => sortOffline(offlineRaw, offlineSort),
+		// 목록이 같으면 다시 정렬하지 않는다
+		[offlineRaw, offlineSort],
+	);
 	const loading = isPending && !data;
 
 	// 값이 없으면 빈 문자열이 와서 아래 렌더가 통째로 빠진다.
@@ -435,6 +474,27 @@ export default function App() {
 						people={offline}
 						now={now}
 						onOpen={setSelected}
+						control={
+							offline.length > 1 ? (
+								<span className="section__sort">
+									{OFFLINE_SORTS.map((option) => (
+										<button
+											key={option.id}
+											type="button"
+											className={
+												offlineSort === option.id
+													? "section__sortOption section__sortOption--on"
+													: "section__sortOption"
+											}
+											aria-pressed={offlineSort === option.id}
+											onClick={() => setOfflineSort(option.id)}
+										>
+											{option.label}
+										</button>
+									))}
+								</span>
+							) : undefined
+						}
 					/>
 				</>
 			)}

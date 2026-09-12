@@ -481,6 +481,48 @@ describe("App", () => {
 		expect(html).not.toContain("💤");
 	});
 
+	/** 나간 사람을 원하는 수만큼 붙인 스냅샷. */
+	function withOffline(count: number) {
+		const left = Array.from({ length: count }, (_, i) => ({
+			...snapshot.participants[0]!,
+			participantUuid: `gone${i}`,
+			displayName: `나간사람${i}`,
+			isPresent: false,
+			onlineSeconds: (count - i) * 3600,
+			lastOccurredAt: new Date(now - (i + 1) * 60_000).toISOString(),
+		}));
+
+		return {
+			...snapshot,
+			participants: [
+				...snapshot.participants.filter((p) => p.isPresent),
+				...left,
+			],
+		};
+	}
+
+	it("나간 사람이 둘 이상이면 정렬을 고를 수 있다", () => {
+		const html = render(withOffline(2));
+
+		expect(html).toContain("머문 시간순");
+		expect(html).toContain("나간 순");
+	});
+
+	it("기본 정렬은 서버가 준 머문 시간순이다", () => {
+		const html = render(withOffline(2));
+
+		// 켜진 표시가 붙은 버튼의 글자가 "머문 시간순" 이어야 한다
+		const chosen = html.match(
+			/<button[^>]*section__sortOption--on[^>]*>([^<]*)</,
+		)?.[1];
+
+		expect(chosen).toBe("머문 시간순");
+	});
+
+	it("나간 사람이 하나뿐이면 고르개를 두지 않는다", () => {
+		expect(render(withOffline(1))).not.toContain("section__sort");
+	});
+
 	it("마지막 갱신 시각을 보여준다", () => {
 		expect(html).toContain("기준");
 	});

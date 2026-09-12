@@ -230,13 +230,15 @@ body {
 	top: 100%;
 	right: 0;
 
-	/* 아래 구역 제목 위로 떠야 한다 */
-	z-index: 2;
+	/* 구역 제목이 sticky 로 z-index 3 을 쓴다. 말풍선이 그보다 위여야
+	   길어졌을 때 "온라인" 라벨에 가리지 않는다 */
+	z-index: 4;
 	max-width: 20em;
-	/* 꼬리 꼭짓점이 호스트 이름을 파고들지 않을 만큼 띄운다. 이름 상자는
-	   줄 높이 때문에 글자보다 아래로 더 내려와 있다.
+	/* 꼬리 꼭짓점이 호스트 이름에 닿지만 않을 만큼만 띄운다. 꼭짓점은
+	   말풍선 위로 약 6px 솟고, 이름 상자는 줄 높이 때문에 글자보다 아래로
+	   더 내려와 있다. 실측으로 13px 이면 4px 남는다.
 	   (margin-top 을 따로 쓰면 이 한 줄에 덮인다) */
-	margin: 22px 0 0;
+	margin: 13px 0 0;
 	padding: 8px 11px;
 	border-radius: 10px;
 	background: var(--field);
@@ -373,6 +375,35 @@ body {
 	background: var(--bg);
 	/* 카드 이모지(불꽃 z-index: 2)보다 위에 있어야 스크롤 시 라벨을 덮지 않는다 */
 	z-index: 3;
+}
+
+/* 오프라인 정렬 고르개. 제목 줄 오른쪽 끝에 붙는다 */
+.section__sort {
+	display: flex;
+	flex: none;
+	gap: 2px;
+	margin-left: auto;
+	padding: 2px;
+	border-radius: 7px;
+	background: var(--field);
+}
+
+.section__sortOption {
+	padding: 2px 7px;
+	border: 0;
+	border-radius: 5px;
+	background: transparent;
+	color: var(--muted-weak);
+	font: inherit;
+	font-size: 10.5px;
+	font-weight: 600;
+	letter-spacing: 0;
+	cursor: pointer;
+}
+
+.section__sortOption--on {
+	background: var(--bg);
+	color: var(--fg);
 }
 
 /* 두 구역 사이를 넉넉히 벌려 경계를 분명히 한다 */
