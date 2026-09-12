@@ -49,12 +49,12 @@ export interface PresenceSnapshot {
 	updatedAt: string | null;
 	participants: SessionParticipant[];
 	/**
-	 * 호스트를 관측하려고 회의에 붙여 둔 봇.
+	 * 회의에 붙여 둔 관측 봇.
 	 *
-	 * 사람이 아니므로 count·participants 에는 들어 있지 않다.
-	 * 화면은 "봇 구동 중" 표시에만 쓴다. 안 붙어 있으면 null 이다.
+	 * **서버가 주는 값이 아니다.** 봇을 거르는 일은 화면에서만 한다
+	 * (`stripBots`). 봇이 없으면 이 필드도 없다.
 	 */
-	bot: BotPresence | null;
+	bot?: BotPresence | null;
 }
 
 export interface BotPresence {
@@ -122,7 +122,7 @@ export function stripBots(snapshot: PresenceSnapshot): PresenceSnapshot {
 			snapshot.openedBy !== null && BOT_NAMES.includes(snapshot.openedBy)
 				? null
 				: snapshot.openedBy,
-		bot: snapshot.bot ?? {
+		bot: {
 			name: present?.displayName ?? bots[0]?.displayName ?? "",
 			isPresent: present !== null,
 			since: present?.firstJoinedAt ?? null,
@@ -547,6 +547,27 @@ export interface Stats {
 	totalPeople: number;
 }
 
+/**
+ * 통계에서 봇을 뺀다.
+ *
+ * 사람 목록과 인원수까지가 화면이 고칠 수 있는 전부다. 시간 집계(days·
+ * hours·weekdays·totalSeconds)는 서버가 구간을 합쳐서 내려주므로 봇의
+ * 체류 시간이 이미 섞여 있고, 여기서는 되돌릴 수 없다. 봇을 오래 붙여 둘
+ * 것이 아니면 무시할 만한 양이다.
+ */
+export function stripBotsFromStats(stats: Stats): Stats {
+	if (BOT_NAMES.length === 0) return stats;
+
+	const people = stats.people.filter((p) => !BOT_NAMES.includes(p.displayName));
+	if (people.length === stats.people.length) return stats;
+
+	return {
+		...stats,
+		people,
+		totalPeople: Math.max(stats.totalPeople - (stats.people.length - people.length), 0),
+	};
+}
+
 /** 양끝을 포함하는 기간. YYYY-MM-DD. */
 export async function fetchStats(from: string, to: string): Promise<Stats> {
 	const url = new URL(`${API_BASE}/api/stats`, window.location.origin);
@@ -561,7 +582,7 @@ export async function fetchStats(from: string, to: string): Promise<Stats> {
 		throw new Error(`요청 실패 (${response.status})`);
 	}
 
-	return (await response.json()) as Stats;
+	return stripBotsFromStats((await response.json()) as Stats);
 }
 
 export interface PeriodBucket {

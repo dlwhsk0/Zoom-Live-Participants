@@ -34,18 +34,6 @@ export function parseOriginList(raw: string): string[] {
 		.filter(Boolean);
 }
 
-/**
- * 봇 이름 목록. 쉼표로 여럿.
- *
- * 오리진과 달리 끝의 슬래시를 떼면 안 된다 — 이름은 이름 그대로다.
- */
-export function parseNameList(raw: string): string[] {
-	return raw
-		.split(",")
-		.map((name) => name.trim())
-		.filter(Boolean);
-}
-
 const schema = z.object({
 	DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
 	ZOOM_WEBHOOK_SECRET_TOKEN: z
@@ -106,18 +94,6 @@ const schema = z.object({
 		.string()
 		.default("")
 		.transform(parseOriginList),
-	/**
-	 * 관측 봇의 참가자 이름.
-	 *
-	 * 호스트를 알아내려고 회의에 붙여 두는 봇은 사람이 아니다. 인원수에도,
-	 * 목록에도, 통계에도 들어가면 안 된다. 여기 적힌 이름은 조회 경로에서
-	 * 빼내고 "봇 구동 중" 표시로만 쓴다.
-	 *
-	 * 웹훅 원본과 로그는 건드리지 않는다 — 들어온 사실 자체는 기록이다.
-	 *
-	 * 쉼표로 여럿. 비우면 아무도 봇으로 보지 않는다(기본값).
-	 */
-	BOT_NAMES: z.string().default("").transform(parseNameList),
 });
 
 export type Env = z.infer<typeof schema>;

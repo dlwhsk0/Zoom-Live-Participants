@@ -95,3 +95,42 @@ describe("stripBots", () => {
 		expect(stripBots(input)).toBe(input);
 	});
 });
+
+describe("stripBotsFromStats", () => {
+	async function loadStats(names: string) {
+		vi.resetModules();
+		vi.stubEnv("VITE_BOT_NAMES", names);
+		return (await import("../src/api.ts")).stripBotsFromStats;
+	}
+
+	const base = {
+		weeks: [], months: [], from: "2026-09-01", to: "2026-09-12",
+		days: [], hours: [], weekdays: [],
+		comparison: {} as never,
+		typicalStart: null, typicalEnd: null,
+		totalSeconds: 3600, totalPeople: 2,
+		people: [
+			{ displayName: "조하나", seconds: 3000, days: 2, streak: 1, streakAlive: true, bestStreak: 1, daily: [] },
+			{ displayName: "봇", seconds: 600, days: 1, streak: 1, streakAlive: true, bestStreak: 1, daily: [] },
+		],
+	};
+
+	it("사람 목록과 인원수에서 봇을 뺀다", async () => {
+		const strip = await loadStats("봇");
+		const out = strip(base);
+
+		expect(out.people.map((p) => p.displayName)).toEqual(["조하나"]);
+		expect(out.totalPeople).toBe(1);
+	});
+
+	it("시간 집계는 건드리지 않는다 — 화면에서 되돌릴 수 없다", async () => {
+		const strip = await loadStats("봇");
+		expect(strip(base).totalSeconds).toBe(3600);
+	});
+
+	it("봇이 없으면 그대로 둔다", async () => {
+		const strip = await loadStats("봇");
+		const clean = { ...base, people: [base.people[0]!] };
+		expect(strip(clean)).toBe(clean);
+	});
+});

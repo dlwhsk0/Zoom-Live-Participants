@@ -1,5 +1,4 @@
 import { sql } from "drizzle-orm";
-import { getEnv } from "../config/env.ts";
 
 import type { getDb } from "../db/client.ts";
 import type { Interval } from "../domain/presence.ts";
@@ -99,12 +98,9 @@ export async function findIntervalsInRange(
 	]);
 
 	const byName = new Map<string, Interval[]>();
-	// 봇은 사람이 아니다. 체류 시간 통계에 끼면 1등이 봇이 된다.
-	const botNames = getEnv().BOT_NAMES;
 
 	for (const row of rows) {
 		const raw = row.display_name;
-		if (raw !== null && botNames.includes(raw)) continue;
 		const name = raw ? (aliases.get(raw) ?? raw) : "이름 없음";
 		const list = byName.get(name) ?? [];
 
