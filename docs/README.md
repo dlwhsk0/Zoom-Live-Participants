@@ -19,7 +19,7 @@
 - `docs/webhook-data-reference.md`
   - 위 결정의 근거가 되는 fixture 실측 수치
 - `docs/host-detection.md`
-  - **현재 호스트를 알아내는 방법.** 막힌 길들의 실측 근거와, 자가 신고 + 웹훅 보조 설계
+  - **현재 호스트를 알아내는 방법.** role_changed 웹훅으로 판정한다. 규칙·커버리지·막힌 길
 - `docs/security.md`
   - 접근 정책(검색 차단·인증 선택지)과 보안 점검 결과. 남은 구멍과 정리 대상 목록
 - `docs/stats.md`

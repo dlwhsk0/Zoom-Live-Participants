@@ -1210,6 +1210,78 @@ body {
 	margin-bottom: 10px;
 }
 
+/* ── 공지 관리 ─────────────────────────────── */
+
+.notice__new {
+	display: flex;
+	gap: 6px;
+	margin-bottom: 12px;
+}
+
+.notice__input {
+	flex: 1;
+	min-width: 0;
+	padding: 7px 10px;
+	border: 1px solid var(--line);
+	border-radius: 8px;
+	background: var(--field);
+	color: var(--fg);
+	font: inherit;
+	font-size: 13px;
+}
+
+.notice {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 9px 2px;
+	border-bottom: 1px solid var(--line);
+}
+
+/* 내린 공지. 지운 것이 아니라 잠시 빠진 것이라는 게 보여야 한다 */
+.notice--off .notice__body {
+	color: var(--muted-weak);
+	text-decoration: line-through;
+}
+
+.notice__body {
+	flex: 1;
+	min-width: 0;
+	font-size: 13px;
+	line-height: 1.5;
+}
+
+.notice__actions {
+	display: flex;
+	flex: none;
+	gap: 4px;
+}
+
+.notice__actions .chip {
+	padding: 3px 7px;
+	font-size: 11px;
+}
+
+.notice__actions .chip:disabled {
+	opacity: 0.35;
+	cursor: default;
+}
+
+@media (max-width: 560px) {
+	/* 폰에서는 버튼 줄을 아래로 내린다. 옆에 두면 문구가 한 글자씩 접힌다 */
+	.notice {
+		flex-wrap: wrap;
+	}
+
+	.notice__body {
+		flex-basis: 100%;
+	}
+
+	.notice__actions {
+		margin-left: auto;
+	}
+}
+
 .admin__group {
 	margin-bottom: 16px;
 }

@@ -19,7 +19,13 @@ import {
 	undoAction,
 } from "../repository/admin.ts";
 import { setStatusMessage } from "../repository/ingest.ts";
-import { listActiveNotices } from "../repository/notices.ts";
+import {
+	createNotice,
+	deleteNotice,
+	listActiveNotices,
+	listAllNotices,
+	updateNotice,
+} from "../repository/notices.ts";
 import { findUserByUsername, touchLastLogin } from "../repository/users.ts";
 import {
 	findCurrentSession,
@@ -81,6 +87,20 @@ const undoSchema = z.object({
 });
 
 /** 고정 닉네임을 대표 이름에 잇는다. 예: Chloe → 이도경. */
+/** 공지 한 줄. 말풍선에 들어가는 길이라 상한을 둔다. */
+const noticeCreateSchema = z.object({
+	body: z.string().trim().min(1, "내용이 필요합니다").max(200, "200자를 넘습니다"),
+});
+
+/** 고칠 값만 담는다. 아무것도 없으면 고칠 것이 없다. */
+const noticePatchSchema = z
+	.object({
+		body: z.string().trim().min(1).max(200).optional(),
+		sortOrder: z.number().int().min(0).max(9999).optional(),
+		isActive: z.boolean().optional(),
+	})
+	.refine((v) => Object.keys(v).length > 0, { message: "바꿀 값이 없습니다" });
+
 const aliasSchema = z.object({
 	alias: z.string().trim().min(1).max(80),
 	canonical: z.string().trim().min(1).max(80),
@@ -697,6 +717,86 @@ async function route(
 		);
 
 		return { status: result.ok ? 200 : 400, body: result };
+	}
+
+	/**
+	 * 공지 관리. 화면 말풍선에 도는 문구를 배포 없이 고치기 위한 것이다.
+	 * 로그·별칭과 같은 문으로 막는다.
+	 */
+	if (method === "GET" && path === "/api/admin/notices") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		return {
+			status: 200,
+			body: { notices: await listAllNotices(getDb()) },
+			headers: { "cache-control": "no-store" },
+		};
+	}
+
+	if (method === "POST" && path === "/api/admin/notices") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "본문이 JSON 이 아닙니다" } };
+		}
+
+		const input = noticeCreateSchema.safeParse(parsed);
+		if (!input.success) {
+			return {
+				status: 400,
+				body: { ok: false, reason: input.error.issues[0]?.message ?? "잘못된 요청입니다" },
+			};
+		}
+
+		const notice = await createNotice(getDb(), input.data.body);
+		return { status: 200, body: { ok: true, notice } };
+	}
+
+	if (method === "PATCH" && path === "/api/admin/notices") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		const id = query.get("id")?.trim();
+		if (!id) return { status: 400, body: { ok: false, reason: "id 가 필요합니다" } };
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "본문이 JSON 이 아닙니다" } };
+		}
+
+		const input = noticePatchSchema.safeParse(parsed);
+		if (!input.success) {
+			return {
+				status: 400,
+				body: { ok: false, reason: input.error.issues[0]?.message ?? "잘못된 요청입니다" },
+			};
+		}
+
+		const notice = await updateNotice(getDb(), id, input.data);
+		if (!notice) return { status: 404, body: { ok: false, reason: "없는 공지입니다" } };
+
+		return { status: 200, body: { ok: true, notice } };
+	}
+
+	if (method === "DELETE" && path === "/api/admin/notices") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		const id = query.get("id")?.trim();
+		if (!id) return { status: 400, body: { ok: false, reason: "id 가 필요합니다" } };
+
+		const removed = await deleteNotice(getDb(), id);
+		return {
+			status: removed ? 200 : 404,
+			body: removed ? { ok: true } : { ok: false, reason: "없는 공지입니다" },
+		};
 	}
 
 	if (method === "GET" && path === "/api/admin/aliases") {

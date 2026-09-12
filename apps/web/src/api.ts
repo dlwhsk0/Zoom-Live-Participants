@@ -437,6 +437,63 @@ export async function undoAdminAction(params: {
 	return readOrThrow<{ restored: number }>(response);
 }
 
+/** 어드민이 보는 공지. 내린 것도 포함한다. */
+export interface AdminNotice extends Notice {
+	sortOrder: number;
+	isActive: boolean;
+	updatedAt: string;
+}
+
+/** 내린 것까지 전부 읽는다. */
+export async function fetchAdminNotices(): Promise<AdminNotice[]> {
+	const response = await fetch(
+		adminUrl("/api/admin/notices"),
+		adminInit({ headers: { accept: "application/json" } }),
+	);
+	const body = await readOrThrow<{ notices: AdminNotice[] }>(response);
+	return body.notices;
+}
+
+export async function createNotice(body: string): Promise<{ ok: boolean }> {
+	const response = await fetch(
+		adminUrl("/api/admin/notices"),
+		adminInit({
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ body }),
+		}),
+	);
+	return readOrThrow<{ ok: boolean }>(response);
+}
+
+/** 준 값만 바꾼다. 내리기(`isActive:false`)도 이 경로다. */
+export async function patchNotice(
+	id: string,
+	patch: { body?: string; sortOrder?: number; isActive?: boolean },
+): Promise<{ ok: boolean }> {
+	const url = adminUrl("/api/admin/notices");
+	url.searchParams.set("id", id);
+
+	const response = await fetch(
+		url,
+		adminInit({
+			method: "PATCH",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(patch),
+		}),
+	);
+	return readOrThrow<{ ok: boolean }>(response);
+}
+
+/** 평소에는 내리는 것으로 충분하다. 잘못 만든 줄을 치울 때만 쓴다. */
+export async function deleteNotice(id: string): Promise<{ ok: boolean }> {
+	const url = adminUrl("/api/admin/notices");
+	url.searchParams.set("id", id);
+
+	const response = await fetch(url, adminInit({ method: "DELETE" }));
+	return readOrThrow<{ ok: boolean }>(response);
+}
+
 export interface NameAlias {
 	alias: string;
 	canonical: string;

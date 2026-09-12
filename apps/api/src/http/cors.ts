@@ -10,7 +10,8 @@ export function corsHeaders(requestOrigin: string | null): Record<string, string
 	const allowed = getEnv().CORS_ALLOWED_ORIGINS;
 
 	const base: Record<string, string> = {
-		"access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
+		// PATCH 는 공지 수정에 쓴다. 프론트가 다른 오리진이라 여기 없으면 프리플라이트에서 막힌다
+		"access-control-allow-methods": "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		"access-control-allow-headers": "content-type,accept,x-access-token",
 		"access-control-max-age": "86400",
 	};

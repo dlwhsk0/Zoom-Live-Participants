@@ -12,15 +12,17 @@ import {
 	type WebhookLogEntry,
 } from "./api.ts";
 import LoginForm from "./LoginForm.tsx";
+import Notices from "./Notices.tsx";
 import People from "./People.tsx";
 import ThemeToggle from "./ThemeToggle.tsx";
 import Toast, { type ToastState } from "./Toast.tsx";
 
-type Tab = "people" | "aliases" | "logs" | "webhook" | "history";
+type Tab = "people" | "aliases" | "notices" | "logs" | "webhook" | "history";
 
 const TABS: { id: Tab; label: string }[] = [
 	{ id: "people", label: "사람" },
 	{ id: "aliases", label: "별칭" },
+	{ id: "notices", label: "공지" },
 	{ id: "logs", label: "로그" },
 	{ id: "webhook", label: "웹훅" },
 	{ id: "history", label: "기록" },
@@ -394,6 +396,7 @@ export default function Admin() {
 
 			{tab === "people" && <People onToast={onToast} />}
 			{tab === "aliases" && <Aliases onToast={onToast} />}
+			{tab === "notices" && <Notices onToast={onToast} />}
 			{tab === "logs" && <LogList />}
 			{tab === "webhook" && <WebhookList />}
 			{tab === "history" && <AdminActions onToast={onToast} />}
