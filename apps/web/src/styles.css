@@ -236,9 +236,9 @@ body {
 	max-width: 22em;
 	/* 꼬리 꼭짓점이 호스트 이름에 닿지만 않을 만큼만 띄운다. 꼭짓점은
 	   말풍선 위로 약 6px 솟고, 이름 상자는 줄 높이 때문에 글자보다 아래로
-	   더 내려와 있다. 실측으로 13px 이면 4px 남는다.
+	   더 내려와 있다. 실측으로 11px 이면 2px 남는다.
 	   (margin-top 을 따로 쓰면 이 한 줄에 덮인다) */
-	margin: 13px 0 0;
+	margin: 11px 0 0;
 	padding: 8px 11px;
 	border-radius: 10px;
 	background: var(--field);
