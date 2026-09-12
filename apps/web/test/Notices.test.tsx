@@ -103,6 +103,21 @@ describe("공지 탭", () => {
 		expect(html).toContain("미사용");
 	});
 
+	it("여러 줄을 입력할 수 있다", () => {
+		openNoticesTab();
+		const html = render([]);
+
+		expect(html).toContain("<textarea");
+		expect(html).toContain("줄바꿈 가능");
+	});
+
+	it("목록에서도 줄바꿈이 살아 있다", () => {
+		openNoticesTab();
+		const html = render([notice("첫 줄\n둘째 줄", true, 0)]);
+
+		expect(html).toContain("첫 줄\n둘째 줄");
+	});
+
 	it("메인 공지에는 표를 붙인다", () => {
 		openNoticesTab();
 		const html = render([notice("긴급 공지", true, 0, { category: "main" })]);

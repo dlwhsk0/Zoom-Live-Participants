@@ -152,18 +152,23 @@ export default function Notices({
 			<p className="admin__hint">
 				화면 위쪽 말풍선에 한 줄씩 돌아가며 뜹니다. 지금 {shown}개가 보이는
 				중입니다. <strong>사용</strong>을 끄면 화면에서만 빠지고 기록은 남습니다.
+				줄바꿈은 그대로 나갑니다 (⌘/Ctrl+Enter 로 추가).
 			</p>
 
 			<div className="notice__form">
 				<div className="notice__new">
-					<input
+					<textarea
 						className="notice__input"
 						value={draft}
+						rows={2}
 						maxLength={200}
-						placeholder="새 공지 (200자까지)"
+						placeholder="새 공지 (200자까지, 줄바꿈 가능)"
 						onChange={(e) => setDraft(e.target.value)}
 						onKeyDown={(e) => {
-							if (e.key === "Enter" && draft.trim()) add.mutate();
+							// Enter 는 줄바꿈이다. 보내는 것은 ⌘/Ctrl+Enter.
+							if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && draft.trim()) {
+								add.mutate();
+							}
 						}}
 					/>
 					<button
@@ -227,9 +232,10 @@ export default function Notices({
 							{editing === notice.id ? (
 								<div className="notice__form">
 									<div className="notice__new">
-										<input
+										<textarea
 											className="notice__input"
 											value={edit.body ?? ""}
+											rows={2}
 											maxLength={200}
 											onChange={(e) => setEdit({ ...edit, body: e.target.value })}
 										/>

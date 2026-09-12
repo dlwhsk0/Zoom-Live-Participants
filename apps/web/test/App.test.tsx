@@ -208,6 +208,15 @@ describe("App", () => {
 		expect(html).toContain("공지입니다");
 	});
 
+	it("공지의 줄바꿈을 그대로 보여준다", () => {
+		const html = render(snapshot, [
+			{ id: "n1", body: "첫 줄\n둘째 줄", category: "general" as const },
+		]);
+
+		// 줄바꿈 문자가 마크업에 살아 있어야 pre-wrap 이 살린다
+		expect(html).toContain("첫 줄\n둘째 줄");
+	});
+
 	it("공지가 없으면 말풍선도 없다", () => {
 		expect(render(snapshot, [])).not.toContain("bubble");
 	});

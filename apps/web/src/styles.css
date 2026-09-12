@@ -228,6 +228,8 @@ body {
 	color: var(--muted);
 	font-size: 12px;
 	line-height: 1.5;
+	/* 공지에 넣은 줄바꿈을 그대로 살린다 */
+	white-space: pre-wrap;
 	animation: bubble-in 240ms ease-out;
 }
 
@@ -1221,6 +1223,8 @@ body {
 .notice__input {
 	flex: 1;
 	min-width: 0;
+	/* 여러 줄을 받는다. 세로로만 늘릴 수 있게 둔다 — 가로로 늘리면 칸이 깨진다 */
+	resize: vertical;
 	padding: 7px 10px;
 	border: 1px solid var(--line);
 	border-radius: 8px;
@@ -1307,6 +1311,8 @@ body {
 	min-width: 0;
 	font-size: 13px;
 	line-height: 1.5;
+	/* 적은 대로 보여준다. 목록에서도 줄바꿈이 살아 있어야 결과를 알 수 있다 */
+	white-space: pre-wrap;
 }
 
 .notice__actions {
