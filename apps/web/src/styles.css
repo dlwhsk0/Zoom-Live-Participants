@@ -435,8 +435,15 @@ body {
 	/* 혼자일 때는 스스로 오른쪽 끝으로 간다. 고르개가 있으면 그쪽이 민다 */
 	margin-left: auto;
 	font-weight: 500;
+	flex: none;
 	color: var(--muted-weak);
 	font-variant-numeric: tabular-nums;
+}
+
+/* 고르개와 명수는 한 덩어리로 오른쪽에 붙는다. 명수까지 auto 로 밀면
+   남는 공간을 둘이 나눠 갖고 사이가 벌어진다 */
+.section__sort + .section__count {
+	margin-left: 8px;
 }
 
 .section__empty {
