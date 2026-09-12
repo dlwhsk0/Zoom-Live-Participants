@@ -197,15 +197,19 @@ body {
 	flex: none;
 }
 
-/* 말풍선과 호스트. 말풍선이 길어지면 이쪽이 줄어든다 */
+/*
+ * 호스트와 말풍선.
+ *
+ * 호스트를 "접속 중" 줄에 맞추고 말풍선은 그 아래로 내린다. 말풍선이
+ * 길어져도 접속자 수를 밀지 않고 아래로만 자란다.
+ */
 .header__right {
 	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	gap: 8px;
+	flex: 1;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 9px;
 	min-width: 0;
-	/* 접속자 수와 눈높이를 맞춘다 */
-	padding-top: 6px;
 }
 
 /*
@@ -216,7 +220,7 @@ body {
  */
 .bubble {
 	position: relative;
-	max-width: 20em;
+	max-width: 22em;
 	margin: 0;
 	padding: 8px 11px;
 	border-radius: 10px;
@@ -237,15 +241,15 @@ body {
 	background: color-mix(in srgb, var(--accent) 16%, var(--field));
 }
 
-/* 꼬리. 배경과 같은 색이라 말풍선에서 자라난 것처럼 보인다 */
+/* 꼬리. 위쪽 호스트를 가리킨다. 배경과 같은 색이라 말풍선에서 자라난 것처럼 보인다 */
 .bubble::after {
 	content: "";
 	position: absolute;
-	top: 50%;
-	right: -5px;
-	width: 10px;
-	height: 10px;
-	transform: translateY(-50%) rotate(45deg);
+	top: -4px;
+	right: 14px;
+	width: 9px;
+	height: 9px;
+	transform: rotate(45deg);
 	background: var(--field);
 }
 
@@ -1030,37 +1034,14 @@ body {
 /* 폰 규칙은 위의 기본값들보다 **뒤에** 있어야 한다. 미디어 쿼리는
    우선순위를 올려주지 않으므로, 앞에 두면 아래 기본 규칙에 덮인다. */
 @media (max-width: 560px) {
-	/* 폰에서는 가로로 나란히 둘 자리가 없다. 말풍선을 아래 줄로 내리고
-	   호스트만 접속자 수 옆에 남긴다. */
+	/* 폰에서는 말풍선이 남는 폭을 다 쓴다. 배치는 기본과 같다 */
 	.header {
 		flex-wrap: wrap;
 	}
 
-	.header__right {
-		/* 여기에도 wrap 이 있어야 말풍선이 아랫줄로 내려간다.
-		   바깥(.header)만 감싸면 이 안에서는 줄어들기만 한다 */
-		flex: 1;
-		flex-wrap: wrap;
-		padding-top: 8px;
-	}
-
 	.bubble {
-		order: 2;
 		width: 100%;
 		max-width: none;
-		margin-top: 10px;
-	}
-
-	/* 아래로 내려오면 꼬리가 가리킬 것이 없다. 위쪽을 가리키게 돌린다 */
-	.bubble::after {
-		top: -4px;
-		right: 16px;
-		transform: rotate(45deg);
-	}
-
-	.host {
-		order: 1;
-		margin-left: auto;
 	}
 
 	/* 폰에서는 자르지 않고 줄을 바꾼다. 로그는 잘린 글자를 보려고 옆으로

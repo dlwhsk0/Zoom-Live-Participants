@@ -360,17 +360,6 @@ export default function App() {
 				</div>
 
 				<div className="header__right">
-					{/* 공지는 말풍선 하나에 한 줄씩 돌아간다 */}
-					{notice && (
-						<p
-							className={
-								notice.category === "main" ? "bubble bubble--main" : "bubble"
-							}
-							key={notice.id}
-						>
-							{notice.body}
-						</p>
-					)}
 					{data?.host && (
 						<p className="host">
 							<span className="host__label">호스트</span>
@@ -384,6 +373,17 @@ export default function App() {
 									추정
 								</span>
 							)}
+						</p>
+					)}
+					{/* 공지는 말풍선 하나에 한 줄씩 돌아간다 */}
+					{notice && (
+						<p
+							className={
+								notice.category === "main" ? "bubble bubble--main" : "bubble"
+							}
+							key={notice.id}
+						>
+							{notice.body}
 						</p>
 					)}
 				</div>
