@@ -162,7 +162,9 @@ describe("공지 탭", () => {
 		openNoticesTab();
 		const html = render([]);
 
-		expect(html).toContain("datetime-local");
+		// 날짜만 고르고 시각은 채워 준다 — 시작 00:00, 마감 23:59
+		expect(html).toContain('type="date"');
+		expect(html).toContain("마감일은 23:59");
 		expect(html).toContain("메인");
 		expect(html).toContain("일반");
 	});

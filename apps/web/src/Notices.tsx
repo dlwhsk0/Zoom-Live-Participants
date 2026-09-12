@@ -23,23 +23,35 @@ import ConfirmDialog from "./ConfirmDialog.tsx";
  * 쓰라고 확인 창 뒤에 둔다.
  */
 /**
- * `datetime-local` 입력값 ↔ ISO.
+ * 날짜 입력값 ↔ ISO.
  *
- * 입력은 브라우저 시간대의 벽시계 값이고 서버는 UTC 로 받는다. 그 사이를
- * Date 가 알아서 옮겨 준다 — 문자열을 직접 자르면 시간대가 어긋난다.
+ * 공지는 대개 "며칠부터 며칠까지" 라 날짜만 고르게 하고 시각은 채워 준다.
+ * 시작은 그날 00:00, 마감은 그날 끝(23:59:59.999)이다. 마감을 23:59:00 으로
+ * 잡으면 그날 마지막 1분 동안 공지가 사라진다.
+ *
+ * 입력은 브라우저 시간대의 벽시계 값이고 서버는 UTC 로 받는다. 그 사이는
+ * Date 가 옮겨 준다 — 문자열을 직접 자르면 시간대가 어긋난다.
  */
-function toLocalInput(iso: string | null): string {
+function toLocalDate(iso: string | null): string {
 	if (!iso) return "";
 	const d = new Date(iso);
 	if (Number.isNaN(d.getTime())) return "";
 
 	const pad = (n: number) => String(n).padStart(2, "0");
-	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-function fromLocalInput(value: string): string | null {
+function fromLocalDate(value: string, edge: "start" | "end"): string | null {
 	if (!value.trim()) return null;
-	const d = new Date(value);
+
+	const [year, month, day] = value.split("-").map(Number);
+	if (!year || !month || !day) return null;
+
+	const d =
+		edge === "start"
+			? new Date(year, month - 1, day, 0, 0, 0, 0)
+			: new Date(year, month - 1, day, 23, 59, 59, 999);
+
 	return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
@@ -100,8 +112,8 @@ export default function Notices({
 			createNotice({
 				body: draft.trim(),
 				category: draftCategory,
-				startsAt: fromLocalInput(draftStart),
-				endsAt: fromLocalInput(draftEnd),
+				startsAt: fromLocalDate(draftStart, "start"),
+				endsAt: fromLocalDate(draftEnd, "end"),
 			}),
 		onSuccess: () => {
 			onToast("공지를 추가했습니다", true);
@@ -195,7 +207,7 @@ export default function Notices({
 					<label className="notice__field">
 						시작
 						<input
-							type="datetime-local"
+							type="date"
 							className="notice__select"
 							value={draftStart}
 							onChange={(e) => setDraftStart(e.target.value)}
@@ -204,13 +216,15 @@ export default function Notices({
 					<label className="notice__field">
 						마감
 						<input
-							type="datetime-local"
+							type="date"
 							className="notice__select"
 							value={draftEnd}
 							onChange={(e) => setDraftEnd(e.target.value)}
 						/>
 					</label>
-					<span className="notice__hint">비우면 제한 없음</span>
+					<span className="notice__hint">
+						비우면 제한 없음 · 시작일은 00:00, 마감일은 23:59 까지
+					</span>
 				</div>
 			</div>
 
@@ -283,22 +297,25 @@ export default function Notices({
 										<label className="notice__field">
 											시작
 											<input
-												type="datetime-local"
+												type="date"
 												className="notice__select"
-												value={toLocalInput(edit.startsAt ?? null)}
+												value={toLocalDate(edit.startsAt ?? null)}
 												onChange={(e) =>
-													setEdit({ ...edit, startsAt: fromLocalInput(e.target.value) })
+													setEdit({
+														...edit,
+														startsAt: fromLocalDate(e.target.value, "start"),
+													})
 												}
 											/>
 										</label>
 										<label className="notice__field">
 											마감
 											<input
-												type="datetime-local"
+												type="date"
 												className="notice__select"
-												value={toLocalInput(edit.endsAt ?? null)}
+												value={toLocalDate(edit.endsAt ?? null)}
 												onChange={(e) =>
-													setEdit({ ...edit, endsAt: fromLocalInput(e.target.value) })
+													setEdit({ ...edit, endsAt: fromLocalDate(e.target.value, "end") })
 												}
 											/>
 										</label>
