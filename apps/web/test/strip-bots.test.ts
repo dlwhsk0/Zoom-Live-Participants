@@ -42,6 +42,7 @@ function snapshot(people: SessionParticipant[]): PresenceSnapshot {
 		updatedAt: "2026-09-12T10:00:00Z",
 		participants: people,
 		bot: null,
+		host: null,
 	};
 }
 

@@ -52,6 +52,29 @@ export interface SessionParticipant {
 	isYou: boolean;
 }
 
+/**
+ * 지금 호스트 권한을 쥔 사람.
+ *
+ * Zoom 은 `meeting.participant_role_changed` 로 그 시점의 역할을 알려준다.
+ * `old_role` 과 `new_role` 이 같은 경우가 대부분인데(실측 258건 중 247건),
+ * 변화량이 아니라 **그 순간의 역할**을 말하는 것이라 그래도 쓸 수 있다.
+ */
+export interface HostPresence {
+	displayName: string;
+	/** 그 사람이 호스트로 확인된 시각. */
+	since: Date | null;
+	/** 지금 접속해 있는가. */
+	isPresent: boolean;
+	/**
+	 * 무엇을 근거로 정했는가.
+	 *
+	 * - `role_event` — 역할 이벤트가 직접 지목했다. 가장 확실하다
+	 * - `only_one_left` — 호스트가 나갔고 남은 사람이 한 명뿐이라 그 사람이다
+	 * - `opener` — 역할 이벤트가 없는 세션이라 문 연 사람으로 물러섰다(추정)
+	 */
+	source: "role_event" | "only_one_left" | "opener";
+}
+
 export interface PresenceSnapshot {
 	meetingId: string;
 	meetingUuid: string | null;
@@ -83,6 +106,8 @@ export interface PresenceSnapshot {
 	updatedAt: Date | null;
 	/** 접속 중인 사람이 앞, 나간 사람이 뒤. 각 그룹 안에서는 최초 입장순. */
 	participants: SessionParticipant[];
+	/** 지금 호스트. 알 수 없으면 null 이다. */
+	host: HostPresence | null;
 }
 
 /**
@@ -139,6 +164,7 @@ export async function getPresenceSnapshot(
 			openedBy: null,
 			updatedAt: null,
 			participants: [],
+			host: null,
 		};
 	}
 
@@ -162,11 +188,12 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
-	const [uncertain, intervals, aliases, firstJoin] = await Promise.all([
+	const [uncertain, intervals, aliases, firstJoin, lastHost] = await Promise.all([
 		findUncertainJoinTimes(db, session.meetingUuid),
 		findIntervals(db, session.meetingUuid),
 		loadAliasMap(db),
 		findFirstJoin(db, session.meetingUuid),
+		findLastHostEvent(db, session.meetingUuid),
 	]);
 
 	// event_type 은 text 컬럼이라 넓은 타입으로 돌아온다. 도메인 타입으로 좁힌다.
@@ -200,13 +227,15 @@ export async function getPresenceSnapshot(
 		: [];
 	const youUuid = ipMatches.length === 1 ? ipMatches[0]?.participantUuid : null;
 
+	const openedBy = resolveOpener(states, firstJoin, aliases);
+
 	return {
 		meetingId,
 		meetingUuid: session.meetingUuid,
 		count: people.filter((p) => p.isPresent).length,
 		totalCount: people.length,
 		...resolveSessionStart(states, people),
-		openedBy: resolveOpener(states, firstJoin, aliases),
+		openedBy,
 		updatedAt: session.lastOccurredAt,
 		participants: people.map((p) => ({
 			participantUuid: p.participantUuid,
@@ -222,7 +251,97 @@ export async function getPresenceSnapshot(
 			// publicIp 는 응답에 넣지 않는다. 일치 여부만 알린다.
 			isYou: youUuid !== null && p.participantUuid === youUuid,
 		})),
+		host: resolveHost(lastHost, people, openedBy, aliases),
 	};
+}
+
+/**
+ * 이 세션에서 마지막으로 호스트로 지목된 사람.
+ *
+ * `webhook_events` 원본을 직접 읽는다. 역할 이벤트는 정규화 대상이 아니라
+ * `participant_events` 에는 없다.
+ *
+ * 정렬 기준은 `date_time`(이벤트가 말하는 시각)이다. 수신 시각은 도착
+ * 순서가 뒤바뀌므로 쓸 수 없다 — 입퇴장 판정이 `occurred_at` 을 쓰는 것과
+ * 같은 이유다.
+ */
+async function findLastHostEvent(
+	db: Db,
+	meetingUuid: string,
+): Promise<{ displayName: string; at: Date | null } | null> {
+	const rows = await db
+		.select({
+			name: sql<string | null>`${webhookEvents.payload}->'payload'->'object'->'participant'->>'user_name'`,
+			at: sql<string | null>`${webhookEvents.payload}->'payload'->'object'->'participant'->>'date_time'`,
+		})
+		.from(webhookEvents)
+		.where(
+			and(
+				sql`${webhookEvents.payload}->>'event' = 'meeting.participant_role_changed'`,
+				sql`${webhookEvents.payload}->'payload'->'object'->>'uuid' = ${meetingUuid}`,
+				sql`${webhookEvents.payload}->'payload'->'object'->'participant'->>'new_role' = 'host'`,
+			),
+		)
+		.orderBy(
+			desc(sql`${webhookEvents.payload}->'payload'->'object'->'participant'->>'date_time'`),
+		)
+		.limit(1);
+
+	const row = rows[0];
+	if (!row?.name) return null;
+
+	const at = row.at ? new Date(row.at) : null;
+	return {
+		displayName: row.name,
+		at: at && !Number.isNaN(at.getTime()) ? at : null,
+	};
+}
+
+/**
+ * 지금 호스트를 정한다.
+ *
+ * 실측(31개 세션)으로 확인한 것:
+ *
+ * - 30개는 호스트가 끝까지 남아 있거나, 나갈 때 방이 비어 세션이 끝났다.
+ * - 1개만 남은 사람이 있는데 호스트가 나갔고, 그때 남은 사람은 한 명이었다.
+ * - 17개 세션에는 역할 이벤트가 아예 없다(이양이 없었던 세션).
+ *
+ * 그래서 세 단계로 닫힌다. 마지막까지 못 정하면 **null 이다** — 틀린 사람을
+ * 호스트라고 부르느니 모른다고 한다. `resolveOpener` 와 같은 원칙이다.
+ */
+export function resolveHost(
+	last: { displayName: string; at: Date | null } | null,
+	people: readonly { displayName: string | null; isPresent: boolean }[],
+	openedBy: string | null,
+	aliases: Map<string, string>,
+): HostPresence | null {
+	const alias = (name: string): string => aliases.get(name) ?? name;
+	const present = people.filter((p) => p.isPresent);
+
+	if (last) {
+		const name = alias(last.displayName);
+		const stillHere = present.some((p) => p.displayName === name);
+		if (stillHere) {
+			return { displayName: name, since: last.at, isPresent: true, source: "role_event" };
+		}
+
+		// 호스트가 나갔다. 남은 사람이 한 명뿐이면 그 사람일 수밖에 없다.
+		const only = present.length === 1 ? present[0]?.displayName : null;
+		if (only) {
+			return { displayName: only, since: null, isPresent: true, source: "only_one_left" };
+		}
+
+		// 여럿이 남았는데 누구에게 넘어갔는지는 알 수 없다.
+		return null;
+	}
+
+	// 역할 이벤트가 없는 세션이다. 문 연 사람이 그대로 쥐고 있을 가능성이 높지만
+	// 확인된 것은 아니므로 source 로 밝힌다.
+	if (openedBy && present.some((p) => p.displayName === openedBy)) {
+		return { displayName: openedBy, since: null, isPresent: true, source: "opener" };
+	}
+
+	return null;
 }
 
 /**

@@ -218,6 +218,31 @@ export const adminActions = pgTable(
  *
  * 세션을 가리지 않고 적용된다. 고정 닉네임은 회의마다 달라지지 않는다.
  */
+/**
+ * 화면 위쪽 말풍선에 돌아가며 뜨는 공지.
+ *
+ * 코드에 박지 않고 테이블로 두는 이유는 문구가 운영 중에 바뀌기 때문이다.
+ * 배포 없이 고칠 수 있어야 한다.
+ *
+ * 지우는 대신 `isActive` 를 내린다. 문구를 되살릴 일이 잦고, 지워 버리면
+ * 무엇을 왜 내렸는지가 남지 않는다.
+ */
+export const notices = pgTable("notices", {
+	id: uuid("id").defaultRandom().primaryKey(),
+	/** 말풍선에 그대로 뜨는 한 줄. */
+	body: text("body").notNull(),
+	/** 작을수록 먼저 보인다. 같으면 만든 순서다. */
+	sortOrder: integer("sort_order").notNull().default(0),
+	/** 내리면 화면에서 빠진다. 행은 남는다. */
+	isActive: boolean("is_active").notNull().default(true),
+	createdAt: timestamp("created_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+	updatedAt: timestamp("updated_at", { withTimezone: true })
+		.notNull()
+		.defaultNow(),
+});
+
 export const nameAliases = pgTable("name_aliases", {
 	/** Zoom 에 뜨는 이름 */
 	alias: text("alias").primaryKey(),

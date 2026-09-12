@@ -7,13 +7,17 @@ import App from "../src/App.tsx";
 import type { PresenceSnapshot } from "../src/api.ts";
 
 /** 서버 렌더로 마크업을 뽑는다. 미리 넣은 데이터를 useQuery 가 그대로 읽는다. */
-function render(snapshot: PresenceSnapshot | undefined): string {
+function render(
+	snapshot: PresenceSnapshot | undefined,
+	notices: { id: string; body: string }[] = [],
+): string {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
 	});
 	if (snapshot) {
 		client.setQueryData(["presence"], snapshot);
 	}
+	client.setQueryData(["notices"], notices);
 
 	return renderToString(
 		createElement(
@@ -36,6 +40,7 @@ const snapshot: PresenceSnapshot = {
 	openedBy: "현승곤",
 	updatedAt: new Date(now - 3000).toISOString(),
 	bot: null,
+	host: null,
 	participants: [
 		{
 			participantUuid: "p1",
@@ -119,6 +124,55 @@ describe("App", () => {
 
 	it("봇이 없으면 봇 표시도 없다", () => {
 		expect(render(snapshot)).not.toContain("봇 구동 중");
+	});
+
+	it("호스트 이름을 보여준다", () => {
+		const html = render({
+			...snapshot,
+			host: { displayName: "이정", since: null, isPresent: true, source: "role_event" },
+		});
+
+		expect(html).toContain("호스트");
+		expect(html).toContain("이정");
+	});
+
+	it("문 연 사람으로 물러선 값은 추정이라고 밝힌다", () => {
+		const html = render({
+			...snapshot,
+			host: { displayName: "김승조", since: null, isPresent: true, source: "opener" },
+		});
+
+		expect(html).toContain("추정");
+	});
+
+	it("역할 이벤트로 확인된 값에는 추정을 붙이지 않는다", () => {
+		const html = render({
+			...snapshot,
+			host: { displayName: "이정", since: null, isPresent: true, source: "role_event" },
+		});
+
+		expect(html).not.toContain("추정");
+	});
+
+	it("호스트를 모르면 호스트 칸 자체를 두지 않는다", () => {
+		// 틀린 사람을 지목하느니 비워 둔다
+		expect(render({ ...snapshot, host: null })).not.toContain("호스트");
+	});
+
+	it("공지가 있으면 말풍선에 한 줄을 보여준다", () => {
+		const html = render(snapshot, [
+			{ id: "n1", body: "닉네임 매핑이 필요하면 조하나에게 연락해주세요" },
+			{ id: "n2", body: "상태 메시지에 유튜브 링크를 넣을 수 있어요" },
+		]);
+
+		expect(html).toContain("bubble");
+		expect(html).toContain("닉네임 매핑이 필요하면");
+		// 한 번에 한 줄만 돌아간다
+		expect(html).not.toContain("유튜브 링크를 넣을 수 있어요");
+	});
+
+	it("공지가 없으면 말풍선도 없다", () => {
+		expect(render(snapshot, [])).not.toContain("bubble");
 	});
 
 	it("접속 인원수를 보여준다", () => {

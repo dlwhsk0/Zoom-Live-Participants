@@ -2,8 +2,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useState } from "react";
 
 import {
+	fetchNotices,
 	fetchPresence,
 	saveStatusMessage,
+	type Notice,
 	type PresenceSnapshot,
 	type SessionParticipant,
 } from "./api.ts";
@@ -151,6 +153,32 @@ function Section({
 	);
 }
 
+/** 말풍선에 공지를 한 줄씩 돌려 보여주는 주기(ms). */
+const NOTICE_ROTATE_MS = 7000;
+
+/**
+ * 공지를 하나씩 돌린다.
+ *
+ * 여러 줄을 한꺼번에 쌓으면 머리글이 본문보다 커진다. 한 줄씩 돌리면
+ * 자리도 적게 쓰고 눈에도 걸린다. 한 줄뿐이면 돌리지 않는다.
+ */
+function useRotatingNotice(notices: Notice[]): Notice | null {
+	const [index, setIndex] = useState(0);
+
+	useEffect(() => {
+		if (notices.length <= 1) return;
+
+		const timer = setInterval(() => {
+			setIndex((i) => (i + 1) % notices.length);
+		}, NOTICE_ROTATE_MS);
+
+		return () => clearInterval(timer);
+	}, [notices.length]);
+
+	// 공지가 줄어들면 index 가 범위를 벗어날 수 있다
+	return notices[index % Math.max(notices.length, 1)] ?? null;
+}
+
 export default function App() {
 	// 경과 시간 표시를 1초마다 다시 그린다 (데이터 요청과 무관)
 	const [now, setNow] = useState(() => Date.now());
@@ -176,6 +204,16 @@ export default function App() {
 		// 화면이 비면 전원 퇴장으로 오해된다.
 		placeholderData: (previous) => previous,
 	});
+
+	// 공지는 자주 바뀌지 않는다. 길게 캐시하고 실패해도 조용히 넘어간다 —
+	// 말풍선이 안 뜨는 것이 화면이 죽는 것보다 낫다.
+	const noticeQuery = useQuery({
+		queryKey: ["notices"],
+		queryFn: fetchNotices,
+		staleTime: 5 * 60 * 1000,
+		retry: false,
+	});
+	const notice = useRotatingNotice(noticeQuery.data ?? []);
 
 	const statusMutation = useMutation({
 		mutationFn: ({ uuid, message }: { uuid: string; message: string }) =>
@@ -292,21 +330,47 @@ export default function App() {
 			</div>
 
 			<header className="header">
-				<p className="header__label">접속 중</p>
-				<p className="header__count">
-					{loading ? (
-						<span className="header__placeholder">—</span>
-					) : (
-						<>
-							{data?.count ?? 0}
-							<span className="header__unit">명</span>
-						</>
+				<div className="header__left">
+					<p className="header__label">접속 중</p>
+					<p className="header__count">
+						{loading ? (
+							<span className="header__placeholder">—</span>
+						) : (
+							<>
+								{data?.count ?? 0}
+								<span className="header__unit">명</span>
+							</>
+						)}
+					</p>
+					<p className="header__meta">
+						{isError && !data ? "불러오지 못했습니다" : formatAgo(updatedAt, now)}
+						{isFetching && <span className="header__dot" aria-hidden="true" />}
+					</p>
+				</div>
+
+				<div className="header__right">
+					{/* 공지는 말풍선 하나에 한 줄씩 돌아간다 */}
+					{notice && (
+						<p className="bubble" key={notice.id}>
+							{notice.body}
+						</p>
 					)}
-				</p>
-				<p className="header__meta">
-					{isError && !data ? "불러오지 못했습니다" : formatAgo(updatedAt, now)}
-					{isFetching && <span className="header__dot" aria-hidden="true" />}
-				</p>
+					{data?.host && (
+						<p className="host">
+							<span className="host__label">호스트</span>
+							<span className="host__name">{data.host.displayName}</span>
+							{/* 역할 이벤트가 없어 문 연 사람으로 물러선 경우다. 단정하지 않는다 */}
+							{data.host.source === "opener" && (
+								<span
+									className="host__guess"
+									title="역할 변경 기록이 없어 문을 연 사람으로 추정한 값입니다"
+								>
+									추정
+								</span>
+							)}
+						</p>
+					)}
+				</div>
 			</header>
 
 			{loading ? (

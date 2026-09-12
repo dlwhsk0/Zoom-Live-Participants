@@ -48,6 +48,8 @@ export interface PresenceSnapshot {
 	openedBy: string | null;
 	updatedAt: string | null;
 	participants: SessionParticipant[];
+	/** 지금 호스트. 알 수 없으면 null 이다. */
+	host: HostPresence | null;
 	/**
 	 * 회의에 붙여 둔 관측 봇.
 	 *
@@ -55,6 +57,21 @@ export interface PresenceSnapshot {
 	 * (`stripBots`). 봇이 없으면 이 필드도 없다.
 	 */
 	bot?: BotPresence | null;
+}
+
+/** 지금 호스트 권한을 쥔 사람. */
+export interface HostPresence {
+	displayName: string;
+	/** 호스트로 확인된 시각. 근거가 역할 이벤트가 아니면 null 이다. */
+	since: string | null;
+	isPresent: boolean;
+	/**
+	 * 무엇을 근거로 정했는가.
+	 *
+	 * `opener` 는 역할 이벤트가 없는 세션이라 문 연 사람으로 물러선 것이다 —
+	 * 확인된 값이 아니므로 화면에서 "추정"이라고 밝힌다.
+	 */
+	source: "role_event" | "only_one_left" | "opener";
 }
 
 export interface BotPresence {
@@ -265,6 +282,32 @@ export async function fetchWebhookLog(params: {
 	});
 
 	return readOrThrow<WebhookLogPage>(response);
+}
+
+/** 화면 위쪽 말풍선에 도는 공지 한 줄. */
+export interface Notice {
+	id: string;
+	body: string;
+}
+
+/**
+ * 공지를 읽는다.
+ *
+ * 자주 바뀌는 값이 아니다. 화면은 길게 캐시해 두고 쓴다.
+ */
+export async function fetchNotices(): Promise<Notice[]> {
+	const url = new URL(`${API_BASE}/api/notices`, window.location.origin);
+
+	const response = await fetch(url, {
+		headers: apiHeaders({ accept: "application/json" }),
+	});
+
+	if (!response.ok) {
+		throw new Error(`요청 실패 (${response.status})`);
+	}
+
+	const body = (await response.json()) as { notices: Notice[] };
+	return body.notices;
 }
 
 // ── 어드민 ──────────────────────────────────

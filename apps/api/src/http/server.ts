@@ -19,6 +19,7 @@ import {
 	undoAction,
 } from "../repository/admin.ts";
 import { setStatusMessage } from "../repository/ingest.ts";
+import { listActiveNotices } from "../repository/notices.ts";
 import { findUserByUsername, touchLastLogin } from "../repository/users.ts";
 import {
 	findCurrentSession,
@@ -275,6 +276,23 @@ async function route(
 			console.error("[health/db]", error);
 			return { status: 503, body: { ok: false, db: "unreachable" } };
 		}
+	}
+
+	/**
+	 * 화면 위쪽 말풍선에 도는 공지.
+	 *
+	 * 참가자 목록과 같은 문으로 막는다. 공지 자체는 비밀이 아니지만,
+	 * 이 API 를 여는 것은 곧 이 회의가 존재한다는 사실을 여는 것이다.
+	 */
+	if (method === "GET" && path === "/api/notices") {
+		const denied = deniedByAccessToken(headers);
+		if (denied) return denied;
+
+		return {
+			status: 200,
+			body: { notices: await listActiveNotices(getDb()) },
+			headers: { "cache-control": "no-store" },
+		};
 	}
 
 	if (method === "GET" && path === "/api/participants") {

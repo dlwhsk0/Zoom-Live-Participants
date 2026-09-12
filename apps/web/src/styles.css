@@ -186,7 +186,89 @@ body {
 }
 
 .header {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 12px;
 	padding: 12px 0 18px;
+}
+
+.header__left {
+	flex: none;
+}
+
+/* 말풍선과 호스트. 말풍선이 길어지면 이쪽이 줄어든다 */
+.header__right {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+	/* 접속자 수와 눈높이를 맞춘다 */
+	padding-top: 6px;
+}
+
+/*
+ * 공지 말풍선.
+ *
+ * 꼬리를 오른쪽에 달아 호스트 쪽을 가리킨다 — 누가 말하는 것처럼 보이게 하는
+ * 장치이고, 말풍선이 왜 거기 있는지를 설명해 준다.
+ */
+.bubble {
+	position: relative;
+	max-width: 20em;
+	margin: 0;
+	padding: 8px 11px;
+	border-radius: 10px;
+	background: var(--field);
+	color: var(--muted);
+	font-size: 12px;
+	line-height: 1.5;
+	animation: bubble-in 240ms ease-out;
+}
+
+/* 꼬리. 배경과 같은 색이라 말풍선에서 자라난 것처럼 보인다 */
+.bubble::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	right: -5px;
+	width: 10px;
+	height: 10px;
+	transform: translateY(-50%) rotate(45deg);
+	background: var(--field);
+}
+
+@keyframes bubble-in {
+	from {
+		opacity: 0;
+		transform: translateY(-3px);
+	}
+}
+
+.host {
+	display: flex;
+	flex: none;
+	flex-direction: column;
+	align-items: flex-end;
+	gap: 1px;
+	margin: 0;
+}
+
+.host__label {
+	font-size: 11px;
+	color: var(--muted-weak);
+}
+
+.host__name {
+	font-size: 15px;
+	font-weight: 700;
+}
+
+/* 확인된 값이 아닐 때만 붙는다 */
+.host__guess {
+	font-size: 10px;
+	color: var(--muted-weak);
 }
 
 .header__label {
@@ -931,6 +1013,39 @@ body {
 /* 폰 규칙은 위의 기본값들보다 **뒤에** 있어야 한다. 미디어 쿼리는
    우선순위를 올려주지 않으므로, 앞에 두면 아래 기본 규칙에 덮인다. */
 @media (max-width: 560px) {
+	/* 폰에서는 가로로 나란히 둘 자리가 없다. 말풍선을 아래 줄로 내리고
+	   호스트만 접속자 수 옆에 남긴다. */
+	.header {
+		flex-wrap: wrap;
+	}
+
+	.header__right {
+		/* 여기에도 wrap 이 있어야 말풍선이 아랫줄로 내려간다.
+		   바깥(.header)만 감싸면 이 안에서는 줄어들기만 한다 */
+		flex: 1;
+		flex-wrap: wrap;
+		padding-top: 8px;
+	}
+
+	.bubble {
+		order: 2;
+		width: 100%;
+		max-width: none;
+		margin-top: 10px;
+	}
+
+	/* 아래로 내려오면 꼬리가 가리킬 것이 없다. 위쪽을 가리키게 돌린다 */
+	.bubble::after {
+		top: -4px;
+		right: 16px;
+		transform: rotate(45deg);
+	}
+
+	.host {
+		order: 1;
+		margin-left: auto;
+	}
+
 	/* 폰에서는 자르지 않고 줄을 바꾼다. 로그는 잘린 글자를 보려고 옆으로
 	   미는 것보다 두 줄로 읽는 쪽이 낫다.
 	
