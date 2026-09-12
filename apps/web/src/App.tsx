@@ -157,14 +157,19 @@ function Section({
 const NOTICE_ROTATE_MS = 7000;
 
 /**
- * 말풍선이 보여줄 공지를 고른다.
+ * 말풍선이 보여줄 순서를 정한다.
  *
- * `main` 이 하나라도 떠 있으면 말풍선은 그쪽이 차지한다 — 지금 가장 알려야
- * 하는 것이라는 뜻이기 때문이다. 없을 때만 `general`(꿀팁류)이 돈다.
+ * `main` 이 먼저 보이고 `general`(꿀팁류)이 뒤따른다. **둘 다 돈다** —
+ * 메인이 떴다고 나머지를 덮지 않는다. 오래 띄워 두는 공지 하나 때문에
+ * 꿀팁이 통째로 사라지는 편이 더 나쁘다.
+ *
+ * 메인은 대신 색으로 구분한다(`bubble--main`).
  */
 function pickNotices(notices: Notice[]): Notice[] {
-	const main = notices.filter((n) => n.category === "main");
-	return main.length > 0 ? main : notices;
+	return [
+		...notices.filter((n) => n.category === "main"),
+		...notices.filter((n) => n.category !== "main"),
+	];
 }
 
 /**

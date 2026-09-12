@@ -171,15 +171,27 @@ describe("App", () => {
 		expect(html).not.toContain("유튜브 링크를 넣을 수 있어요");
 	});
 
-	it("메인 공지가 있으면 꿀팁 대신 그것을 보여준다", () => {
+	it("메인 공지가 먼저 보인다", () => {
 		const html = render(snapshot, [
 			{ id: "n1", body: "꿀팁입니다", category: "general" as const },
 			{ id: "n2", body: "오늘 22시에 전체 공지가 있습니다", category: "main" as const },
 		]);
 
+		// 처음 보이는 것은 메인이고, 색으로도 구분된다
 		expect(html).toContain("오늘 22시에 전체 공지가 있습니다");
-		expect(html).not.toContain("꿀팁입니다");
 		expect(html).toContain("bubble--main");
+	});
+
+	it("메인이 있어도 꿀팁을 덮지 않는다 — 둘 다 돌아간다", () => {
+		// 순환은 타이머로 도므로 첫 렌더에서는 메인만 보인다.
+		// 여기서 확인하는 것은 "꿀팁이 목록에서 빠지지 않는다" 는 것이다.
+		const html = render(snapshot, [
+			{ id: "n1", body: "꿀팁입니다", category: "general" as const },
+			{ id: "n2", body: "공지입니다", category: "main" as const },
+		]);
+
+		expect(html).not.toContain("bubble--general");
+		expect(html).toContain("공지입니다");
 	});
 
 	it("공지가 없으면 말풍선도 없다", () => {
