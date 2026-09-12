@@ -231,16 +231,6 @@ body {
 	animation: bubble-in 240ms ease-out;
 }
 
-/* 메인 공지. 꿀팁과 같은 자리를 쓰지만 흘려보내면 안 되는 것이라 색을 준다 */
-.bubble--main {
-	background: color-mix(in srgb, var(--accent) 16%, var(--field));
-	color: var(--fg);
-}
-
-.bubble--main::after {
-	background: color-mix(in srgb, var(--accent) 16%, var(--field));
-}
-
 /* 꼬리. 위쪽 호스트를 가리킨다. 배경과 같은 색이라 말풍선에서 자라난 것처럼 보인다 */
 .bubble::after {
 	content: "";
@@ -251,6 +241,18 @@ body {
 	height: 9px;
 	transform: rotate(45deg);
 	background: var(--field);
+}
+
+/* 메인 공지. 꿀팁과 같은 자리를 쓰지만 흘려보내면 안 되는 것이라 색을 준다.
+   **위의 .bubble 규칙보다 뒤에 있어야 한다** — 우선순위가 같아서 앞에 두면
+   꼬리 색이 기본값에 덮인다. */
+.bubble--main,
+.bubble--main::after {
+	background: color-mix(in srgb, var(--accent) 16%, var(--field));
+}
+
+.bubble--main {
+	color: var(--fg);
 }
 
 @keyframes bubble-in {
