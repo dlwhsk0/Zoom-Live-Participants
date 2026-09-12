@@ -157,6 +157,17 @@ function Section({
 const NOTICE_ROTATE_MS = 7000;
 
 /**
+ * 말풍선이 보여줄 공지를 고른다.
+ *
+ * `main` 이 하나라도 떠 있으면 말풍선은 그쪽이 차지한다 — 지금 가장 알려야
+ * 하는 것이라는 뜻이기 때문이다. 없을 때만 `general`(꿀팁류)이 돈다.
+ */
+function pickNotices(notices: Notice[]): Notice[] {
+	const main = notices.filter((n) => n.category === "main");
+	return main.length > 0 ? main : notices;
+}
+
+/**
  * 공지를 하나씩 돌린다.
  *
  * 여러 줄을 한꺼번에 쌓으면 머리글이 본문보다 커진다. 한 줄씩 돌리면
@@ -213,7 +224,7 @@ export default function App() {
 		staleTime: 5 * 60 * 1000,
 		retry: false,
 	});
-	const notice = useRotatingNotice(noticeQuery.data ?? []);
+	const notice = useRotatingNotice(pickNotices(noticeQuery.data ?? []));
 
 	const statusMutation = useMutation({
 		mutationFn: ({ uuid, message }: { uuid: string; message: string }) =>
@@ -351,7 +362,12 @@ export default function App() {
 				<div className="header__right">
 					{/* 공지는 말풍선 하나에 한 줄씩 돌아간다 */}
 					{notice && (
-						<p className="bubble" key={notice.id}>
+						<p
+							className={
+								notice.category === "main" ? "bubble bubble--main" : "bubble"
+							}
+							key={notice.id}
+						>
 							{notice.body}
 						</p>
 					)}

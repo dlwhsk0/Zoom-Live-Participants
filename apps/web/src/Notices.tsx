@@ -7,6 +7,8 @@ import {
 	fetchAdminNotices,
 	patchNotice,
 	type AdminNotice,
+	type NoticeCategory,
+	type NoticeInput,
 } from "./api.ts";
 import ConfirmDialog from "./ConfirmDialog.tsx";
 
@@ -20,6 +22,52 @@ import ConfirmDialog from "./ConfirmDialog.tsx";
  * 버리면 무엇을 왜 내렸는지가 남지 않는다. 지우기는 잘못 만든 줄을 치울 때만
  * 쓰라고 확인 창 뒤에 둔다.
  */
+/**
+ * `datetime-local` 입력값 ↔ ISO.
+ *
+ * 입력은 브라우저 시간대의 벽시계 값이고 서버는 UTC 로 받는다. 그 사이를
+ * Date 가 알아서 옮겨 준다 — 문자열을 직접 자르면 시간대가 어긋난다.
+ */
+function toLocalInput(iso: string | null): string {
+	if (!iso) return "";
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return "";
+
+	const pad = (n: number) => String(n).padStart(2, "0");
+	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function fromLocalInput(value: string): string | null {
+	if (!value.trim()) return null;
+	const d = new Date(value);
+	return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** 기간을 사람이 읽는 한 줄로. 제한이 없으면 아무것도 안 쓴다. */
+function describeWindow(notice: AdminNotice): string {
+	const fmt = (iso: string) =>
+		new Date(iso).toLocaleString("ko-KR", {
+			month: "2-digit",
+			day: "2-digit",
+			hour: "2-digit",
+			minute: "2-digit",
+			hour12: false,
+		});
+
+	if (notice.startsAt && notice.endsAt) return `${fmt(notice.startsAt)} ~ ${fmt(notice.endsAt)}`;
+	if (notice.startsAt) return `${fmt(notice.startsAt)} 부터`;
+	if (notice.endsAt) return `${fmt(notice.endsAt)} 까지`;
+	return "";
+}
+
+/** 지금 이 공지가 실제로 화면에 뜨는가. 기간까지 따진 결과다. */
+function isLive(notice: AdminNotice, now: number): boolean {
+	if (!notice.isActive) return false;
+	if (notice.startsAt && new Date(notice.startsAt).getTime() > now) return false;
+	if (notice.endsAt && new Date(notice.endsAt).getTime() <= now) return false;
+	return true;
+}
+
 export default function Notices({
 	onToast,
 }: {
@@ -27,9 +75,13 @@ export default function Notices({
 }) {
 	const queryClient = useQueryClient();
 	const [draft, setDraft] = useState("");
+	const [draftCategory, setDraftCategory] = useState<NoticeCategory>("general");
+	const [draftStart, setDraftStart] = useState("");
+	const [draftEnd, setDraftEnd] = useState("");
 	const [editing, setEditing] = useState<string | null>(null);
-	const [editText, setEditText] = useState("");
+	const [edit, setEdit] = useState<NoticeInput>({});
 	const [removing, setRemoving] = useState<AdminNotice | null>(null);
+	const now = Date.now();
 
 	const { data, isPending, isError, error } = useQuery({
 		queryKey: ["adminNotices"],
@@ -44,20 +96,27 @@ export default function Notices({
 	}
 
 	const add = useMutation({
-		mutationFn: () => createNotice(draft.trim()),
+		mutationFn: () =>
+			createNotice({
+				body: draft.trim(),
+				category: draftCategory,
+				startsAt: fromLocalInput(draftStart),
+				endsAt: fromLocalInput(draftEnd),
+			}),
 		onSuccess: () => {
 			onToast("공지를 추가했습니다", true);
 			setDraft("");
+			setDraftStart("");
+			setDraftEnd("");
+			setDraftCategory("general");
 			refresh();
 		},
 		onError: (err: Error) => onToast(err.message, false),
 	});
 
 	const patch = useMutation({
-		mutationFn: (input: {
-			id: string;
-			patch: { body?: string; sortOrder?: number; isActive?: boolean };
-		}) => patchNotice(input.id, input.patch),
+		mutationFn: (input: { id: string; patch: NoticeInput }) =>
+			patchNotice(input.id, input.patch),
 		onSuccess: () => {
 			setEditing(null);
 			refresh();
@@ -76,7 +135,7 @@ export default function Notices({
 	});
 
 	const notices = data ?? [];
-	const shown = notices.filter((n) => n.isActive).length;
+	const shown = notices.filter((n) => isLive(n, now)).length;
 
 	/** 위아래로 한 칸 옮긴다. 정렬값을 서로 바꾸는 것으로 충분하다. */
 	function move(index: number, direction: -1 | 1) {
@@ -95,25 +154,59 @@ export default function Notices({
 				중입니다. 내리면 화면에서만 빠지고 기록은 남습니다.
 			</p>
 
-			<div className="notice__new">
-				<input
-					className="notice__input"
-					value={draft}
-					maxLength={200}
-					placeholder="새 공지 (200자까지)"
-					onChange={(e) => setDraft(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === "Enter" && draft.trim()) add.mutate();
-					}}
-				/>
-				<button
-					type="button"
-					className="chip chip--on"
-					disabled={!draft.trim() || add.isPending}
-					onClick={() => add.mutate()}
-				>
-					추가
-				</button>
+			<div className="notice__form">
+				<div className="notice__new">
+					<input
+						className="notice__input"
+						value={draft}
+						maxLength={200}
+						placeholder="새 공지 (200자까지)"
+						onChange={(e) => setDraft(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === "Enter" && draft.trim()) add.mutate();
+						}}
+					/>
+					<button
+						type="button"
+						className="chip chip--on"
+						disabled={!draft.trim() || add.isPending}
+						onClick={() => add.mutate()}
+					>
+						추가
+					</button>
+				</div>
+				<div className="notice__meta">
+					<label className="notice__field">
+						분류
+						<select
+							className="notice__select"
+							value={draftCategory}
+							onChange={(e) => setDraftCategory(e.target.value as NoticeCategory)}
+						>
+							<option value="general">일반</option>
+							<option value="main">메인</option>
+						</select>
+					</label>
+					<label className="notice__field">
+						시작
+						<input
+							type="datetime-local"
+							className="notice__select"
+							value={draftStart}
+							onChange={(e) => setDraftStart(e.target.value)}
+						/>
+					</label>
+					<label className="notice__field">
+						마감
+						<input
+							type="datetime-local"
+							className="notice__select"
+							value={draftEnd}
+							onChange={(e) => setDraftEnd(e.target.value)}
+						/>
+					</label>
+					<span className="notice__hint">비우면 제한 없음</span>
+				</div>
 			</div>
 
 			{isError ? (
@@ -132,36 +225,91 @@ export default function Notices({
 							className={notice.isActive ? "notice" : "notice notice--off"}
 						>
 							{editing === notice.id ? (
-								<div className="notice__new">
-									<input
-										className="notice__input"
-										value={editText}
-										maxLength={200}
-										onChange={(e) => setEditText(e.target.value)}
-									/>
-									<button
-										type="button"
-										className="chip chip--on"
-										onClick={() =>
-											patch.mutate({
-												id: notice.id,
-												patch: { body: editText.trim() },
-											})
-										}
-									>
-										저장
-									</button>
-									<button
-										type="button"
-										className="chip"
-										onClick={() => setEditing(null)}
-									>
-										취소
-									</button>
+								<div className="notice__form">
+									<div className="notice__new">
+										<input
+											className="notice__input"
+											value={edit.body ?? ""}
+											maxLength={200}
+											onChange={(e) => setEdit({ ...edit, body: e.target.value })}
+										/>
+										<button
+											type="button"
+											className="chip chip--on"
+											onClick={() =>
+												patch.mutate({
+													id: notice.id,
+													patch: { ...edit, body: (edit.body ?? "").trim() },
+												})
+											}
+										>
+											저장
+										</button>
+										<button
+											type="button"
+											className="chip"
+											onClick={() => setEditing(null)}
+										>
+											취소
+										</button>
+									</div>
+									<div className="notice__meta">
+										<label className="notice__field">
+											분류
+											<select
+												className="notice__select"
+												value={edit.category ?? "general"}
+												onChange={(e) =>
+													setEdit({ ...edit, category: e.target.value as NoticeCategory })
+												}
+											>
+												<option value="general">일반</option>
+												<option value="main">메인</option>
+											</select>
+										</label>
+										<label className="notice__field">
+											시작
+											<input
+												type="datetime-local"
+												className="notice__select"
+												value={toLocalInput(edit.startsAt ?? null)}
+												onChange={(e) =>
+													setEdit({ ...edit, startsAt: fromLocalInput(e.target.value) })
+												}
+											/>
+										</label>
+										<label className="notice__field">
+											마감
+											<input
+												type="datetime-local"
+												className="notice__select"
+												value={toLocalInput(edit.endsAt ?? null)}
+												onChange={(e) =>
+													setEdit({ ...edit, endsAt: fromLocalInput(e.target.value) })
+												}
+											/>
+										</label>
+									</div>
 								</div>
 							) : (
 								<>
-									<span className="notice__body">{notice.body}</span>
+									<span className="notice__body">
+										{notice.category === "main" && (
+											<span className="notice__badge">메인</span>
+										)}
+										{notice.body}
+										{describeWindow(notice) && (
+											<span className="notice__window">{describeWindow(notice)}</span>
+										)}
+										{notice.isActive && !isLive(notice, now) && (
+											<span
+												className="notice__window"
+												title="켜져 있지만 기간 밖이라 지금은 화면에 뜨지 않습니다"
+											>
+												· 기간 밖
+											</span>
+										)}
+									</span>
 									<span className="notice__actions">
 										<button
 											type="button"
@@ -198,7 +346,12 @@ export default function Notices({
 											className="chip"
 											onClick={() => {
 												setEditing(notice.id);
-												setEditText(notice.body);
+												setEdit({
+													body: notice.body,
+													category: notice.category,
+													startsAt: notice.startsAt,
+													endsAt: notice.endsAt,
+												});
 											}}
 										>
 											수정

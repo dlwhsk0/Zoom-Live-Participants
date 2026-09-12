@@ -87,19 +87,48 @@ const undoSchema = z.object({
 });
 
 /** 고정 닉네임을 대표 이름에 잇는다. 예: Chloe → 이도경. */
+/**
+ * 기간의 한쪽 끝. ISO 문자열이거나 비어 있다.
+ *
+ * 빈 문자열과 null 을 모두 "제한 없음"으로 받아들인다 — 화면의 날짜 입력은
+ * 비우면 빈 문자열을 보낸다.
+ */
+const noticeEdge = z
+	.union([z.string(), z.null()])
+	.transform((v) => (v === null || v.trim() === "" ? null : new Date(v)))
+	.refine((v) => v === null || !Number.isNaN(v.getTime()), {
+		message: "날짜 형식이 잘못되었습니다",
+	});
+
+const noticeCategory = z.enum(["main", "general"]);
+
 /** 공지 한 줄. 말풍선에 들어가는 길이라 상한을 둔다. */
-const noticeCreateSchema = z.object({
-	body: z.string().trim().min(1, "내용이 필요합니다").max(200, "200자를 넘습니다"),
-});
+const noticeCreateSchema = z
+	.object({
+		body: z.string().trim().min(1, "내용이 필요합니다").max(200, "200자를 넘습니다"),
+		category: noticeCategory.optional(),
+		startsAt: noticeEdge.optional(),
+		endsAt: noticeEdge.optional(),
+	})
+	.refine((v) => !(v.startsAt && v.endsAt) || v.startsAt < v.endsAt, {
+		message: "마감일이 시작일보다 빠릅니다",
+	});
 
 /** 고칠 값만 담는다. 아무것도 없으면 고칠 것이 없다. */
 const noticePatchSchema = z
 	.object({
 		body: z.string().trim().min(1).max(200).optional(),
+		category: noticeCategory.optional(),
 		sortOrder: z.number().int().min(0).max(9999).optional(),
 		isActive: z.boolean().optional(),
+		startsAt: noticeEdge.optional(),
+		endsAt: noticeEdge.optional(),
 	})
-	.refine((v) => Object.keys(v).length > 0, { message: "바꿀 값이 없습니다" });
+	.refine((v) => Object.keys(v).length > 0, { message: "바꿀 값이 없습니다" })
+	// 거꾸로 된 기간은 아무 때도 뜨지 않는다. 조용히 사라지느니 여기서 막는다
+	.refine((v) => !(v.startsAt && v.endsAt) || v.startsAt < v.endsAt, {
+		message: "마감일이 시작일보다 빠릅니다",
+	});
 
 const aliasSchema = z.object({
 	alias: z.string().trim().min(1).max(80),
@@ -753,7 +782,7 @@ async function route(
 			};
 		}
 
-		const notice = await createNotice(getDb(), input.data.body);
+		const notice = await createNotice(getDb(), input.data);
 		return { status: 200, body: { ok: true, notice } };
 	}
 

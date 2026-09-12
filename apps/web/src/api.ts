@@ -284,10 +284,14 @@ export async function fetchWebhookLog(params: {
 	return readOrThrow<WebhookLogPage>(response);
 }
 
+/** `main` 은 지금 가장 알려야 하는 것, `general` 은 꿀팁류다. */
+export type NoticeCategory = "main" | "general";
+
 /** 화면 위쪽 말풍선에 도는 공지 한 줄. */
 export interface Notice {
 	id: string;
 	body: string;
+	category: NoticeCategory;
 }
 
 /**
@@ -441,7 +445,21 @@ export async function undoAdminAction(params: {
 export interface AdminNotice extends Notice {
 	sortOrder: number;
 	isActive: boolean;
+	/** 비어 있으면 곧바로 뜬다. */
+	startsAt: string | null;
+	/** 비어 있으면 내릴 때까지 계속 뜬다. */
+	endsAt: string | null;
 	updatedAt: string;
+}
+
+/** 공지를 만들거나 고칠 때 보내는 값. 빈 문자열은 "제한 없음"이다. */
+export interface NoticeInput {
+	body?: string;
+	category?: NoticeCategory;
+	sortOrder?: number;
+	isActive?: boolean;
+	startsAt?: string | null;
+	endsAt?: string | null;
 }
 
 /** 내린 것까지 전부 읽는다. */
@@ -454,13 +472,13 @@ export async function fetchAdminNotices(): Promise<AdminNotice[]> {
 	return body.notices;
 }
 
-export async function createNotice(body: string): Promise<{ ok: boolean }> {
+export async function createNotice(input: NoticeInput): Promise<{ ok: boolean }> {
 	const response = await fetch(
 		adminUrl("/api/admin/notices"),
 		adminInit({
 			method: "POST",
 			headers: { "content-type": "application/json" },
-			body: JSON.stringify({ body }),
+			body: JSON.stringify(input),
 		}),
 	);
 	return readOrThrow<{ ok: boolean }>(response);
@@ -469,7 +487,7 @@ export async function createNotice(body: string): Promise<{ ok: boolean }> {
 /** 준 값만 바꾼다. 내리기(`isActive:false`)도 이 경로다. */
 export async function patchNotice(
 	id: string,
-	patch: { body?: string; sortOrder?: number; isActive?: boolean },
+	patch: NoticeInput,
 ): Promise<{ ok: boolean }> {
 	const url = adminUrl("/api/admin/notices");
 	url.searchParams.set("id", id);

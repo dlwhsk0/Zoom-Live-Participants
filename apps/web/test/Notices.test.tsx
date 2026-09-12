@@ -25,13 +25,22 @@ function openNoticesTab(): void {
 	});
 }
 
-function notice(body: string, isActive: boolean, sortOrder: number): AdminNotice {
+function notice(
+	body: string,
+	isActive: boolean,
+	sortOrder: number,
+	extra: Partial<AdminNotice> = {},
+): AdminNotice {
 	return {
 		id: `n-${sortOrder}`,
 		body,
+		category: "general",
 		sortOrder,
 		isActive,
+		startsAt: null,
+		endsAt: null,
 		updatedAt: "2026-09-12T10:00:00Z",
+		...extra,
 	};
 }
 
@@ -83,6 +92,55 @@ describe("공지 탭", () => {
 		const firstRow = html.slice(html.indexOf("닉네임 매핑"));
 
 		expect(firstRow).toContain("disabled");
+	});
+
+	it("메인 공지에는 표를 붙인다", () => {
+		openNoticesTab();
+		const html = render([notice("긴급 공지", true, 0, { category: "main" })]);
+
+		expect(html).toContain("메인");
+	});
+
+	it("기간이 있으면 언제부터 언제까지인지 보여준다", () => {
+		openNoticesTab();
+		const html = render([
+			notice("설 연휴 안내", true, 0, {
+				startsAt: "2026-09-20T00:00:00Z",
+				endsAt: "2026-09-25T00:00:00Z",
+			}),
+		]);
+
+		expect(html).toContain("notice__window");
+	});
+
+	it("켜져 있어도 기간 밖이면 보이는 개수에서 뺀다", () => {
+		openNoticesTab();
+		const html = render([
+			notice("아직 멀었다", true, 0, { startsAt: "2099-01-01T00:00:00Z" }),
+		]);
+		const text = html.replace(/<!--.*?-->/g, "").replace(/<[^>]+>/g, "");
+
+		expect(text).toContain("지금 0개가 보이는 중");
+		expect(html).toContain("기간 밖");
+	});
+
+	it("이미 끝난 공지도 보이는 개수에서 뺀다", () => {
+		openNoticesTab();
+		const html = render([
+			notice("지난 공지", true, 0, { endsAt: "2020-01-01T00:00:00Z" }),
+		]);
+		const text = html.replace(/<!--.*?-->/g, "").replace(/<[^>]+>/g, "");
+
+		expect(text).toContain("지금 0개가 보이는 중");
+	});
+
+	it("분류와 기간을 고를 수 있다", () => {
+		openNoticesTab();
+		const html = render([]);
+
+		expect(html).toContain("datetime-local");
+		expect(html).toContain("메인");
+		expect(html).toContain("일반");
 	});
 
 	it("로그인 전에는 공지도 보이지 않는다", () => {

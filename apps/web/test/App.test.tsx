@@ -9,7 +9,7 @@ import type { PresenceSnapshot } from "../src/api.ts";
 /** 서버 렌더로 마크업을 뽑는다. 미리 넣은 데이터를 useQuery 가 그대로 읽는다. */
 function render(
 	snapshot: PresenceSnapshot | undefined,
-	notices: { id: string; body: string }[] = [],
+	notices: { id: string; body: string; category: "main" | "general" }[] = [],
 ): string {
 	const client = new QueryClient({
 		defaultOptions: { queries: { retry: false } },
@@ -161,14 +161,25 @@ describe("App", () => {
 
 	it("공지가 있으면 말풍선에 한 줄을 보여준다", () => {
 		const html = render(snapshot, [
-			{ id: "n1", body: "닉네임 매핑이 필요하면 조하나에게 연락해주세요" },
-			{ id: "n2", body: "상태 메시지에 유튜브 링크를 넣을 수 있어요" },
+			{ id: "n1", body: "닉네임 매핑이 필요하면 조하나에게 연락해주세요", category: "general" as const },
+			{ id: "n2", body: "상태 메시지에 유튜브 링크를 넣을 수 있어요", category: "general" as const },
 		]);
 
 		expect(html).toContain("bubble");
 		expect(html).toContain("닉네임 매핑이 필요하면");
 		// 한 번에 한 줄만 돌아간다
 		expect(html).not.toContain("유튜브 링크를 넣을 수 있어요");
+	});
+
+	it("메인 공지가 있으면 꿀팁 대신 그것을 보여준다", () => {
+		const html = render(snapshot, [
+			{ id: "n1", body: "꿀팁입니다", category: "general" as const },
+			{ id: "n2", body: "오늘 22시에 전체 공지가 있습니다", category: "main" as const },
+		]);
+
+		expect(html).toContain("오늘 22시에 전체 공지가 있습니다");
+		expect(html).not.toContain("꿀팁입니다");
+		expect(html).toContain("bubble--main");
 	});
 
 	it("공지가 없으면 말풍선도 없다", () => {

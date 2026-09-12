@@ -235,6 +235,21 @@ export const notices = pgTable("notices", {
 	sortOrder: integer("sort_order").notNull().default(0),
 	/** 내리면 화면에서 빠진다. 행은 남는다. */
 	isActive: boolean("is_active").notNull().default(true),
+	/**
+	 * `main` | `general`.
+	 *
+	 * `main` 은 지금 가장 알려야 하는 것이다. 하나라도 떠 있으면 말풍선을
+	 * 그쪽이 차지하고, 없을 때만 `general`(꿀팁류)이 돌아간다.
+	 */
+	category: text("category").notNull().default("general"),
+	/**
+	 * 뜨기 시작할 시각. 비우면 곧바로 뜬다.
+	 *
+	 * 프로모션처럼 미리 적어 두고 때가 되면 저절로 뜨게 하려는 것이다.
+	 */
+	startsAt: timestamp("starts_at", { withTimezone: true }),
+	/** 내려갈 시각. 비우면 내릴 때까지 계속 뜬다. */
+	endsAt: timestamp("ends_at", { withTimezone: true }),
 	createdAt: timestamp("created_at", { withTimezone: true })
 		.notNull()
 		.defaultNow(),
