@@ -471,26 +471,14 @@ describe("App", () => {
 		expect(blue).toContain("card__icon--tier4");
 	});
 
-	it("나간 지 얼마 안 되면 커피, 오래되면 잠든다", () => {
-		const rested = (minutesAgo: number) =>
-			render({
-				...snapshot,
-				participants: snapshot.participants.map((p) =>
-					p.participantUuid === "p4"
-						? {
-								...p,
-								lastOccurredAt: new Date(
-									now - minutesAgo * 60_000,
-								).toISOString(),
-							}
-						: p,
-				),
-			});
+	it("나가도 불꽃을 빼앗지 않는다 — 머문 시간은 남는 것이다", () => {
+		// 나간 사람도 온라인 때와 같은 아이콘을 쓴다. 꺼진 느낌은 CSS 가 낸다
+		// (.card--offline 의 흑백과 투명도).
+		const html = render(snapshot);
 
-		expect(rested(30)).toContain("☕");
-		expect(rested(90)).toContain("🥱");
-		expect(rested(240)).toContain("😴");
-		expect(rested(400)).toContain("💤");
+		expect(html).toContain("card--offline");
+		expect(html).not.toContain("☕");
+		expect(html).not.toContain("💤");
 	});
 
 	it("마지막 갱신 시각을 보여준다", () => {
