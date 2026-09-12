@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import type { SessionParticipant } from "./api.ts";
 import ConfirmDialog from "./ConfirmDialog.tsx";
-import { formatDuration, formatLeftAgo, restTier, studyTier } from "./format.ts";
+import { formatDuration, formatLeftAgo, studyTier } from "./format.ts";
 import Portal from "./Portal.tsx";
 import { fetchYoutubeInfo, parseStatus } from "./status-link.ts";
 import StatusDialog from "./StatusDialog.tsx";
@@ -14,7 +14,6 @@ import StatusDialog from "./StatusDialog.tsx";
  */
 let confirmedOnce = false;
 
-const REST_ICON = ["☕", "🥱", "😴", "💤"];
 
 interface Props {
 	participant: SessionParticipant;
@@ -83,10 +82,8 @@ export default function ProfileDialog({
 
 	const name = participant.displayName ?? "이름 없음";
 	const seconds = participant.onlineSeconds;
-	const tier = participant.isPresent ? studyTier(seconds) : 0;
-	const rest = participant.isPresent
-		? 0
-		: restTier(participant.lastOccurredAt, now);
+	// 나갔다고 불꽃을 빼앗지 않는다. 타일과 같은 규칙이다(App.tsx 의 Card).
+	const tier = studyTier(seconds);
 	const { text, youtube } = parseStatus(participant.statusMessage);
 
 	// 제목은 유튜브에서 가져온다. 실패하면 주소만 열 수 있게 두면 된다.
@@ -138,16 +135,23 @@ export default function ProfileDialog({
 				}}
 			>
 				<div className="dialog profile">
-					<span className={`profile__icon card__icon--tier${tier}`}>
-						{participant.isPresent && tier >= 3 && (
+					{/* 나간 사람은 같은 불꽃을 흐리게 보여준다 — 목록 타일과 같다 */}
+					<span
+						className={[
+							"profile__icon",
+							`card__icon--tier${tier}`,
+							participant.isPresent ? "" : "profile__icon--offline",
+						]
+							.filter(Boolean)
+							.join(" ")}
+					>
+						{tier >= 3 && (
 							<span className="card__blaze" aria-hidden="true">
 								🔥
 							</span>
 						)}
-						<span className="card__person">
-							{participant.isPresent ? "🧑‍💻" : REST_ICON[rest]}
-						</span>
-						{participant.isPresent && tier === 2 && (
+						<span className="card__person">🧑‍💻</span>
+						{tier === 2 && (
 							<span className="card__flame" aria-hidden="true">
 								🔥
 							</span>

@@ -232,7 +232,7 @@ body {
 	margin-top: 9px;
 	/* 아래 구역 제목 위로 떠야 한다 */
 	z-index: 2;
-	max-width: 22em;
+	max-width: 20em;
 	margin: 0;
 	padding: 8px 11px;
 	border-radius: 10px;
@@ -460,6 +460,13 @@ body {
 
 .card--offline .card__icon {
 	filter: grayscale(0.85);
+}
+
+/* 프로필 카드도 같은 규칙을 쓴다. 타일에서 꺼져 보이던 것이 눌렀더니
+   되살아나면 다른 사람처럼 보인다 */
+.profile__icon--offline {
+	filter: grayscale(0.85);
+	opacity: 0.55;
 }
 
 /* 티어별로 정해 둔 투명도가 여기서 또 곱해지면 0 단계가 거의 안 보인다 */
@@ -1071,9 +1078,10 @@ body {
 		flex-wrap: wrap;
 	}
 
+	/* 폰에서는 남는 폭을 다 쓰면 접속자 수에 바짝 붙는다. 사이를 띄운다 */
 	.bubble {
-		width: 100%;
-		max-width: none;
+		width: auto;
+		max-width: 16em;
 	}
 
 	/* 띄운 말풍선이 헤더 밖으로 나가지 않게 기준을 헤더로 넓힌다 */

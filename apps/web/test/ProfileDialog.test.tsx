@@ -104,4 +104,19 @@ describe("ProfileDialog", () => {
 	it("본인으로 추정되면 표시를 붙인다", () => {
 		expect(render({ isYou: true })).toContain("(나)");
 	});
+
+	it("나간 사람도 목록 타일과 같은 불꽃을 쓴다", () => {
+		// 타일에서 꺼져 보이던 것이 눌렀더니 커피잔으로 바뀌면 다른 사람처럼 보인다
+		const html = render({
+			isPresent: false,
+			onlineSeconds: 4 * 3600,
+			lastOccurredAt: new Date(now - 30 * 60_000).toISOString(),
+		});
+
+		expect(html).toContain("🧑‍💻");
+		expect(html).not.toContain("☕");
+		expect(html).toContain("profile__icon--offline");
+		// 4시간이면 3단계 — 불꽃이 사람 뒤로 간다
+		expect(html).toContain("card__icon--tier3");
+	});
 });
