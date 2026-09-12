@@ -163,8 +163,8 @@ function Section({
 			<h2 className={`section__title section__title--${tone}`}>
 				<span className={`section__dot section__dot--${tone}`} aria-hidden="true" />
 				{title}
-				<span className="section__count">{`${people.length}명`}</span>
 				{control}
+				<span className="section__count">{`${people.length}명`}</span>
 			</h2>
 
 			{people.length === 0 ? (

@@ -377,11 +377,12 @@ body {
 	z-index: 3;
 }
 
-/* 오프라인 정렬 고르개. 제목 줄 오른쪽 끝에 붙는다 */
+/* 오프라인 정렬 고르개. 명수 왼쪽에 붙는다 */
 .section__sort {
 	display: flex;
 	flex: none;
 	gap: 2px;
+	/* 오른쪽 묶음(고르개 + 명수)을 통째로 오른쪽 끝으로 민다 */
 	margin-left: auto;
 	padding: 2px;
 	border-radius: 7px;
@@ -431,6 +432,7 @@ body {
 }
 
 .section__count {
+	/* 혼자일 때는 스스로 오른쪽 끝으로 간다. 고르개가 있으면 그쪽이 민다 */
 	margin-left: auto;
 	font-weight: 500;
 	color: var(--muted-weak);

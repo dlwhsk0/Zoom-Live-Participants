@@ -519,6 +519,15 @@ describe("App", () => {
 		expect(chosen).toBe("머문 시간순");
 	});
 
+	it("명수가 제목 줄 맨 오른쪽, 고르개가 그 왼쪽에 온다", () => {
+		const html = render(withOffline(2));
+		const sort = html.indexOf("section__sort");
+		const count = html.lastIndexOf("section__count");
+
+		expect(sort).toBeGreaterThan(-1);
+		expect(count).toBeGreaterThan(sort);
+	});
+
 	it("나간 사람이 하나뿐이면 고르개를 두지 않는다", () => {
 		expect(render(withOffline(1))).not.toContain("section__sort");
 	});
