@@ -49,6 +49,9 @@ host_id      YjEAL8l3S5SwiUZT-8Dgrg
 host_email   techeer1@tukorea.ac.kr
 ```
 
+현재 호스트도 마찬가지로 알 수 없다. 그 조사 결과는
+[`host-detection.md`](host-detection.md) 에 있다.
+
 문을 연 사람은 **시작 시각에 처음 들어온 사람**으로 판단한다. 실측에서 둘은
 같은 초였고, 그 사람이 곧바로 호스트 권한을 받았다.
 

@@ -12,3 +12,9 @@ dist/
 .env.test
 .vercel
 .env*
+
+# .env.example 은 값이 없는 견본이라 추적한다 (.env* 예외)
+!.env.example
+
+# PoC 가 로컬로 서빙하는 Zoom SDK 번들 (3.5MB). README 의 curl 로 다시 받는다
+poc/host-probe/public/vendor/

@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>호스트 판정 PoC</title>
+<script>
+	window.__early = [];
+	window.addEventListener('error', function (e) {
+		if (e.target && e.target !== window && e.target.src) {
+			window.__early.push('리소스 로드 실패: ' + e.target.src);
+		} else {
+			window.__early.push('에러: ' + (e.message || '?') + '  @' + (e.filename || '?') + ':' + (e.lineno || 0));
+		}
+	}, true);
+	window.addEventListener('unhandledrejection', function (e) {
+		var r = e.reason;
+		window.__early.push('rejection: ' + (r && (r.message || r.name) ? (r.name + ': ' + r.message) : String(r)));
+	});
+</script>
+<!-- 번들이 React 를 맨이름 전역으로 참조한다. 순서가 중요하다. -->
+<script src="/vendor/react.min.js"></script>
+<script src="/vendor/react-dom.min.js"></script>
+<script src="/vendor/redux.min.js"></script>
+<script src="/vendor/redux-thunk.min.js"></script>
+<script src="/vendor/lodash.min.js"></script>
+<script src="/vendor/zoom-meeting-embedded-6.2.0.min.js"
+	onerror="window.__sdkLoadFailed = true"
+	onload="window.__sdkLoaded = true"></script>
+<style>
+	:root {
+		--bg: #14161a; --panel: #1c1f26; --line: #2b3039; --fg: #e6e8ec;
+		--dim: #8b93a1; --ok: #4ade80; --warn: #fbbf24; --bad: #f87171; --accent: #60a5fa;
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; background: var(--bg); color: var(--fg);
+		font: 14px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif; }
+	header { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex;
+		align-items: center; gap: 12px; flex-wrap: wrap; }
+	h1 { font-size: 15px; margin: 0; font-weight: 600; }
+	.badge { font-size: 12px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--dim); }
+	.badge.on { color: var(--ok); border-color: var(--ok); }
+	.badge.err { color: var(--bad); border-color: var(--bad); }
+	main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; padding: 16px 20px; }
+	@media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+	section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+	h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim);
+		margin: 0 0 10px; font-weight: 600; }
+	label { display: block; font-size: 12px; color: var(--dim); margin-bottom: 4px; }
+	input { width: 100%; background: #0f1115; border: 1px solid var(--line); color: var(--fg);
+		border-radius: 6px; padding: 7px 9px; font: inherit; font-size: 13px; }
+	.row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+	button { background: var(--accent); color: #0b0d10; border: 0; border-radius: 6px;
+		padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+	button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); font-weight: 400; }
+	button:disabled { opacity: .4; cursor: not-allowed; }
+	.host { font-size: 26px; font-weight: 700; margin: 4px 0 2px; }
+	.host.unknown { color: var(--dim); font-weight: 400; }
+	table { width: 100%; border-collapse: collapse; font-size: 13px; }
+	th { text-align: left; color: var(--dim); font-weight: 500; font-size: 11px;
+		text-transform: uppercase; letter-spacing: .05em; padding: 4px 6px; }
+	td { padding: 5px 6px; border-top: 1px solid var(--line); }
+	td.flag { color: var(--dim); }
+	td.flag.yes { color: var(--ok); font-weight: 600; }
+	#log { height: 300px; overflow-y: auto; background: #0f1115; border: 1px solid var(--line);
+		border-radius: 6px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+		font-size: 11.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-all; }
+	.l-evt { color: var(--accent); }
+	.l-host { color: var(--warn); font-weight: 700; }
+	.l-err { color: var(--bad); }
+	.l-ok { color: var(--ok); }
+	.l-dim { color: var(--dim); }
+	#sdkRoot { height: 0; overflow: hidden; }
+	#sdkRoot.show { height: 420px; margin-top: 12px; }
+	.hint { font-size: 12px; color: var(--dim); margin: 8px 0 0; }
+	code { background: #0f1115; padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<header>
+	<h1>호스트 판정 PoC</h1>
+	<span class="badge" id="stat">대기</span>
+	<span class="badge" id="statField">isHost 미확인</span>
+	<span class="badge" id="statEvent">이벤트 미확인</span>
+</header>
+
+<main>
+	<section>
+		<h2>접속</h2>
+		<div class="row">
+			<div><label>회의 번호</label><input id="mn" placeholder="83877926942"></div>
+			<div><label>암호</label><input id="pw" placeholder="회의 암호"></div>
+		</div>
+		<div class="row">
+			<div><label>참가자 이름</label><input id="name" placeholder="출석봇(테스트)"></div>
+			<div style="display:flex; align-items:flex-end; gap:8px">
+				<button id="join">참가</button>
+				<button id="leave" class="ghost" disabled>나가기</button>
+				<button id="toggle" class="ghost">화면</button>
+			</div>
+		</div>
+		<p class="hint">
+			<label style="display:inline-flex;align-items:center;gap:6px;color:var(--fg);font-size:13px">
+				<input type="checkbox" id="useZak" checked style="width:auto"> ZAK 로 조인 (로그인된 사용자로 들어간다)
+			</label>
+		</p>
+		<p class="hint">이 회의는 <code>meeting_authentication=true</code> — 익명 조인이 막혀 있어 ZAK 가 필요하다.
+			계정에 사용자가 방 주인 하나뿐이라 <strong>봇이 방 주인으로 들어가고, 호스트를 가져갈 수 있다.</strong></p>
+		<div id="sdkRoot"></div>
+	</section>
+
+	<section>
+		<h2>지금 호스트</h2>
+		<div class="host unknown" id="host">—</div>
+		<p class="hint" id="hostMeta">아직 참가하지 않았다.</p>
+
+		<h2 style="margin-top:18px">참가자</h2>
+		<table>
+			<thead><tr><th>이름</th><th>userId</th><th>isHost</th><th>isManager</th><th></th></tr></thead>
+			<tbody id="people"><tr><td colspan="5" class="flag">—</td></tr></tbody>
+		</table>
+		<p class="hint"><button class="ghost" id="dump" style="padding:4px 10px;font-size:12px">원본 JSON 복사</button></p>
+	</section>
+
+	<section style="grid-column: 1 / -1">
+		<h2>로그 — 이벤트와 호스트 변경</h2>
+		<div id="log"></div>
+	</section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const POLL_MS = 2000;
+/** 호스트가 바뀌었을 때 "직전에 무슨 이벤트가 왔는지" 보려고 최근 것을 들고 있는다. */
+const RECENT_MS = 5000;
+
+let client = null;
+let timer = null;
+let lastHostId = null;
+let fieldsLogged = false;
+const recent = [];
+
+function log(msg, cls = '') {
+	const t = new Date().toTimeString().slice(0, 8);
+	const line = document.createElement('div');
+	if (cls) line.className = cls;
+	line.textContent = `${t}  ${msg}`;
+	$('log').appendChild(line);
+	$('log').scrollTop = $('log').scrollHeight;
+}
+
+/**
+ * Error 는 JSON.stringify 하면 {} 가 된다 — 그래서 처음에 아무것도 안 보였다.
+ * 열거 불가 속성까지 직접 긁어낸다.
+ */
+function describe(e) {
+	if (e === null || e === undefined) return String(e);
+	if (typeof e === 'string') return e;
+	const bag = {};
+	for (const k of Object.getOwnPropertyNames(e)) {
+		if (k === 'stack') continue;
+		try { bag[k] = e[k]; } catch { /* getter 가 던지면 버린다 */ }
+	}
+	for (const k of Object.keys(e)) {
+		try { bag[k] = e[k]; } catch { /* 무시 */ }
+	}
+	const name = e.name ? `${e.name}: ` : '';
+	const msg = e.message ? e.message : '';
+	let body;
+	try { body = JSON.stringify(bag); } catch { body = String(e); }
+	return `${name}${msg}  ${body}`;
+}
+
+function remember(name, payload) {
+	recent.push({ at: Date.now(), name, payload });
+	while (recent.length && Date.now() - recent[0].at > RECENT_MS) recent.shift();
+}
+
+function setStat(el, text, cls) {
+	const n = $(el);
+	n.textContent = text;
+	n.className = 'badge' + (cls ? ' ' + cls : '');
+}
+
+/**
+ * SDK 가 어떤 이벤트 이름을 실제로 갖고 있는지 모른다 — 후보를 전부 걸어보고
+ * 실제로 불리는 것만 로그에 남긴다. 없는 이름은 조용히 버린다.
+ */
+const CANDIDATES = [
+	'user-added', 'user-removed', 'user-updated',
+	'host-change', 'co-host-change', 'user-role-change',
+	'connection-change', 'meeting-status',
+];
+
+function wire() {
+	for (const name of CANDIDATES) {
+		try {
+			client.on(name, (payload) => {
+				remember(name, payload);
+				setStat('statEvent', '이벤트 수신됨', 'on');
+				let brief;
+				try { brief = JSON.stringify(payload); } catch { brief = String(payload); }
+				if (brief && brief.length > 400) brief = brief.slice(0, 400) + '…';
+				log(`[event] ${name}  ${brief}`, 'l-evt');
+			});
+		} catch (e) {
+			log(`[event] ${name} — 등록 실패(이 SDK 에 없는 이벤트일 수 있다)`, 'l-dim');
+		}
+	}
+}
+
+function render(list) {
+	const body = $('people');
+	body.innerHTML = '';
+	if (!list.length) {
+		body.innerHTML = '<tr><td colspan="5" class="flag">—</td></tr>';
+		return;
+	}
+	let me = null;
+	try { me = client.getCurrentUser(); } catch { me = list[0] ?? null; }
+	const iAmHost = Boolean(me && me.isHost);
+	for (const u of list) {
+		const tr = document.createElement('tr');
+		const host = u.isHost === true;
+		const mgr = u.isManager === true;
+		tr.innerHTML =
+			`<td>${(u.displayName ?? u.userName ?? '?')}</td>` +
+			`<td class="flag">${u.userId ?? '?'}</td>` +
+			`<td class="flag ${host ? 'yes' : ''}">${host ? 'YES' : String(u.isHost)}</td>` +
+			`<td class="flag ${mgr ? 'yes' : ''}">${mgr ? 'YES' : String(u.isManager)}</td>` +
+			`<td></td>`;
+		// 봇이 호스트를 물고 있으면, 아무에게나 즉시 돌려줄 수 있어야 한다.
+		if (iAmHost && !host && u.userId !== undefined) {
+			const btn = document.createElement('button');
+			btn.className = 'ghost';
+			btn.style.cssText = 'padding:2px 8px;font-size:11px';
+			btn.textContent = '호스트 주기';
+			btn.onclick = () => giveHost(u);
+			tr.lastElementChild.appendChild(btn);
+		}
+		body.appendChild(tr);
+	}
+}
+
+function poll() {
+	let list;
+	try {
+		list = client.getAttendeeslist() || [];
+	} catch (e) {
+		log(`[poll] getAttendeeslist() 실패: ${e && e.message}`, 'l-err');
+		return;
+	}
+
+	// 확인 1 — 참가자로 들어간 우리에게도 isHost 가 채워지는가.
+	if (!fieldsLogged && list.length) {
+		fieldsLogged = true;
+		const keys = Object.keys(list[0]).sort();
+		log(`[필드] 참가자 객체의 키: ${keys.join(', ')}`, 'l-ok');
+		const has = keys.includes('isHost');
+		log(`[필드] isHost ${has ? '있음 ✓' : '없음 ✗ — 3절 설계가 여기서 끝난다'}`, has ? 'l-ok' : 'l-err');
+		setStat('statField', has ? 'isHost 있음' : 'isHost 없음', has ? 'on' : 'err');
+		log(`[필드] 첫 참가자 원본: ${JSON.stringify(list[0])}`, 'l-dim');
+	}
+
+	render(list);
+	window.__last = list;
+
+	// 명단 요약 — 구성이 바뀔 때만 남긴다. 소회의실 인원이 잡히는지 확인용.
+	const sig = list.map((u) => `${u.userId}:${u.isHost ? 'H' : ''}${u.isCoHost ? 'C' : ''}${u.bHold ? 'W' : ''}`).join(',');
+	if (sig !== window.__rosterSig) {
+		window.__rosterSig = sig;
+		const host = list.filter((u) => u.isHost);
+		const co = list.filter((u) => u.isCoHost);
+		const hold = list.filter((u) => u.bHold || u.isHold);
+		log(
+			`[명단] ${list.length}명 · 호스트=${host.length ? host.map((u) => u.displayName).join('/') : '없음'}` +
+			` · 공동호스트 ${co.length}명 · 대기/보류 ${hold.length}명`,
+			'l-ok',
+		);
+		log(`  └ ${list.map((u) => `${u.displayName}${u.isHost ? '[H]' : ''}${u.isCoHost ? '[C]' : ''}`).join(', ')}`, 'l-dim');
+	}
+
+	const host = list.find((u) => u.isHost === true);
+	const id = host ? String(host.userId) : null;
+	if (id !== lastHostId) {
+		const before = lastHostId;
+		lastHostId = id;
+		const nm = host ? (host.displayName ?? host.userName ?? '?') : null;
+		$('host').textContent = nm ?? '알 수 없음';
+		$('host').className = 'host' + (nm ? '' : ' unknown');
+
+		if (before === null && id) {
+			log(`[호스트] 최초 확인: ${nm} (userId=${id})`, 'l-host');
+			$('hostMeta').textContent = `userId ${id}`;
+		} else {
+			log(`[호스트] 바뀜: ${before ?? '없음'} → ${id ?? '없음'} (${nm ?? '?'})`, 'l-host');
+			// 확인 2 — 이 변화 직전에 SDK 이벤트가 있었는가.
+			const evts = recent.filter((r) => Date.now() - r.at <= RECENT_MS);
+			if (evts.length) {
+				log(`  └ 직전 ${RECENT_MS / 1000}초 내 이벤트: ${evts.map((e) => e.name).join(', ')}`, 'l-ok');
+			} else {
+				log(`  └ 직전 ${RECENT_MS / 1000}초 내 이벤트 없음 — 폴링으로만 잡힌다`, 'l-err');
+			}
+			$('hostMeta').textContent = `userId ${id ?? '—'} · ${new Date().toTimeString().slice(0, 8)} 변경`;
+		}
+	}
+}
+
+/** 봇이 호스트를 물고 있을 때 사람에게 돌려준다. 실수로 뺏었을 때의 탈출구다. */
+async function giveHost(u) {
+	const nm = u.displayName ?? u.userName ?? u.userId;
+	log(`호스트 넘기는 중 → ${nm} (userId=${u.userId})`);
+	try {
+		await client.makeHost(u.userId);
+		log(`호스트 넘김: ${nm}`, 'l-ok');
+	} catch (e) {
+		log(`호스트 넘기기 실패: ${describe(e)}`, 'l-err');
+		console.error('[makeHost]', e);
+	}
+	poll();
+}
+
+async function join() {
+	const mn = $('mn').value.replace(/\s/g, '');
+	const pw = $('pw').value;
+	const name = $('name').value || '출석봇(테스트)';
+	if (!mn) return log('회의 번호를 넣어라.', 'l-err');
+
+	$('join').disabled = true;
+	setStat('stat', '서명 발급 중', '');
+	log(`서명 요청: mn=${mn} role=0`);
+
+	let sig;
+	try {
+		const r = await fetch('/api/signature', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ meetingNumber: mn, role: 0 }),
+		});
+		const j = await r.json();
+		if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+		sig = j;
+		log('서명 발급됨', 'l-ok');
+	} catch (e) {
+		setStat('stat', '서명 실패', 'err');
+		log(`서명 실패: ${e.message}`, 'l-err');
+		$('join').disabled = false;
+		return;
+	}
+
+	if (typeof window.ZoomMtgEmbedded === 'undefined') {
+		setStat('stat', 'SDK 로드 실패', 'err');
+		log('ZoomMtgEmbedded 가 없다 — CDN 스크립트가 안 떴다. 네트워크 탭을 봐라.', 'l-err');
+		$('join').disabled = false;
+		return;
+	}
+
+	// SDK 는 루트 엘리먼트에 실제 크기가 있어야 초기화된다. 숨긴 채로 두지 않는다.
+	$('sdkRoot').classList.add('show');
+
+	try {
+		client = ZoomMtgEmbedded.createClient();
+		log(`SDK ${ZoomMtgEmbedded.VERSION || '(버전 미상)'}`, 'l-dim');
+		await client.init({
+			zoomAppRoot: $('sdkRoot'),
+			language: 'ko-KO',
+			patchJsMedia: true,
+		});
+		log('init 완료', 'l-ok');
+	} catch (e) {
+		setStat('stat', 'init 실패', 'err');
+		log(`init 실패: ${describe(e)}`, 'l-err');
+		console.error('[init]', e);
+		$('join').disabled = false;
+		return;
+	}
+
+	wire();
+	setStat('stat', '참가 중', '');
+
+	let zak = '';
+	if ($('useZak').checked) {
+		try {
+			const r = await fetch('/api/zak');
+			const j = await r.json();
+			if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+			zak = j.zak;
+			log(`ZAK 발급됨 (user=${j.user}, 길이 ${zak.length})`, 'l-ok');
+		} catch (e) {
+			log(`ZAK 발급 실패: ${e.message} — 익명으로 시도한다`, 'l-err');
+		}
+	}
+
+	try {
+		// 번들에 passWord 와 password 가 둘 다 들어 있다. 어느 쪽인지 확실하지 않아 둘 다 준다.
+		await client.join({
+			sdkKey: sig.sdkKey,
+			signature: sig.signature,
+			meetingNumber: mn,
+			password: pw,
+			passWord: pw,
+			userName: name,
+			...(zak ? { zak } : {}),
+		});
+		setStat('stat', '참가함', 'on');
+		log('참가 성공 — 폴링 시작', 'l-ok');
+		$('leave').disabled = false;
+		timer = setInterval(poll, POLL_MS);
+		poll();
+	} catch (e) {
+		setStat('stat', '참가 실패', 'err');
+		log(`join 실패: ${describe(e)}`, 'l-err');
+		console.error('[join]', e);
+		$('join').disabled = false;
+	}
+}
+
+async function leave() {
+	clearInterval(timer);
+	timer = null;
+	try { await client.leave(); } catch (e) { log(`leave 실패: ${e && e.message}`, 'l-err'); }
+	setStat('stat', '나감', '');
+	log('나감');
+	$('join').disabled = false;
+	$('leave').disabled = true;
+	lastHostId = null;
+}
+
+$('join').onclick = join;
+$('leave').onclick = leave;
+$('toggle').onclick = () => $('sdkRoot').classList.toggle('show');
+$('dump').onclick = async () => {
+	const t = JSON.stringify(window.__last ?? [], null, 2);
+	try { await navigator.clipboard.writeText(t); log('원본 JSON 복사됨', 'l-ok'); }
+	catch { log(t, 'l-dim'); }
+};
+
+window.addEventListener('error', (ev) => log(`[window.error] ${ev.message}`, 'l-err'));
+window.addEventListener('unhandledrejection', (ev) => log(`[unhandled] ${describe(ev.reason)}`, 'l-err'));
+
+log(`[진단] React=${typeof window.React} ReactDOM=${typeof window.ReactDOM} ` +
+	`Redux=${typeof window.Redux} lodash=${typeof window._}`, 'l-dim');
+log(`[진단] onload=${!!window.__sdkLoaded}  onerror=${!!window.__sdkLoadFailed}  ` +
+	`typeof ZoomMtgEmbedded=${typeof window.ZoomMtgEmbedded}  ` +
+	`브라우저=${navigator.userAgent.split(') ').shift()})`, 'l-dim');
+for (const e of (window.__early || [])) log(`[로드중 에러] ${e}`, 'l-err');
+if (typeof window.ZoomMtgEmbedded === 'undefined') {
+	log('SDK 전역이 없다. 위의 [로드중 에러] 줄이 원인이다.', 'l-err');
+} else {
+	log(`SDK 번들 로드됨 (${ZoomMtgEmbedded.VERSION || '버전 미상'})`, 'l-ok');
+}
+
+fetch('/api/config').then((r) => r.json()).then((c) => {
+	$('mn').value = c.meetingNumber || '';
+	$('pw').value = c.passcode || '';
+	$('name').value = c.userName || '';
+	if (!c.zakAvailable) {
+		$('useZak').checked = false;
+		$('useZak').disabled = true;
+		log('ZAK 사용 불가 — .env 에 S2S 자격증명이 없다.', 'l-dim');
+	}
+	if (!c.ready) {
+		setStat('stat', '.env 미설정', 'err');
+		log('ZOOM_SDK_KEY / ZOOM_SDK_SECRET 가 비어 있다. .env.example 을 보고 .env 를 만들어라.', 'l-err');
+		$('join').disabled = true;
+	} else {
+		log(`준비됨. SDK Key ${String(c.sdkKey).slice(0, 6)}…`, 'l-dim');
+	}
+});
+</script>
+</body>
+</html>
