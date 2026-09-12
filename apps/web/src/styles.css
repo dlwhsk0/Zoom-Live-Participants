@@ -204,11 +204,11 @@ body {
  * 길어져도 접속자 수를 밀지 않고 아래로만 자란다.
  */
 .header__right {
+	position: relative;
 	display: flex;
 	flex: 1;
 	flex-direction: column;
 	align-items: flex-end;
-	gap: 9px;
 	min-width: 0;
 }
 
@@ -218,8 +218,20 @@ body {
  * 꼬리를 오른쪽에 달아 호스트 쪽을 가리킨다 — 누가 말하는 것처럼 보이게 하는
  * 장치이고, 말풍선이 왜 거기 있는지를 설명해 준다.
  */
+/*
+ * 말풍선은 흐름에서 빼낸다.
+ *
+ * 흐름 안에 두면 공지가 길어질 때 아래 목록을 통째로 밀어 내린다. 공지는
+ * 곁들이는 것이지 자리를 차지할 것이 아니다. 대신 길면 아래를 가린다 —
+ * 짧게 쓰는 것으로 맞춘다.
+ */
 .bubble {
-	position: relative;
+	position: absolute;
+	top: 100%;
+	right: 0;
+	margin-top: 9px;
+	/* 아래 구역 제목 위로 떠야 한다 */
+	z-index: 2;
 	max-width: 22em;
 	margin: 0;
 	padding: 8px 11px;
@@ -436,8 +448,24 @@ body {
 	text-underline-offset: 2px;
 }
 
+/*
+ * 나간 사람.
+ *
+ * 불꽃은 그대로 둔다 — 머문 시간은 나갔다고 사라지는 것이 아니다.
+ * 대신 전체를 흐리게 하고 색을 빼서 "꺼진" 느낌을 낸다.
+ */
 .card--offline {
-	opacity: 0.72;
+	opacity: 0.45;
+}
+
+.card--offline .card__icon {
+	filter: grayscale(0.85);
+}
+
+/* 티어별로 정해 둔 투명도가 여기서 또 곱해지면 0 단계가 거의 안 보인다 */
+.card--offline .card__icon--tier0,
+.card--offline .card__icon--tier1 {
+	opacity: 1;
 }
 
 /* 아이콘이 주인공이다. 불꽃을 얹기 위해 기준점을 잡는다 */
@@ -1046,6 +1074,11 @@ body {
 	.bubble {
 		width: 100%;
 		max-width: none;
+	}
+
+	/* 띄운 말풍선이 헤더 밖으로 나가지 않게 기준을 헤더로 넓힌다 */
+	.header {
+		position: relative;
 	}
 
 	/* 폰에서는 자르지 않고 줄을 바꾼다. 로그는 잘린 글자를 보려고 옆으로

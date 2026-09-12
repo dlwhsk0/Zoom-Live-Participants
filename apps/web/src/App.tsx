@@ -35,7 +35,6 @@ const FLAME_LABEL = [
 ];
 
 /** 나간 지 오래될수록 깊이 잠든다. 경계는 접속 쪽과 같은 1·3·5시간. */
-const REST_ICON = ["☕", "🥱", "😴", "💤"];
 const REST_LABEL = ["잠깐 자리 비움", "졸기 시작", "자는 중", "오늘은 끝"];
 
 function Card({
@@ -48,7 +47,9 @@ function Card({
 	onOpen: () => void;
 }) {
 	const seconds = participant.onlineSeconds;
-	const tier = participant.isPresent ? studyTier(seconds) : 0;
+	// 나갔다고 불꽃을 빼앗지 않는다. 머문 시간은 그대로 남아 있는 것이고,
+	// 꺼진 느낌은 투명도로 낸다(.card--offline).
+	const tier = studyTier(seconds);
 	const rest = participant.isPresent ? 0 : restTier(participant.lastOccurredAt, now);
 
 	// 입장을 놓친 사람은 실제로는 더 오래 있었을 수 있다. 아래로만 틀린다.
@@ -68,8 +69,8 @@ function Card({
 				onClick={onOpen}
 			>
 				<StudyIcon
-					tier={participant.isPresent ? tier : 0}
-					face={participant.isPresent ? "🧑‍💻" : (REST_ICON[rest] ?? "☕")}
+					tier={tier}
+					face="🧑‍💻"
 					label={
 						participant.isPresent
 							? `공부 중${tier >= 2 ? `, ${FLAME_LABEL[tier]}` : ""}`
