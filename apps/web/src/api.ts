@@ -330,7 +330,24 @@ export interface IdentityList {
 	identities: Identity[];
 }
 
+/** 바꾼 사람. 로그인이 없어 IP 로 추정한다. */
+export interface AdminActor {
+	ip: string | null;
+	/** 그 IP 로 접속한 사람이 정확히 한 명일 때만 채워진다. */
+	name: string | null;
+	candidates: number;
+}
+
+/** 고쳐진 대상. */
+export interface AdminActionTarget {
+	participantUuid: string;
+	before: string | null;
+	displayName: string | null;
+}
+
 export interface AdminAction {
+	actor: AdminActor;
+	targets: AdminActionTarget[];
 	id: string;
 	createdAt: string;
 	action: string;

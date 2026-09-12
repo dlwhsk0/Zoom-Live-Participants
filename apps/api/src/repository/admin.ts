@@ -124,6 +124,31 @@ export async function renameParticipants(
 	});
 }
 
+/**
+ * 바꾼 사람.
+ *
+ * 상태 메시지는 아무나 고칠 수 있게 열어 뒀다. 대신 누가 고쳤는지를 남기는
+ * 것이 이 기록의 목적이다. 로그인이 없으므로 아는 것은 IP 뿐이고, 같은
+ * 세션에서 그 IP 로 접속한 참가자가 **정확히 한 명일 때만** 이름을 붙인다.
+ *
+ * 같은 공유기를 여럿이 쓰면 특정할 수 없다. 그때는 이름 대신 후보 수를
+ * 알린다 — 엉뚱한 사람을 지목하느니 모른다고 하는 쪽이다(`isYou` 와 같은 원칙).
+ */
+export interface AdminActor {
+	ip: string | null;
+	/** 정확히 한 명일 때만 채운다. */
+	name: string | null;
+	/** 그 IP 로 접속한 적 있는 사람 수. 1 이면 name 이 곧 그 사람이다. */
+	candidates: number;
+}
+
+/** 고쳐진 대상. 이름은 participant_uuid 로 찾는다. */
+export interface AdminActionTarget {
+	participantUuid: string;
+	before: string | null;
+	displayName: string | null;
+}
+
 export interface AdminAction {
 	id: string;
 	createdAt: Date;
@@ -131,13 +156,17 @@ export interface AdminAction {
 	meetingUuid: string | null;
 	detail: unknown;
 	clientIp: string | null;
+	/** 누가 했는가. */
+	actor: AdminActor;
+	/** 누구를 고쳤는가. 별칭 작업처럼 대상이 없는 것은 빈 배열이다. */
+	targets: AdminActionTarget[];
 }
 
 export async function listAdminActions(
 	db: Db,
 	limit: number,
 ): Promise<AdminAction[]> {
-	return db
+	const rows = await db
 		.select({
 			id: adminActions.id,
 			createdAt: adminActions.createdAt,
@@ -149,6 +178,70 @@ export async function listAdminActions(
 		.from(adminActions)
 		.orderBy(desc(adminActions.createdAt))
 		.limit(Math.min(Math.max(limit, 1), 200));
+
+	const ips = [...new Set(rows.map((r) => r.clientIp).filter((ip): ip is string => !!ip))];
+	const uuids = [
+		...new Set(
+			rows.flatMap((r) => {
+				const detail = r.detail as { targets?: { participantUuid?: string }[] };
+				return (detail?.targets ?? [])
+					.map((t) => t.participantUuid)
+					.filter((u): u is string => !!u);
+			}),
+		),
+	];
+
+	// IP → 이름. 한 IP 에 여러 이름이 걸리면 특정하지 않는다.
+	const byIp = new Map<string, Set<string>>();
+	if (ips.length > 0) {
+		const found = await db
+			.select({ ip: participants.publicIp, name: participants.displayName })
+			.from(participants)
+			.where(inArray(participants.publicIp, ips));
+
+		for (const row of found) {
+			if (!row.ip || !row.name) continue;
+			const set = byIp.get(row.ip) ?? new Set<string>();
+			set.add(row.name);
+			byIp.set(row.ip, set);
+		}
+	}
+
+	// participant_uuid → 이름
+	const byUuid = new Map<string, string>();
+	if (uuids.length > 0) {
+		const found = await db
+			.select({ uuid: participants.participantUuid, name: participants.displayName })
+			.from(participants)
+			.where(inArray(participants.participantUuid, uuids));
+
+		for (const row of found) {
+			if (row.name) byUuid.set(row.uuid, row.name);
+		}
+	}
+
+	return rows.map((row) => {
+		const names = row.clientIp ? [...(byIp.get(row.clientIp) ?? [])] : [];
+		const detail = row.detail as {
+			targets?: { participantUuid?: string; before?: string | null }[];
+		};
+
+		return {
+			...row,
+			actor: {
+				ip: row.clientIp,
+				name: names.length === 1 ? (names[0] ?? null) : null,
+				candidates: names.length,
+			},
+			targets: (detail?.targets ?? [])
+				.filter((t): t is { participantUuid: string; before?: string | null } => !!t.participantUuid)
+				.map((t) => ({
+					participantUuid: t.participantUuid,
+					before: t.before ?? null,
+					displayName: byUuid.get(t.participantUuid) ?? null,
+				})),
+		};
+	});
 }
 
 /**
