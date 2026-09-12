@@ -159,16 +159,19 @@ const NOTICE_ROTATE_MS = 7000;
 /**
  * 말풍선이 보여줄 순서를 정한다.
  *
- * `main` 을 **한 칸 걸러 하나씩** 끼운다. 그냥 앞에 붙이기만 하면 꿀팁이
- * 다섯 줄일 때 메인이 여섯 번에 한 번만 나와 놓치기 쉽다. 끼워 넣으면
- * 절반이 메인이 된다.
+ * `main` 을 **일반 몇 개마다 한 번씩** 끼운다. 그냥 앞에 붙이기만 하면 꿀팁이
+ * 다섯 줄일 때 메인이 여섯 번에 한 번(42초에 한 번)만 나와 놓치기 쉽고,
+ * 한 칸 걸러 끼우면 절반이 메인이라 과하다. 그 사이를 잡는다.
  *
- *     [메인, 꿀팁1, 메인, 꿀팁2, 메인, 꿀팁3, …]
+ *     [메인, 꿀팁1, 꿀팁2, 꿀팁3, 메인, 꿀팁4, 꿀팁5]
  *
  * 메인이 여럿이면 그것들도 돌아가며 끼워진다. 한쪽이 비면 남은 쪽만 돈다.
  * 덮지는 않는다 — 오래 띄워 두는 공지 하나 때문에 꿀팁이 통째로 사라지는
  * 편이 더 나쁘다. 구분은 색으로 한다(`bubble--main`).
  */
+/** 일반 공지 몇 개마다 메인을 한 번 끼울지. 올리면 메인이 드물어진다. */
+const MAIN_EVERY = 3;
+
 function pickNotices(notices: Notice[]): Notice[] {
 	const main = notices.filter((n) => n.category === "main");
 	const general = notices.filter((n) => n.category !== "main");
@@ -177,10 +180,14 @@ function pickNotices(notices: Notice[]): Notice[] {
 	if (general.length === 0) return main;
 
 	const mixed: Notice[] = [];
+	let inserted = 0;
 	for (const [index, notice] of general.entries()) {
-		// 메인이 하나뿐이면 매번 같은 것이 끼워진다 — 그래도 맞다
-		const next = main[index % main.length];
-		if (next) mixed.push(next);
+		if (index % MAIN_EVERY === 0) {
+			// 메인이 하나뿐이면 매번 같은 것이 끼워진다 — 그래도 맞다
+			const next = main[inserted % main.length];
+			if (next) mixed.push(next);
+			inserted += 1;
+		}
 		mixed.push(notice);
 	}
 
