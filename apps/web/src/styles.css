@@ -1313,7 +1313,7 @@ body {
 	border-bottom: 1px solid var(--line);
 }
 
-/* 내린 공지. 지운 것이 아니라 잠시 빠진 것이라는 게 보여야 한다 */
+/* 미사용 공지. 지운 것이 아니라 잠시 빠진 것이라는 게 보여야 한다 */
 .notice--off .notice__body {
 	color: var(--muted-weak);
 	text-decoration: line-through;

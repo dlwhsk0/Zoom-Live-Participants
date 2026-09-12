@@ -69,7 +69,7 @@ describe("공지 탭", () => {
 		expect(render(SAMPLE)).toContain("닉네임 매핑이 필요하면");
 	});
 
-	it("내린 공지도 함께 보여준다 — 되살릴 수 있어야 한다", () => {
+	it("미사용 공지도 함께 보여준다 — 되살릴 수 있어야 한다", () => {
 		openNoticesTab();
 		const html = render(SAMPLE);
 
@@ -92,6 +92,15 @@ describe("공지 탭", () => {
 		const firstRow = html.slice(html.indexOf("닉네임 매핑"));
 
 		expect(firstRow).toContain("disabled");
+	});
+
+	it("사용 여부를 끄고 켤 수 있다", () => {
+		openNoticesTab();
+		const html = render(SAMPLE);
+
+		// 켜진 줄에는 "사용", 꺼진 줄에는 "미사용"
+		expect(html).toContain("사용");
+		expect(html).toContain("미사용");
 	});
 
 	it("메인 공지에는 표를 붙인다", () => {

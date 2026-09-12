@@ -151,7 +151,7 @@ export default function Notices({
 		<>
 			<p className="admin__hint">
 				화면 위쪽 말풍선에 한 줄씩 돌아가며 뜹니다. 지금 {shown}개가 보이는
-				중입니다. 내리면 화면에서만 빠지고 기록은 남습니다.
+				중입니다. <strong>사용</strong>을 끄면 화면에서만 빠지고 기록은 남습니다.
 			</p>
 
 			<div className="notice__form">
@@ -339,7 +339,7 @@ export default function Notices({
 												})
 											}
 										>
-											{notice.isActive ? "보임" : "내림"}
+											{notice.isActive ? "사용" : "미사용"}
 										</button>
 										<button
 											type="button"
@@ -374,7 +374,7 @@ export default function Notices({
 			{removing && (
 				<ConfirmDialog
 					title="공지를 지울까요?"
-					description={`"${removing.body}" — 되돌릴 수 없습니다. 잠깐 숨기려면 삭제 대신 내리기를 쓰세요.`}
+					description={`"${removing.body}" — 되돌릴 수 없습니다. 잠깐 숨기려면 삭제 대신 사용을 끄세요.`}
 					confirmLabel="지우기"
 					onConfirm={() => remove.mutate(removing.id)}
 					onCancel={() => setRemoving(null)}
