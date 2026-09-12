@@ -362,7 +362,7 @@ export default function App() {
 				<div className="header__right">
 					{data?.host && (
 						<p className="host">
-							<span className="host__label">호스트</span>
+							<span className="host__label">현재 호스트</span>
 							<span className="host__name">{data.host.displayName}</span>
 							{/* 역할 이벤트가 없어 문 연 사람으로 물러선 경우다. 단정하지 않는다 */}
 							{data.host.source === "opener" && (
