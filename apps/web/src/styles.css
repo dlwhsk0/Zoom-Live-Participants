@@ -140,6 +140,28 @@ body {
 	color: var(--muted-weak);
 }
 
+/* 봇 구동 중. 사람 수 옆에 붙지만 사람으로 읽히면 안 되므로 점 하나로 구분한다 */
+.topbar__bot::before {
+	content: " · ";
+	color: var(--muted-weak);
+}
+
+.topbar__bot {
+	color: var(--muted-weak);
+	white-space: nowrap;
+}
+
+.topbar__bot-dot {
+	display: inline-block;
+	width: 5px;
+	height: 5px;
+	margin-right: 4px;
+	border-radius: 50%;
+	background: var(--accent);
+	opacity: 0.65;
+	vertical-align: middle;
+}
+
 .theme-toggle {
 	flex: none;
 	display: inline-flex;

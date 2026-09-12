@@ -267,6 +267,13 @@ export default function App() {
 						{loading || (data?.totalCount ?? 0) === 0
 							? " "
 							: `누적 ${data?.totalCount}명`}
+						{/* 봇은 사람 목록에 없다. 붙어 있다는 사실만 여기 알린다 */}
+						{data?.bot?.isPresent && (
+							<span className="topbar__bot" title={`${data.bot.name} 접속 중`}>
+								<span className="topbar__bot-dot" aria-hidden="true" />
+								봇 구동 중
+							</span>
+						)}
 					</p>
 				</div>
 				{/* topbar 가 space-between 이라 묶지 않으면 둘이 양끝으로 벌어진다 */}

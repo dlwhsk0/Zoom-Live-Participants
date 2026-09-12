@@ -48,6 +48,20 @@ export interface PresenceSnapshot {
 	openedBy: string | null;
 	updatedAt: string | null;
 	participants: SessionParticipant[];
+	/**
+	 * 호스트를 관측하려고 회의에 붙여 둔 봇.
+	 *
+	 * 사람이 아니므로 count·participants 에는 들어 있지 않다.
+	 * 화면은 "봇 구동 중" 표시에만 쓴다. 안 붙어 있으면 null 이다.
+	 */
+	bot: BotPresence | null;
+}
+
+export interface BotPresence {
+	name: string;
+	isPresent: boolean;
+	/** 마지막으로 들어온 시각. 놓쳤으면 null. */
+	since: string | null;
 }
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? "";
@@ -63,6 +77,58 @@ const MEETING_ID = import.meta.env.VITE_MEETING_ID ?? "";
  * 비어 있으면 헤더를 붙이지 않는다. 서버도 비어 있으면 검사하지 않는다.
  */
 const ACCESS_TOKEN = import.meta.env.VITE_ACCESS_TOKEN ?? "";
+
+/**
+ * 참가자 목록에서 걸러낼 봇 이름.
+ *
+ * 호스트를 관측하려고 회의에 붙여 두는 봇은 사람이 아니다. 인원수에도
+ * 목록에도 들어가면 안 된다.
+ *
+ * 서버(BOT_NAMES)도 같은 일을 하지만 배포 주기가 다르다 — 화면은 Vercel 이
+ * 즉시, API 는 Dokploy 수동이다. 그래서 화면에서도 한 번 더 거른다.
+ * 서버가 이미 빼고 준 뒤라면 여기서 걸릴 것이 없다(같은 결과를 낸다).
+ */
+const BOT_NAMES = (import.meta.env.VITE_BOT_NAMES ?? "")
+	.split(",")
+	.map((name) => name.trim())
+	.filter(Boolean);
+
+/**
+ * 봇을 사람 목록에서 빼낸다.
+ *
+ * 인원수도 같이 고쳐야 한다 — 목록에서만 빼고 count 를 그대로 두면
+ * "3명" 아래에 두 명만 있는 화면이 된다.
+ *
+ * 서버가 bot 을 이미 채워 보냈으면 그 값을 그대로 둔다.
+ */
+export function stripBots(snapshot: PresenceSnapshot): PresenceSnapshot {
+	if (BOT_NAMES.length === 0) return snapshot;
+
+	const bots = snapshot.participants.filter(
+		(p) => p.displayName !== null && BOT_NAMES.includes(p.displayName),
+	);
+	if (bots.length === 0) return snapshot;
+
+	const people = snapshot.participants.filter((p) => !bots.includes(p));
+	const present = bots.find((p) => p.isPresent) ?? null;
+
+	return {
+		...snapshot,
+		count: people.filter((p) => p.isPresent).length,
+		totalCount: people.length,
+		participants: people,
+		// 첫 입장이 봇이면 "봇 start~" 가 뜬다. 봇을 지목하느니 모른다고 둔다.
+		openedBy:
+			snapshot.openedBy !== null && BOT_NAMES.includes(snapshot.openedBy)
+				? null
+				: snapshot.openedBy,
+		bot: snapshot.bot ?? {
+			name: present?.displayName ?? bots[0]?.displayName ?? "",
+			isPresent: present !== null,
+			since: present?.firstJoinedAt ?? null,
+		},
+	};
+}
 
 /** 우리 API 로 나가는 요청의 공통 헤더. */
 function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
@@ -85,7 +151,7 @@ export async function fetchPresence(): Promise<PresenceSnapshot> {
 		throw new Error(`요청 실패 (${response.status})`);
 	}
 
-	return (await response.json()) as PresenceSnapshot;
+	return stripBots((await response.json()) as PresenceSnapshot);
 }
 
 export async function saveStatusMessage(

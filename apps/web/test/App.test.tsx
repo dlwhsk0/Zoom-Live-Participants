@@ -35,6 +35,7 @@ const snapshot: PresenceSnapshot = {
 	startedAtEstimated: false,
 	openedBy: "현승곤",
 	updatedAt: new Date(now - 3000).toISOString(),
+	bot: null,
 	participants: [
 		{
 			participantUuid: "p1",
@@ -99,6 +100,26 @@ function tiles(html: string): string {
 
 describe("App", () => {
 	const html = render(snapshot);
+
+	it("봇이 붙어 있으면 상단에 봇 구동 중을 보여준다", () => {
+		const html = render({
+			...snapshot,
+			bot: { name: "Techeer-up(Test)", isPresent: true, since: null },
+		});
+		expect(html).toContain("봇 구동 중");
+	});
+
+	it("봇을 참가자 목록에 섞지 않는다 — 서버가 빼고 주므로 이름이 없다", () => {
+		const html = render({
+			...snapshot,
+			bot: { name: "Techeer-up(Test)", isPresent: true, since: null },
+		});
+		expect(html).not.toContain("Techeer-up(Test)</");
+	});
+
+	it("봇이 없으면 봇 표시도 없다", () => {
+		expect(render(snapshot)).not.toContain("봇 구동 중");
+	});
 
 	it("접속 인원수를 보여준다", () => {
 		expect(html).toContain("접속 중");

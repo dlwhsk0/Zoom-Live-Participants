@@ -1,4 +1,5 @@
 import { and, desc, eq, lt, sql } from "drizzle-orm";
+import { getEnv } from "../config/env.ts";
 
 import type { getDb } from "../db/client.ts";
 import {
@@ -52,6 +53,19 @@ export interface SessionParticipant {
 	isYou: boolean;
 }
 
+/**
+ * 회의에 붙여 둔 관측 봇.
+ *
+ * 사람이 아니므로 participants 와 count 에서 빼고 여기로 따로 뺀다.
+ * 화면은 이걸로 "봇 구동 중" 만 보여준다.
+ */
+export interface BotPresence {
+	name: string;
+	isPresent: boolean;
+	/** 마지막으로 들어온 시각. 놓쳤으면 null 이다. */
+	since: Date | null;
+}
+
 export interface PresenceSnapshot {
 	meetingId: string;
 	meetingUuid: string | null;
@@ -83,6 +97,8 @@ export interface PresenceSnapshot {
 	updatedAt: Date | null;
 	/** 접속 중인 사람이 앞, 나간 사람이 뒤. 각 그룹 안에서는 최초 입장순. */
 	participants: SessionParticipant[];
+	/** 관측 봇. 이 세션에 한 번도 안 들어왔으면 null 이다. */
+	bot: BotPresence | null;
 }
 
 /**
@@ -139,6 +155,7 @@ export async function getPresenceSnapshot(
 			openedBy: null,
 			updatedAt: null,
 			participants: [],
+			bot: null,
 		};
 	}
 
@@ -162,6 +179,14 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
+	// 봇은 사람이 아니다. 아래 계산에 섞이면 인원수도 통계도 전부 하나씩 밀린다.
+	// 원본 행은 그대로 두고 이 조회에서만 갈라낸다.
+	const botNames = getEnv().BOT_NAMES;
+	const isBotName = (name: string | null): boolean =>
+		name !== null && botNames.includes(name);
+	const botRows = rows.filter((row) => isBotName(row.displayName));
+	const humanRows = rows.filter((row) => !isBotName(row.displayName));
+
 	const [uncertain, intervals, aliases, firstJoin] = await Promise.all([
 		findUncertainJoinTimes(db, session.meetingUuid),
 		findIntervals(db, session.meetingUuid),
@@ -174,7 +199,7 @@ export async function getPresenceSnapshot(
 	// 별칭은 여기서 이름을 갈아 끼운다. 병합이 이름으로 판단하므로,
 	// 합치기 전에 대표 이름으로 바꿔 두면 그대로 한 사람이 된다.
 	// 원본 행은 그대로다 — 바뀌는 것은 이 조회의 결과뿐이다.
-	const states: ParticipantState[] = rows.map((row) => ({
+	const states: ParticipantState[] = humanRows.map((row) => ({
 		...row,
 		displayName: row.displayName
 			? (aliases.get(row.displayName) ?? row.displayName)
@@ -206,7 +231,13 @@ export async function getPresenceSnapshot(
 		count: people.filter((p) => p.isPresent).length,
 		totalCount: people.length,
 		...resolveSessionStart(states, people),
-		openedBy: resolveOpener(states, firstJoin, aliases),
+		// 첫 입장이 봇이면 문 연 사람을 모르는 것으로 둔다. 봇을 지목하느니
+		// 모른다고 하는 쪽이 낫다 — resolveOpener 와 같은 원칙이다.
+		openedBy: resolveOpener(
+			states,
+			firstJoin && isBotName(firstJoin.displayName) ? null : firstJoin,
+			aliases,
+		),
 		updatedAt: session.lastOccurredAt,
 		participants: people.map((p) => ({
 			participantUuid: p.participantUuid,
@@ -222,6 +253,32 @@ export async function getPresenceSnapshot(
 			// publicIp 는 응답에 넣지 않는다. 일치 여부만 알린다.
 			isYou: youUuid !== null && p.participantUuid === youUuid,
 		})),
+		bot: resolveBot(botRows),
+	};
+}
+
+/**
+ * 봇의 접속 상태를 만든다.
+ *
+ * 봇도 재접속하면 행이 여러 개로 쪼개진다. 하나라도 접속 중이면 구동 중이고,
+ * 시각은 그중 가장 최근 입장을 쓴다. 사람처럼 병합할 이유는 없다 —
+ * 화면이 필요로 하는 것은 "지금 붙어 있는가" 뿐이다.
+ */
+function resolveBot(
+	rows: readonly { displayName: string | null; isPresent: boolean; firstJoinedAt: Date | null }[],
+): BotPresence | null {
+	if (rows.length === 0) return null;
+
+	const present = rows.filter((row) => row.isPresent);
+	const pool = present.length > 0 ? present : rows;
+	const latest = pool.reduce((a, b) =>
+		(b.firstJoinedAt?.getTime() ?? 0) > (a.firstJoinedAt?.getTime() ?? 0) ? b : a,
+	);
+
+	return {
+		name: latest.displayName ?? "",
+		isPresent: present.length > 0,
+		since: latest.firstJoinedAt,
 	};
 }
 
