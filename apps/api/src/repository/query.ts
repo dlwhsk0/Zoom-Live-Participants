@@ -211,14 +211,14 @@ export async function getPresenceSnapshot(
 		intervals: intervals.get(row.participantUuid) ?? [],
 	}));
 
-	// participant_uuid 는 접속마다 새로 발급되므로 같은 사람이 여러 행으로 쪼개진다.
-	// 조회 시점에 합친다. 상세는 presence.ts 의 mergeReconnections 주석 참고.
-	const people = sortForDisplay(mergeReconnections(states));
-
 	// 진행 중인 구간까지 포함해 지금 시점의 누적 시간을 낸다.
 	// 화면이 더 보태지 않아도 되도록 서버가 끝까지 계산한다 —
 	// 구간이 겹칠 수 있어 화면에서는 제대로 합칠 수 없기 때문이다.
 	const now = new Date();
+
+	// participant_uuid 는 접속마다 새로 발급되므로 같은 사람이 여러 행으로 쪼개진다.
+	// 조회 시점에 합친다. 상세는 presence.ts 의 mergeReconnections 주석 참고.
+	const people = sortForDisplay(mergeReconnections(states), now);
 
 	// IP 가 정확히 한 명과 일치할 때만 "당신"으로 본다.
 	// 같은 네트워크를 여러 명이 쓰면 누구인지 특정할 수 없다.

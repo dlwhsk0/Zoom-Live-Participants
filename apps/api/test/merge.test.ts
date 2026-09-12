@@ -10,6 +10,9 @@ import { shuffle } from "./fixture.ts";
 
 const BASE = Date.parse("2026-08-30T09:00:00Z");
 
+/** 정렬 기준 시각. 진행 중인 구간이 없으면 결과에 영향이 없다. */
+const SORT_NOW = new Date(BASE + 24 * 60 * 60_000);
+
 /** 분 단위 오프셋으로 상태 행을 만든다. */
 function row(
 	overrides: Partial<ParticipantState> & {
@@ -200,7 +203,7 @@ describe("mergeReconnections", () => {
 		];
 
 		const expected = JSON.stringify(
-			sortForDisplay(mergeReconnections(rows)).map((m) => [
+			sortForDisplay(mergeReconnections(rows), SORT_NOW).map((m) => [
 				m.displayName,
 				m.connectionCount,
 				m.isPresent,
@@ -210,7 +213,7 @@ describe("mergeReconnections", () => {
 
 		for (let seed = 1; seed <= 100; seed++) {
 			const actual = JSON.stringify(
-				sortForDisplay(mergeReconnections(shuffle(rows, seed))).map((m) => [
+				sortForDisplay(mergeReconnections(shuffle(rows, seed)), SORT_NOW).map((m) => [
 					m.displayName,
 					m.connectionCount,
 					m.isPresent,
@@ -241,22 +244,52 @@ describe("sortForDisplay", () => {
 					lastEventType: "joined",
 				}),
 			]),
+			SORT_NOW,
 		);
 
 		expect(sorted.map((s) => s.displayName)).toEqual(["접속중", "나간사람"]);
 	});
 
-	it("나간 사람은 최근에 나간 순으로 온다", () => {
+	it("머문 시간이 같으면 최근에 나간 사람이 위로 온다", () => {
 		const sorted = sortForDisplay(
 			mergeReconnections([
 				row({ uuid: "A", joinedMin: 0, lastMin: 10, displayName: "오래전", publicIp: "203.0.113.1" }),
 				row({ uuid: "B", joinedMin: 0, lastMin: 50, displayName: "방금", publicIp: "203.0.113.2" }),
 				row({ uuid: "C", joinedMin: 0, lastMin: 30, displayName: "중간", publicIp: "203.0.113.3" }),
 			]),
+			SORT_NOW,
 		);
 
-		// 화면의 "N분 전 퇴장" 이 작은 수부터 늘어선다
+		// 셋 다 머문 구간이 없어 동점이다. 그때는 방금 나간 사람이 위다.
 		expect(sorted.map((s) => s.displayName)).toEqual(["방금", "중간", "오래전"]);
+	});
+
+	it("나간 사람은 머문 시간이 긴 순으로 온다", () => {
+		const left = (uuid: string, name: string, ip: string, minutes: number, leftMin: number) =>
+			row({
+				uuid,
+				joinedMin: 0,
+				lastMin: leftMin,
+				displayName: name,
+				publicIp: ip,
+				intervals: [
+					{ start: new Date(BASE), end: new Date(BASE + minutes * 60_000) },
+				],
+			});
+
+		const sorted = sortForDisplay(
+			mergeReconnections([
+				// 방금 나갔지만 30분만 있었다
+				left("A", "잠깐", "203.0.113.1", 30, 300),
+				// 오래전에 나갔지만 5시간을 채웠다
+				left("B", "오래", "203.0.113.2", 300, 100),
+				left("C", "중간", "203.0.113.3", 120, 200),
+			]),
+			SORT_NOW,
+		);
+
+		// 아이콘이 머문 시간으로 정해지므로 목록도 같은 기준이어야 읽힌다
+		expect(sorted.map((s) => s.displayName)).toEqual(["오래", "중간", "잠깐"]);
 	});
 
 	it("접속 중인 사람은 최초 입장이 이른 순으로 온다", () => {
@@ -276,6 +309,7 @@ describe("sortForDisplay", () => {
 				present("A", 30, "늦게온사람", "203.0.113.1"),
 				present("B", 5, "일찍온사람", "203.0.113.2"),
 			]),
+			SORT_NOW,
 		);
 
 		expect(sorted.map((s) => s.displayName)).toEqual([

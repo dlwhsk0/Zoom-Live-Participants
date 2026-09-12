@@ -517,16 +517,23 @@ export function mergeIntervals(
  * 접속 중인 사람이 앞.
  *
  * 접속 중: 최초 입장순. 오래 있은 사람이 위로 간다.
- * 나감: 최근에 나간 사람순. 방금 나간 사람이 위로 온다 —
- *       돌아올 가능성이 높고, 화면의 "N분 전 퇴장" 이 작은 수부터 늘어선다.
+ * 나감: **머문 시간이 긴 사람순.** 나갔다고 해서 그날 쌓은 시간이 없어지는
+ *       것은 아니고, 아이콘도 그 시간으로 정해진다(불꽃을 그대로 둔다).
+ *       두 줄이 같은 기준으로 정렬돼야 목록이 읽힌다.
+ *       시간이 같으면 최근에 나간 사람이 위다.
  */
 export function sortForDisplay(
 	people: readonly MergedParticipant[],
+	now: Date,
 ): MergedParticipant[] {
 	return [...people].sort((a, b) => {
 		if (a.isPresent !== b.isPresent) return a.isPresent ? -1 : 1;
 
-		if (!a.isPresent) return b.lastOccurredAt.getTime() - a.lastOccurredAt.getTime();
+		if (!a.isPresent) {
+			const diff = unionSeconds(b.intervals, now) - unionSeconds(a.intervals, now);
+			if (diff !== 0) return diff;
+			return b.lastOccurredAt.getTime() - a.lastOccurredAt.getTime();
+		}
 
 		const at = a.firstJoinedAt?.getTime() ?? a.lastOccurredAt.getTime();
 		const bt = b.firstJoinedAt?.getTime() ?? b.lastOccurredAt.getTime();
