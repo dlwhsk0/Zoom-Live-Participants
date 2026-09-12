@@ -182,6 +182,20 @@ describe("App", () => {
 		expect(html).toContain("bubble--main");
 	});
 
+	it("메인이 한 칸 걸러 하나씩 끼워진다", () => {
+		// 꿀팁이 여럿이어도 메인이 절반을 차지해야 놓치지 않는다.
+		// 첫 자리는 언제나 메인이다.
+		const html = render(snapshot, [
+			{ id: "g1", body: "꿀팁하나", category: "general" as const },
+			{ id: "g2", body: "꿀팁둘", category: "general" as const },
+			{ id: "g3", body: "꿀팁셋", category: "general" as const },
+			{ id: "m1", body: "중요공지", category: "main" as const },
+		]);
+
+		expect(html).toContain("중요공지");
+		expect(html).toContain("bubble--main");
+	});
+
 	it("메인이 있어도 꿀팁을 덮지 않는다 — 둘 다 돌아간다", () => {
 		// 순환은 타이머로 도므로 첫 렌더에서는 메인만 보인다.
 		// 여기서 확인하는 것은 "꿀팁이 목록에서 빠지지 않는다" 는 것이다.
