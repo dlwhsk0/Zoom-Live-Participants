@@ -222,7 +222,7 @@ function WebhookRow({ entry }: { entry: WebhookLogEntry }) {
 			>
 				<span className="log__time">{formatTime(entry.receivedAt)}</span>
 				<span className="log__event">{shortEvent(entry.event)}</span>
-				<span className="log__name">{summary}</span>
+				<span className="log__summary">{summary}</span>
 			</button>
 			{open && (
 				<pre className="log__raw">{JSON.stringify(entry.payload, null, 2)}</pre>
@@ -350,7 +350,7 @@ export default function Admin() {
 
 	if (me.isPending) {
 		return (
-			<main className="screen">
+			<main className="screen screen--admin">
 				<p className="empty">확인하는 중…</p>
 			</main>
 		);
@@ -361,7 +361,7 @@ export default function Admin() {
 	}
 
 	return (
-		<main className="screen">
+		<main className="screen screen--admin">
 			<Toast toast={toast} onDismiss={dismissToast} />
 
 			<div className="topbar">

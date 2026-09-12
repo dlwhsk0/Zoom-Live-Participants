@@ -783,6 +783,13 @@ body {
 	color: #ffffff;
 }
 
+/* 로그·웹훅 목록. 스타일이 없어 ul 기본값(불릿과 40px 들여쓰기)이 먹고 있었다 */
+.list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
 .log {
 	padding: 10px 2px;
 	border-bottom: 1px solid var(--line);
@@ -822,17 +829,14 @@ body {
 
 /* 이벤트 이름. 종류마다 길이가 달라서 고정폭으로 둔다 — 눈으로 훑기 좋게 */
 .log__event {
-	flex: none;
+	flex: 0 1 auto;
 	min-width: 15em;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
 	font-size: 11.5px;
 	color: var(--accent);
-}
-
-@media (max-width: 560px) {
-	.log__event {
-		min-width: 0;
-	}
 }
 
 /* 이벤트 종류 거르개. 종류가 아홉 가지라 줄바꿈을 허용한다 */
@@ -848,8 +852,21 @@ body {
 }
 
 .log__name {
+	/* 줄어들 수 있어야 ellipsis 가 걸린다. 없으면 줄이 화면 밖으로 나간다 */
+	flex: 1;
+	min-width: 0;
 	font-size: 14px;
 	font-weight: 500;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 웹훅 요약. 이름 칸과 달리 문장이라 넓은 화면에서만 한 줄로 자른다 */
+.log__summary {
+	flex: 1;
+	min-width: 0;
+	font-size: 13.5px;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -911,6 +928,38 @@ body {
 	white-space: pre;
 }
 
+/* 폰 규칙은 위의 기본값들보다 **뒤에** 있어야 한다. 미디어 쿼리는
+   우선순위를 올려주지 않으므로, 앞에 두면 아래 기본 규칙에 덮인다. */
+@media (max-width: 560px) {
+	/* 폰에서는 자르지 않고 줄을 바꾼다. 로그는 잘린 글자를 보려고 옆으로
+	   미는 것보다 두 줄로 읽는 쪽이 낫다.
+	
+	     09. 12. 20:35:11  participant_role_changed
+	     이정 · attendee → host
+	 */
+	.log__head {
+		flex-wrap: wrap;
+	}
+
+	.log__event {
+		min-width: 0;
+	}
+
+	.log__summary {
+		width: 100%;
+		margin-top: 2px;
+		overflow: visible;
+		white-space: normal;
+		word-break: break-word;
+	}
+
+	/* 탭이 다섯이라 좁은 화면에서는 글자를 줄여야 한 줄에 들어간다 */
+	.tab {
+		font-size: 12px;
+		padding: 7px 2px;
+	}
+}
+
 .more {
 	display: block;
 	width: 100%;
@@ -963,6 +1012,72 @@ body {
 	background: var(--bg);
 	color: var(--fg);
 	box-shadow: 0 1px 3px rgb(0 0 0 / 14%);
+}
+
+/* ── 어드민 반응형 ───────────────────────────
+ *
+ * 참가자 화면은 폰에서 보는 것이라 420px 한 칸이 맞다. 어드민은 다르다 —
+ * 로그 한 줄에 시각·종류·이름·태그·uid·IP 가 들어가는데, 그걸 420px 에
+ * 욱여넣으면 줄이 접혀서 훑을 수가 없다. 그래서 어드민만 폭을 연다.
+ *
+ * 폰에서는 아무것도 바뀌지 않는다(기본값이 곧 폰 레이아웃이다).
+ */
+@media (min-width: 700px) {
+	.screen--admin {
+		max-width: 680px;
+	}
+}
+
+@media (min-width: 1000px) {
+	.screen--admin {
+		max-width: 940px;
+	}
+
+	/* 탭이 다섯이라 폭을 다 주면 하나가 200px 씩 된다. 읽는 폭으로 잡는다 */
+	.screen--admin .tabs {
+		max-width: 560px;
+	}
+
+	/* 이벤트 이름 중 가장 긴 것(participant_joined_breakout_room)까지 담아
+	   요약 칸의 시작을 맞춘다. 칸이 어긋나면 훑을 수가 없다 */
+	.screen--admin .log__event {
+		min-width: 20em;
+	}
+
+	/* 넓어지면 meta(uid·IP)를 아랫줄에 흘리지 않고 같은 줄 오른쪽에 붙인다.
+	   한 항목이 한 줄이라야 눈으로 훑힌다. */
+	.screen--admin .log {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 0 14px;
+	}
+
+	.screen--admin .log__head {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.screen--admin .log__meta {
+		flex: none;
+		margin-top: 0;
+	}
+
+	/* 펼친 원본은 제 줄을 통째로 쓴다 */
+	.screen--admin .log__raw {
+		width: 100%;
+	}
+}
+
+@media (min-width: 1400px) {
+	.screen--admin {
+		max-width: 1240px;
+	}
+
+	/* 폭이 남으면 원본을 더 보여준다 — 접힌 JSON 을 읽으려고 여는 것이다 */
+	.screen--admin .log__raw {
+		font-size: 12px;
+	}
 }
 
 .admin__hint {
