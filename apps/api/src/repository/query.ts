@@ -2,6 +2,7 @@ import { and, desc, eq, lt, sql } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
 import {
+	adminActions,
 	nameAliases,
 	participantEvents,
 	participants,
@@ -12,6 +13,7 @@ import {
 	mergeReconnections,
 	type ParticipantState,
 	sortForDisplay,
+	unifyNamesByDevice,
 	unionSeconds,
 } from "../domain/presence.ts";
 
@@ -189,12 +191,13 @@ export async function getPresenceSnapshot(
 		.from(participants)
 		.where(eq(participants.meetingUuid, session.meetingUuid));
 
-	const [uncertain, intervals, aliases, firstJoin, lastHost] = await Promise.all([
+	const [uncertain, intervals, aliases, firstJoin, lastHost, pinned] = await Promise.all([
 		findUncertainJoinTimes(db, session.meetingUuid),
 		findIntervals(db, session.meetingUuid),
 		loadAliasMap(db),
 		findFirstJoin(db, session.meetingUuid),
 		findLastHostEvent(db, session.meetingUuid),
+		findPinnedNames(db, session.meetingUuid),
 	]);
 
 	// event_type 은 text 컬럼이라 넓은 타입으로 돌아온다. 도메인 타입으로 좁힌다.
@@ -217,15 +220,29 @@ export async function getPresenceSnapshot(
 	// 구간이 겹칠 수 있어 화면에서는 제대로 합칠 수 없기 때문이다.
 	const now = new Date();
 
+	// 같은 기기의 행은 이름이 달라도 한 사람이다. 이름을 먼저 맞춰 두면
+	// 아래 이름 병합이 그대로 처리한다. 상세는 unifyNamesByDevice 주석.
+	const unified = unifyNamesByDevice(states, pinned);
+
 	// participant_uuid 는 접속마다 새로 발급되므로 같은 사람이 여러 행으로 쪼개진다.
 	// 조회 시점에 합친다. 상세는 presence.ts 의 mergeReconnections 주석 참고.
-	const people = sortForDisplay(mergeReconnections(states), now);
+	const people = sortForDisplay(mergeReconnections(unified), now);
 
 	// 브라우저가 알려주는 것은 공인 IP 뿐이다. 그 IP 뒤에 **기기가 하나**일 때만
 	// "당신" 으로 본다. 상세는 resolveYou 주석.
 	const youUuid = resolveYou(people, clientIp);
 
-	const openedBy = resolveOpener(states, firstJoin, aliases);
+	// 문 연 사람의 이름도 통일된 쪽을 쓴다. 목록은 "Techeer" 인데 머리글만
+	// "Kevin start~" 로 남으면 같은 사람인 줄 모른다.
+	const unifiedName = firstJoin
+		? (unified.find((u) => u.participantUuid === firstJoin.participantUuid)
+				?.displayName ?? firstJoin.displayName)
+		: null;
+	const openedBy = resolveOpener(
+		states,
+		firstJoin ? { ...firstJoin, displayName: unifiedName } : null,
+		aliases,
+	);
 
 	return {
 		meetingId,
@@ -301,6 +318,38 @@ export function resolveYou(
 	);
 
 	return latest.participantUuid;
+}
+
+/**
+ * 어드민이 손으로 이름을 고친 행들.
+ *
+ * 기기 기준 이름 통일에서 이 행들은 건드리지 않는다. "이름을 달리 주어
+ * 떼어내기" 가 어드민의 분리 수단인데, 기기 통일이 도로 덮으면 그 수단이
+ * 사라진다.
+ */
+async function findPinnedNames(
+	db: Db,
+	meetingUuid: string,
+): Promise<Set<string>> {
+	const rows = await db
+		.select({ detail: adminActions.detail })
+		.from(adminActions)
+		.where(
+			and(
+				eq(adminActions.meetingUuid, meetingUuid),
+				eq(adminActions.action, "rename"),
+			),
+		);
+
+	const pinned = new Set<string>();
+	for (const row of rows) {
+		const detail = row.detail as { targets?: { participantUuid?: string }[] };
+		for (const target of detail?.targets ?? []) {
+			if (target.participantUuid) pinned.add(target.participantUuid);
+		}
+	}
+
+	return pinned;
 }
 
 /**
@@ -400,11 +449,16 @@ export function resolveHost(
 async function findFirstJoin(
 	db: Db,
 	meetingUuid: string,
-): Promise<{ displayName: string | null; occurredAt: Date } | null> {
+): Promise<{
+	displayName: string | null;
+	occurredAt: Date;
+	participantUuid: string;
+} | null> {
 	const rows = await db
 		.select({
 			displayName: participantEvents.displayName,
 			occurredAt: participantEvents.occurredAt,
+			participantUuid: participantEvents.participantUuid,
 		})
 		.from(participantEvents)
 		.where(

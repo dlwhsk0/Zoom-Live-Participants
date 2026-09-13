@@ -408,6 +408,62 @@ function identityKey(state: ParticipantState): string | null {
 }
 
 /**
+ * 같은 기기의 행들을 한 이름으로 맞춘다.
+ *
+ * 병합은 이름으로 한다. 그래서 **한 사람이 세션 도중 이름을 바꾸면** 두 사람이
+ * 된다. 실측에서 그런 기기가 여럿 있었다.
+ *
+ *   192.168.45.159   → Kevin, Techeer
+ *   192.168.0.5      → 이도경, Chloe
+ *   192.168.219.104  → 이용욱, 이 용욱, 이용욱/컴퓨터공학전공/학생
+ *
+ * `(공인, 사설)` 쌍은 기기를 가리킨다. 같은 기기의 행은 같은 사람으로 보고
+ * 이름을 **가장 최근 것**으로 통일한다. 그 뒤는 기존 이름 병합이 처리한다.
+ *
+ * 두 가지는 건드리지 않는다.
+ *
+ * - **사설 IP 를 모르는 행**(아직 한 번도 안 나간 사람)은 그대로 둔다.
+ *   기기를 알 수 없으므로 남의 이름을 씌우면 안 된다.
+ * - **어드민이 손으로 이름을 고친 행**(`pinned`)은 그대로 둔다. 이름을 달리
+ *   주어 떼어내는 것이 어드민의 분리 수단인데, 여기서 도로 덮으면 그 수단이
+ *   사라진다. 그 행은 대표 이름을 정할 때도 빠진다.
+ *
+ * 원본은 바뀌지 않는다. 조회 시점 계산이라 잘못 묶여도 되돌릴 수 있다.
+ */
+export function unifyNamesByDevice(
+	rows: readonly ParticipantState[],
+	pinned: ReadonlySet<string> = new Set(),
+): ParticipantState[] {
+	const deviceKey = (state: ParticipantState): string | null =>
+		state.publicIp && state.privateIp
+			? `${state.meetingUuid}|${state.publicIp}|${state.privateIp}`
+			: null;
+
+	/** 기기별 대표 이름. 손으로 고친 행은 후보에서 뺀다. */
+	const representative = new Map<string, { name: string; at: number }>();
+	for (const state of rows) {
+		const key = deviceKey(state);
+		if (!key || !state.displayName || pinned.has(state.participantUuid)) continue;
+
+		const at = state.lastOccurredAt.getTime();
+		const current = representative.get(key);
+		if (!current || at > current.at) {
+			representative.set(key, { name: state.displayName, at });
+		}
+	}
+
+	return rows.map((state) => {
+		const key = deviceKey(state);
+		if (!key || pinned.has(state.participantUuid)) return state;
+
+		const rep = representative.get(key);
+		if (!rep || rep.name === state.displayName) return state;
+
+		return { ...state, displayName: rep.name };
+	});
+}
+
+/**
  * 재접속으로 쪼개진 행들을 한 사람으로 합친다.
  *
  * 입력 순서에 의존하지 않는다. 내부에서 시간순으로 정렬한 뒤 처리한다.
