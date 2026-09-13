@@ -1302,6 +1302,71 @@ body {
 	margin-bottom: 10px;
 }
 
+/* ── 별칭 후보 ─────────────────────────────── */
+
+/* 제안이지 결정이 아니다. 목록보다 한 단계 물러나 보이게 둔다 */
+.suggest {
+	margin: 4px 0 16px;
+	padding: 10px 12px;
+	border: 1px dashed var(--line-strong);
+	border-radius: 10px;
+}
+
+.suggest__title {
+	margin: 0 0 8px;
+	font-size: 12px;
+	line-height: 1.6;
+	color: var(--muted);
+}
+
+.suggest__list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.suggest__row {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 0;
+}
+
+.suggest__pair {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	min-width: 0;
+	font-size: 13px;
+}
+
+.suggest__pair b {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+/* 왜 이 둘을 묶자는지. 근거가 보이지 않으면 누를 수 없다 */
+.suggest__why {
+	margin-left: auto;
+	font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+	font-size: 10.5px;
+	color: var(--muted-weak);
+	white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+	.suggest__row {
+		flex-wrap: wrap;
+	}
+
+	.suggest__why {
+		order: 3;
+		flex-basis: 100%;
+		margin-left: 0;
+	}
+}
+
 /* ── 공지 관리 ─────────────────────────────── */
 
 .notice__new {

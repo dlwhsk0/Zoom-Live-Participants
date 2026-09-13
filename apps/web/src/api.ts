@@ -536,6 +536,23 @@ export async function deleteNotice(id: string): Promise<{ ok: boolean }> {
 	return readOrThrow<{ ok: boolean }>(response);
 }
 
+/** 같은 기기인데 이름이 다른 쌍. 합치는 것은 사람이 누른다. */
+export interface AliasSuggestion {
+	privateIp: string;
+	/** 묶을 대표 이름. 가장 최근에 쓴 이름이다. */
+	canonical: string;
+	aliases: { name: string; lastSeenAt: string }[];
+}
+
+export async function fetchAliasSuggestions(): Promise<AliasSuggestion[]> {
+	const response = await fetch(
+		adminUrl("/api/admin/alias-suggestions"),
+		adminInit({ headers: { accept: "application/json" } }),
+	);
+	const body = await readOrThrow<{ suggestions: AliasSuggestion[] }>(response);
+	return body.suggestions;
+}
+
 export interface NameAlias {
 	alias: string;
 	canonical: string;

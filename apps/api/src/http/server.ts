@@ -12,6 +12,7 @@ import {
 import {
 	deleteAlias,
 	listAdminActions,
+	listAliasSuggestions,
 	listAliases,
 	listIdentities,
 	putAlias,
@@ -825,6 +826,21 @@ async function route(
 		return {
 			status: removed ? 200 : 404,
 			body: removed ? { ok: true } : { ok: false, reason: "없는 공지입니다" },
+		};
+	}
+
+	/**
+	 * 별칭 후보. 같은 기기인데 이름이 다른 쌍을 제안만 한다.
+	 * 합치는 것은 사람이 누른다 — 자동으로 묶으면 남을 합칠 수 있다.
+	 */
+	if (method === "GET" && path === "/api/admin/alias-suggestions") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		return {
+			status: 200,
+			body: { suggestions: await listAliasSuggestions(getDb()) },
+			headers: { "cache-control": "no-store" },
 		};
 	}
 

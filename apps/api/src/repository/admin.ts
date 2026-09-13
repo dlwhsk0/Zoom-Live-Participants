@@ -3,7 +3,11 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { getDb } from "../db/client.ts";
 import { adminActions, nameAliases, participants } from "../db/schema.ts";
 
-import { findCurrentSession, loadAliasMap } from "./query.ts";
+import {
+	findCurrentSession,
+	findPinnedNames,
+	loadAliasMap,
+} from "./query.ts";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -344,6 +348,87 @@ export interface NameAlias {
 	alias: string;
 	canonical: string;
 	createdAt: Date;
+}
+
+/**
+ * 같은 기기인데 이름이 다른 쌍. 별칭 후보다.
+ *
+ * `(공인, 사설)` 이 같으면 같은 기기다. 그 기기가 세션을 넘나들며 다른 이름을
+ * 썼다면 대개 한 사람이 이름을 바꾼 것이다.
+ *
+ * **자동으로 합치지 않는다.** 사설 IP 는 시간이 지나면 다른 기기에 재배정될 수
+ * 있어서, 몇 주치를 한 덩어리로 묶으면 남을 합칠 위험이 있다. 세션 안에서는
+ * 자동으로 묶고(`unifyNamesByDevice`), 세션을 넘는 것은 여기서 **제안만** 한다.
+ *
+ * 이미 별칭으로 이어진 이름과 어드민이 손으로 고친 행은 뺀다.
+ */
+export interface AliasSuggestion {
+	/** 어느 기기인가. 화면에 근거로 보여준다. */
+	privateIp: string;
+	/** 묶을 대표 이름. 가장 최근에 쓴 이름이다. */
+	canonical: string;
+	/** 대표로 묶을 나머지 이름들. 최근 순. */
+	aliases: { name: string; lastSeenAt: Date }[];
+}
+
+export async function listAliasSuggestions(
+	db: Db,
+): Promise<AliasSuggestion[]> {
+	const [rows, aliases, pinned] = await Promise.all([
+		db
+			.select({
+				participantUuid: participants.participantUuid,
+				publicIp: participants.publicIp,
+				privateIp: participants.privateIp,
+				displayName: participants.displayName,
+				at: participants.lastOccurredAt,
+			})
+			.from(participants),
+		loadAliasMap(db),
+		findPinnedNames(db),
+	]);
+
+	const byDevice = new Map<string, Map<string, Date>>();
+	for (const row of rows) {
+		if (!row.publicIp || !row.privateIp || !row.displayName) continue;
+		if (pinned.has(row.participantUuid)) continue;
+
+		const key = `${row.publicIp}|${row.privateIp}`;
+		const names = byDevice.get(key) ?? new Map<string, Date>();
+		const seen = names.get(row.displayName);
+		if (!seen || row.at.getTime() > seen.getTime()) {
+			names.set(row.displayName, row.at);
+		}
+		byDevice.set(key, names);
+	}
+
+	const suggestions: AliasSuggestion[] = [];
+	for (const [key, names] of byDevice) {
+		if (names.size < 2) continue;
+
+		const ordered = [...names.entries()].sort(
+			(a, b) => b[1].getTime() - a[1].getTime(),
+		);
+		const head = ordered[0];
+		if (!head) continue;
+
+		const canonical = head[0];
+		// 이미 대표 이름으로 이어진 것은 제안할 필요가 없다
+		const rest = ordered
+			.slice(1)
+			.filter(([name]) => (aliases.get(name) ?? name) !== canonical)
+			.map(([name, at]) => ({ name, lastSeenAt: at }));
+
+		if (rest.length === 0) continue;
+
+		suggestions.push({
+			privateIp: key.split("|")[1] ?? "",
+			canonical,
+			aliases: rest,
+		});
+	}
+
+	return suggestions;
 }
 
 export async function listAliases(db: Db): Promise<NameAlias[]> {

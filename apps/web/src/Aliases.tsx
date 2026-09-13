@@ -1,7 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { deleteAlias, fetchAliases, putAlias } from "./api.ts";
+import {
+	deleteAlias,
+	fetchAliasSuggestions,
+	fetchAliases,
+	putAlias,
+} from "./api.ts";
 
 /**
  * 표시 이름 별칭.
@@ -29,6 +34,7 @@ export default function Aliases({
 		void queryClient.invalidateQueries({ queryKey: ["aliases"] });
 		void queryClient.invalidateQueries({ queryKey: ["identities"] });
 		void queryClient.invalidateQueries({ queryKey: ["adminActions"] });
+		void queryClient.invalidateQueries({ queryKey: ["aliasSuggestions"] });
 	}
 
 	const add = useMutation({
@@ -38,6 +44,22 @@ export default function Aliases({
 			onToast(`${alias.trim()} 을(를) ${canonical.trim()} 로 묶었습니다`, true);
 			setAlias("");
 			setCanonical("");
+			refresh();
+		},
+		onError: (err: Error) => onToast(err.message, false),
+	});
+
+	// 같은 기기인데 이름이 다른 쌍. 합치는 것은 사람이 누른다.
+	const suggestions = useQuery({
+		queryKey: ["aliasSuggestions"],
+		queryFn: fetchAliasSuggestions,
+		retry: false,
+	});
+
+	const accept = useMutation({
+		mutationFn: (input: { alias: string; canonical: string }) => putAlias(input),
+		onSuccess: (_data, input) => {
+			onToast(`${input.alias} 을(를) ${input.canonical} 로 묶었습니다`, true);
 			refresh();
 		},
 		onError: (err: Error) => onToast(err.message, false),
@@ -101,10 +123,47 @@ export default function Aliases({
 		);
 	}
 
+	const suggested = suggestions.data ?? [];
+
+	const proposals = suggested.length > 0 && (
+		<div className="suggest">
+			<p className="suggest__title">
+				같은 기기에서 다른 이름을 쓴 기록이 있습니다. 한 사람이 이름을 바꾼
+				것이라면 묶어 주세요.
+			</p>
+			<ul className="suggest__list">
+				{suggested.flatMap((group) =>
+					group.aliases.map((item) => (
+						<li key={`${group.privateIp}|${item.name}`} className="suggest__row">
+							<span className="suggest__pair">
+								<b>{item.name}</b>
+								<span className="admin__arrow">→</span>
+								<b>{group.canonical}</b>
+							</span>
+							{/* 근거를 밝힌다. 왜 이 둘을 묶자는지 보이지 않으면 누를 수 없다 */}
+							<span className="suggest__why">{`같은 기기 ${group.privateIp}`}</span>
+							<button
+								type="button"
+								className="admin__apply"
+								disabled={accept.isPending}
+								onClick={() =>
+									accept.mutate({ alias: item.name, canonical: group.canonical })
+								}
+							>
+								묶기
+							</button>
+						</li>
+					)),
+				)}
+			</ul>
+		</div>
+	);
+
 	return (
 		<>
 			{hint}
 			{form}
+			{proposals}
 
 			{isPending ? (
 				<p className="empty">불러오는 중…</p>
