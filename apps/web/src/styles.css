@@ -1367,6 +1367,27 @@ body {
 	}
 }
 
+/* 조용한 되돌리기. 평소엔 눈에 띌 필요가 없다 */
+.suggest__restore {
+	margin: 0 0 14px;
+	text-align: right;
+}
+
+.admin__link {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: var(--muted-weak);
+	font: inherit;
+	font-size: 11px;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.admin__link:hover:not(:disabled) {
+	color: var(--fg);
+}
+
 /* ── 공지 관리 ─────────────────────────────── */
 
 .notice__new {

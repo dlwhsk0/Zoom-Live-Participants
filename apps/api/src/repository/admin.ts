@@ -1,7 +1,12 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { getDb } from "../db/client.ts";
-import { adminActions, nameAliases, participants } from "../db/schema.ts";
+import {
+	adminActions,
+	aliasRejections,
+	nameAliases,
+	participants,
+} from "../db/schema.ts";
 
 import {
 	findCurrentSession,
@@ -371,10 +376,59 @@ export interface AliasSuggestion {
 	aliases: { name: string; lastSeenAt: Date }[];
 }
 
+/** 두 이름을 정렬해 한 쌍으로 만든다. 제안 방향이 뒤집혀도 같은 쌍이다. */
+function pairKey(a: string, b: string): [string, string] {
+	return a <= b ? [a, b] : [b, a];
+}
+
+/** "이 둘은 다른 사람이다" 를 남긴다. 다시 제안하지 않는다. */
+export async function rejectAliasSuggestion(
+	db: Db,
+	input: { alias: string; canonical: string; clientIp: string | null },
+): Promise<{ ok: boolean }> {
+	const [nameA, nameB] = pairKey(input.alias.trim(), input.canonical.trim());
+	if (!nameA || !nameB || nameA === nameB) {
+		return { ok: false };
+	}
+
+	await db
+		.insert(aliasRejections)
+		.values({ nameA, nameB, clientIp: input.clientIp })
+		.onConflictDoNothing();
+
+	await db.insert(adminActions).values({
+		action: "alias.reject",
+		meetingUuid: null,
+		detail: { alias: input.alias, canonical: input.canonical },
+		clientIp: input.clientIp,
+	});
+
+	return { ok: true };
+}
+
+/** 물리친 제안을 전부 되살린다. 실수로 눌렀을 때의 탈출구다. */
+export async function clearAliasRejections(
+	db: Db,
+	clientIp: string | null,
+): Promise<{ restored: number }> {
+	const removed = await db.delete(aliasRejections).returning({ nameA: aliasRejections.nameA });
+
+	if (removed.length > 0) {
+		await db.insert(adminActions).values({
+			action: "alias.reject.clear",
+			meetingUuid: null,
+			detail: { restored: removed.length },
+			clientIp,
+		});
+	}
+
+	return { restored: removed.length };
+}
+
 export async function listAliasSuggestions(
 	db: Db,
 ): Promise<AliasSuggestion[]> {
-	const [rows, aliases, pinned] = await Promise.all([
+	const [rows, aliases, pinned, rejected] = await Promise.all([
 		db
 			.select({
 				participantUuid: participants.participantUuid,
@@ -386,7 +440,10 @@ export async function listAliasSuggestions(
 			.from(participants),
 		loadAliasMap(db),
 		findPinnedNames(db),
+		db.select({ nameA: aliasRejections.nameA, nameB: aliasRejections.nameB }).from(aliasRejections),
 	]);
+
+	const isRejected = new Set(rejected.map((r) => `${r.nameA}\u0000${r.nameB}`));
 
 	const byDevice = new Map<string, Map<string, Date>>();
 	for (const row of rows) {
@@ -417,6 +474,11 @@ export async function listAliasSuggestions(
 		const rest = ordered
 			.slice(1)
 			.filter(([name]) => (aliases.get(name) ?? name) !== canonical)
+			// "다른 사람이다" 라고 물리친 쌍은 다시 묻지 않는다
+			.filter(([name]) => {
+				const [a, b] = pairKey(name, canonical);
+				return !isRejected.has(`${a}\u0000${b}`);
+			})
 			.map(([name, at]) => ({ name, lastSeenAt: at }));
 
 		if (rest.length === 0) continue;

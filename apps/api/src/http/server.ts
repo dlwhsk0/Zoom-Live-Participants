@@ -12,7 +12,9 @@ import {
 import {
 	deleteAlias,
 	listAdminActions,
+	clearAliasRejections,
 	listAliasSuggestions,
+	rejectAliasSuggestion,
 	listAliases,
 	listIdentities,
 	putAlias,
@@ -842,6 +844,44 @@ async function route(
 			body: { suggestions: await listAliasSuggestions(getDb()) },
 			headers: { "cache-control": "no-store" },
 		};
+	}
+
+	/** "이 둘은 다른 사람이다". 같은 쌍을 다시 제안하지 않는다. */
+	if (method === "POST" && path === "/api/admin/alias-suggestions/reject") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		let parsed: unknown;
+		try {
+			parsed = JSON.parse(rawBody || "{}");
+		} catch {
+			return { status: 400, body: { ok: false, reason: "본문이 JSON 이 아닙니다" } };
+		}
+
+		const input = aliasSchema.safeParse(parsed);
+		if (!input.success) {
+			return {
+				status: 400,
+				body: { ok: false, reason: input.error.issues[0]?.message ?? "잘못된 요청입니다" },
+			};
+		}
+
+		const result = await rejectAliasSuggestion(getDb(), {
+			alias: input.data.alias,
+			canonical: input.data.canonical,
+			clientIp: clientIpFrom(headers),
+		});
+
+		return { status: result.ok ? 200 : 400, body: result };
+	}
+
+	/** 물리친 제안을 전부 되살린다. */
+	if (method === "DELETE" && path === "/api/admin/alias-suggestions/reject") {
+		const denied = checkAdmin(query, headers);
+		if (denied) return denied;
+
+		const result = await clearAliasRejections(getDb(), clientIpFrom(headers));
+		return { status: 200, body: { ok: true, ...result } };
 	}
 
 	if (method === "GET" && path === "/api/admin/aliases") {

@@ -553,6 +553,31 @@ export async function fetchAliasSuggestions(): Promise<AliasSuggestion[]> {
 	return body.suggestions;
 }
 
+/** "이 둘은 다른 사람이다" — 같은 쌍을 다시 제안하지 않는다. */
+export async function rejectAliasSuggestion(params: {
+	alias: string;
+	canonical: string;
+}): Promise<{ ok: boolean }> {
+	const response = await fetch(
+		adminUrl("/api/admin/alias-suggestions/reject"),
+		adminInit({
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify(params),
+		}),
+	);
+	return readOrThrow<{ ok: boolean }>(response);
+}
+
+/** 물리친 제안을 전부 되살린다. */
+export async function clearAliasRejections(): Promise<{ restored: number }> {
+	const response = await fetch(
+		adminUrl("/api/admin/alias-suggestions/reject"),
+		adminInit({ method: "DELETE" }),
+	);
+	return readOrThrow<{ ok: boolean; restored: number }>(response);
+}
+
 export interface NameAlias {
 	alias: string;
 	canonical: string;

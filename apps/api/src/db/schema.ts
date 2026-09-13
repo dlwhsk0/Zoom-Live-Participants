@@ -4,6 +4,7 @@ import {
 	integer,
 	jsonb,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex,
@@ -277,6 +278,33 @@ export const notices = pgTable("notices", {
 		.notNull()
 		.defaultNow(),
 });
+
+/**
+ * 별칭 후보를 물리친 기록.
+ *
+ * "같은 기기인데 이름이 다르다" 는 제안은 대개 한 사람이 이름을 바꾼 것이지만,
+ * 한 기기를 두 사람이 나눠 쓰는 경우도 있다. 그때 어드민이 "아니요" 를 누르면
+ * 여기 남기고 다시 제안하지 않는다. 없으면 같은 제안이 영원히 뜬다.
+ *
+ * 두 이름은 **정렬해서** 저장한다. 어느 쪽이 대표가 되든 같은 쌍이기 때문이다
+ * (기기의 최신 이름이 바뀌면 제안 방향이 뒤집힌다).
+ */
+export const aliasRejections = pgTable(
+	"alias_rejections",
+	{
+		/** 정렬한 두 이름 중 앞. */
+		nameA: text("name_a").notNull(),
+		/** 정렬한 두 이름 중 뒤. */
+		nameB: text("name_b").notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true })
+			.notNull()
+			.defaultNow(),
+		clientIp: text("client_ip"),
+	},
+	(table) => ({
+		pk: primaryKey({ columns: [table.nameA, table.nameB] }),
+	}),
+);
 
 export const nameAliases = pgTable("name_aliases", {
 	/** Zoom 에 뜨는 이름 */

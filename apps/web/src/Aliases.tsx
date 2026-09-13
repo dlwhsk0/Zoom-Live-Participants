@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import {
+	clearAliasRejections,
 	deleteAlias,
 	fetchAliasSuggestions,
 	fetchAliases,
 	putAlias,
+	rejectAliasSuggestion,
 } from "./api.ts";
 
 /**
@@ -60,6 +62,26 @@ export default function Aliases({
 		mutationFn: (input: { alias: string; canonical: string }) => putAlias(input),
 		onSuccess: (_data, input) => {
 			onToast(`${input.alias} 을(를) ${input.canonical} 로 묶었습니다`, true);
+			refresh();
+		},
+		onError: (err: Error) => onToast(err.message, false),
+	});
+
+	// "다른 사람이다" 를 남긴다. 안 그러면 같은 제안이 영원히 뜬다.
+	const reject = useMutation({
+		mutationFn: (input: { alias: string; canonical: string }) =>
+			rejectAliasSuggestion(input),
+		onSuccess: (_data, input) => {
+			onToast(`${input.alias} 과(와) ${input.canonical} 을(를) 따로 둡니다`, true);
+			refresh();
+		},
+		onError: (err: Error) => onToast(err.message, false),
+	});
+
+	const restore = useMutation({
+		mutationFn: clearAliasRejections,
+		onSuccess: (result) => {
+			onToast(`물리친 제안 ${result.restored}건을 되살렸습니다`, true);
 			refresh();
 		},
 		onError: (err: Error) => onToast(err.message, false),
@@ -152,6 +174,17 @@ export default function Aliases({
 							>
 								묶기
 							</button>
+							{/* 물리친 쌍은 기억한다. 없으면 같은 제안이 영원히 뜬다 */}
+							<button
+								type="button"
+								className="chip"
+								disabled={reject.isPending}
+								onClick={() =>
+									reject.mutate({ alias: item.name, canonical: group.canonical })
+								}
+							>
+								다른 사람
+							</button>
 						</li>
 					)),
 				)}
@@ -159,11 +192,26 @@ export default function Aliases({
 		</div>
 	);
 
+	// 전부 물리치면 제안 영역이 사라진다. 되살릴 길은 남겨 둔다.
+	const restoreLine = (
+		<p className="suggest__restore">
+			<button
+				type="button"
+				className="admin__link"
+				disabled={restore.isPending}
+				onClick={() => restore.mutate()}
+			>
+				물리친 제안 되살리기
+			</button>
+		</p>
+	);
+
 	return (
 		<>
 			{hint}
 			{form}
 			{proposals}
+			{restoreLine}
 
 			{isPending ? (
 				<p className="empty">불러오는 중…</p>

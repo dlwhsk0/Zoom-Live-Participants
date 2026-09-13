@@ -85,6 +85,13 @@
       "when": 1789302400886,
       "tag": "0011_ancient_overlord",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789304492232,
+      "tag": "0012_slimy_mattie_franklin",
+      "breakpoints": true
     }
   ]
 }

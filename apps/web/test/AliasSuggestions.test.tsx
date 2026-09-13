@@ -63,4 +63,15 @@ describe("별칭 후보", () => {
 	it("후보가 없으면 제안 영역 자체를 두지 않는다", () => {
 		expect(render([])).not.toContain("suggest__row");
 	});
+
+	it("묶기 옆에 물리치는 길을 둔다 — 아니면 같은 제안이 영원히 뜬다", () => {
+		const html = render([KEVIN]);
+
+		expect(html).toContain("묶기");
+		expect(html).toContain("다른 사람");
+	});
+
+	it("전부 물리쳐 제안이 비어도 되살릴 길은 남는다", () => {
+		expect(render([])).toContain("물리친 제안 되살리기");
+	});
 });
