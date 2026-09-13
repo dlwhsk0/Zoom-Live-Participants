@@ -68,6 +68,16 @@ export const participantEvents = pgTable(
 		 * participant_uuid 는 접속마다 새로 발급되지만 public_ip 는 유지된다.
 		 */
 		publicIp: text("public_ip"),
+		/**
+		 * 사설 IP. 공유기가 기기에 준 주소다.
+		 *
+		 * 같은 와이파이를 쓰면 공인 IP 가 같아서 사람을 가를 수 없다.
+		 * `(공인, 사설)` 쌍이면 **기기 단위**로 갈린다 — 웹훅으로 얻을 수 있는
+		 * 가장 세밀한 신원이다.
+		 *
+		 * **`left` 이벤트에만 온다.** 들어와서 아직 안 나간 사람은 null 이다.
+		 */
+		privateIp: text("private_ip"),
 		/** 원문 보존. 판정에 쓰지 않는다. */
 		leaveReason: text("leave_reason"),
 		createdAt: timestamp("created_at", { withTimezone: true })
@@ -122,6 +132,16 @@ export const participants = pgTable(
 		displayName: text("display_name"),
 		/** 재접속 판별용. 상세는 participant_events.public_ip 주석 참고. */
 		publicIp: text("public_ip"),
+		/**
+		 * 사설 IP. 공유기가 기기에 준 주소다.
+		 *
+		 * 같은 와이파이를 쓰면 공인 IP 가 같아서 사람을 가를 수 없다.
+		 * `(공인, 사설)` 쌍이면 **기기 단위**로 갈린다 — 웹훅으로 얻을 수 있는
+		 * 가장 세밀한 신원이다.
+		 *
+		 * **`left` 이벤트에만 온다.** 들어와서 아직 안 나간 사람은 null 이다.
+		 */
+		privateIp: text("private_ip"),
 		/**
 		 * 참가자가 직접 적는 상태 메시지. 권한을 두지 않는다.
 		 * 재접속하면 새 행이 생기므로, 조회 시 합칠 때

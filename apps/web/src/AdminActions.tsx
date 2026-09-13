@@ -20,9 +20,15 @@ function quote(value: string | null | undefined, empty: string): string {
 	return `“${value}”`;
 }
 
-/** 누가 했는가. 이름을 못 찾으면 IP 를 그대로 쓴다. */
+/**
+ * 누가 했는가. 이름을 못 찾으면 얼마나 좁혀졌는지를 보여준다.
+ *
+ * 후보를 **기기 수**로 센다. 이름으로 세면 한 사람이 이름을 바꿨을 때
+ * 여러 명처럼 부풀려진다 — 사설 IP 로 세는 쪽이 사람 수에 가깝다.
+ */
 function actorLabel(action: AdminAction): string {
 	if (action.actor.name) return action.actor.name;
+	if (action.actor.devices > 1) return `기기 ${action.actor.devices}대 중 하나`;
 	if (action.actor.candidates > 1) return `${action.actor.candidates}명 중 한 명`;
 	return action.actor.ip ?? "알 수 없음";
 }

@@ -136,10 +136,17 @@ export async function renameParticipants(
  */
 export interface AdminActor {
 	ip: string | null;
-	/** 정확히 한 명일 때만 채운다. */
+	/** 기기가 하나로 좁혀질 때만 채운다. */
 	name: string | null;
-	/** 그 IP 로 접속한 적 있는 사람 수. 1 이면 name 이 곧 그 사람이다. */
+	/** 그 IP 로 접속한 적 있는 사람(이름) 수. */
 	candidates: number;
+	/**
+	 * 그 IP 뒤의 **기기** 수. 사설 IP 로 센다.
+	 *
+	 * 이름보다 이쪽이 사람 수에 가깝다 — 한 사람이 이름을 바꾸면 candidates 는
+	 * 늘지만 devices 는 그대로다. 0 이면 사설 IP 를 아직 모른다는 뜻이다.
+	 */
+	devices: number;
 }
 
 /** 고쳐진 대상. 이름은 participant_uuid 로 찾는다. */
@@ -191,19 +198,39 @@ export async function listAdminActions(
 		),
 	];
 
-	// IP → 이름. 한 IP 에 여러 이름이 걸리면 특정하지 않는다.
-	const byIp = new Map<string, Set<string>>();
+	// IP → 그 뒤에 있던 사람들. 이름만이 아니라 **기기**(사설 IP)까지 센다.
+	// 한 사람이 이름을 바꾸면 이름은 늘지만 기기는 하나다 — 그 경우를 가려낸다.
+	const byIp = new Map<
+		string,
+		{ names: Set<string>; devices: Set<string>; unknownDevice: boolean; latest: { name: string; at: number } | null }
+	>();
 	if (ips.length > 0) {
 		const found = await db
-			.select({ ip: participants.publicIp, name: participants.displayName })
+			.select({
+				ip: participants.publicIp,
+				privateIp: participants.privateIp,
+				name: participants.displayName,
+				at: participants.lastOccurredAt,
+			})
 			.from(participants)
 			.where(inArray(participants.publicIp, ips));
 
 		for (const row of found) {
 			if (!row.ip || !row.name) continue;
-			const set = byIp.get(row.ip) ?? new Set<string>();
-			set.add(row.name);
-			byIp.set(row.ip, set);
+			const entry = byIp.get(row.ip) ?? {
+				names: new Set<string>(),
+				devices: new Set<string>(),
+				unknownDevice: false,
+				latest: null,
+			};
+			entry.names.add(row.name);
+			if (row.privateIp) entry.devices.add(row.privateIp);
+			else entry.unknownDevice = true;
+
+			const at = row.at?.getTime() ?? 0;
+			if (!entry.latest || at > entry.latest.at) entry.latest = { name: row.name, at };
+
+			byIp.set(row.ip, entry);
 		}
 	}
 
@@ -221,17 +248,29 @@ export async function listAdminActions(
 	}
 
 	return rows.map((row) => {
-		const names = row.clientIp ? [...(byIp.get(row.clientIp) ?? [])] : [];
+		const seen = row.clientIp ? byIp.get(row.clientIp) : undefined;
 		const detail = row.detail as {
 			targets?: { participantUuid?: string; before?: string | null }[];
 		};
+
+		// 이름이 하나면 그대로. 이름이 여럿이어도 기기가 하나면 같은 사람이
+		// 이름을 바꾼 것이므로 가장 최근 이름으로 확정한다.
+		// 사설 IP 를 모르는 사람이 섞여 있으면 확정하지 않는다.
+		const names = seen ? [...seen.names] : [];
+		const name =
+			names.length === 1
+				? (names[0] ?? null)
+				: seen && !seen.unknownDevice && seen.devices.size === 1
+					? (seen.latest?.name ?? null)
+					: null;
 
 		return {
 			...row,
 			actor: {
 				ip: row.clientIp,
-				name: names.length === 1 ? (names[0] ?? null) : null,
+				name,
 				candidates: names.length,
+				devices: seen?.devices.size ?? 0,
 			},
 			targets: (detail?.targets ?? [])
 				.filter((t): t is { participantUuid: string; before?: string | null } => !!t.participantUuid)

@@ -333,9 +333,16 @@ export interface IdentityList {
 /** 바꾼 사람. 로그인이 없어 IP 로 추정한다. */
 export interface AdminActor {
 	ip: string | null;
-	/** 그 IP 로 접속한 사람이 정확히 한 명일 때만 채워진다. */
+	/** 기기가 하나로 좁혀질 때만 채워진다. */
 	name: string | null;
+	/** 그 IP 에 걸린 이름 수. */
 	candidates: number;
+	/**
+	 * 그 IP 뒤의 기기 수(사설 IP 기준).
+	 *
+	 * 이름보다 사람 수에 가깝다 — 이름을 바꿔도 기기는 하나다.
+	 */
+	devices: number;
 }
 
 /** 고쳐진 대상. */

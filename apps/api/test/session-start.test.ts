@@ -19,6 +19,7 @@ function state(overrides: Partial<ParticipantState>): ParticipantState {
 		participantUuid: "p1",
 		displayName: "조하나",
 		publicIp: null,
+		privateIp: null,
 		statusMessage: null,
 		statusUpdatedAt: null,
 		joinTimeUncertain: false,

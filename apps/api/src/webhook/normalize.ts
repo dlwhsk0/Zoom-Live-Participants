@@ -13,6 +13,8 @@ const participantSchema = z.object({
 	user_id: z.string().optional(),
 	user_name: z.string().optional(),
 	public_ip: z.string().optional(),
+	// left 이벤트에만 담겨 온다
+	private_ip: z.string().optional(),
 	join_time: z.string().optional(),
 	leave_time: z.string().optional(),
 	leave_reason: z.string().optional(),
@@ -78,6 +80,8 @@ export function toParticipantEvent(
 		displayName: participant.user_name ?? null,
 		userId: participant.user_id ?? null,
 		publicIp: participant.public_ip || null,
+		// left 이벤트에만 담겨 온다. 기기를 가르는 유일한 값이다.
+		privateIp: participant.private_ip || null,
 		leaveReason: participant.leave_reason ?? null,
 	};
 }

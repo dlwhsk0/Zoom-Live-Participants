@@ -206,6 +206,7 @@ describe("dedupe_key", () => {
 			displayName: null,
 			userId: null,
 			publicIp: null,
+			privateIp: null,
 			leaveReason: null,
 		};
 		const leftKey = buildDedupeKey({ ...base, eventType: "left" });

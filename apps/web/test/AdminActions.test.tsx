@@ -26,7 +26,7 @@ function statusChange(overrides: Partial<AdminAction> = {}): AdminAction {
 		action: "status",
 		meetingUuid: "u",
 		clientIp: "124.51.207.99",
-		actor: { ip: "124.51.207.99", name: "황건하", candidates: 1 },
+		actor: { ip: "124.51.207.99", name: "황건하", candidates: 1, devices: 1 },
 		targets: [{ participantUuid: "p1", before: null, displayName: "박채연" }],
 		detail: { after: "아우졸려", targets: [{ participantUuid: "p1", before: null }] },
 		...overrides,
@@ -67,19 +67,19 @@ describe("기록 — 누가 고쳤는가", () => {
 		expect(html).toContain("(지움)");
 	});
 
-	it("같은 IP 를 여럿이 쓰면 이름을 단정하지 않는다", () => {
+	it("기기가 여럿이면 이름을 단정하지 않고 기기 수로 말한다", () => {
 		const html = render([
-			statusChange({ actor: { ip: "223.33.17.199", name: null, candidates: 3 } }),
+			statusChange({ actor: { ip: "223.33.17.199", name: null, candidates: 3, devices: 3 } }),
 		]);
 
-		expect(html).toContain("3명 중 한 명");
+		expect(html).toContain("기기 3대 중 하나");
 		expect(html).toContain("record__actor--unknown");
 		expect(html).not.toContain("황건하");
 	});
 
 	it("이름도 후보도 없으면 IP 를 그대로 쓴다", () => {
 		const html = render([
-			statusChange({ actor: { ip: "10.0.0.1", name: null, candidates: 0 } }),
+			statusChange({ actor: { ip: "10.0.0.1", name: null, candidates: 0, devices: 0 } }),
 		]);
 
 		expect(html).toContain("10.0.0.1");

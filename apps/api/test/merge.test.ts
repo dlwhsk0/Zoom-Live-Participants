@@ -29,6 +29,7 @@ function row(
 		participantUuid: uuid,
 		displayName: "조하나",
 		publicIp: "203.0.113.1",
+		privateIp: null,
 		statusMessage: null,
 		statusUpdatedAt: null,
 		joinTimeUncertain: false,
@@ -240,6 +241,7 @@ describe("sortForDisplay", () => {
 					lastMin: 10,
 					displayName: "접속중",
 					publicIp: "203.0.113.9",
+					privateIp: null,
 					isPresent: true,
 					lastEventType: "joined",
 				}),
@@ -272,6 +274,7 @@ describe("sortForDisplay", () => {
 				lastMin: leftMin,
 				displayName: name,
 				publicIp: ip,
+				privateIp: null,
 				intervals: [
 					{ start: new Date(BASE), end: new Date(BASE + minutes * 60_000) },
 				],
@@ -300,6 +303,7 @@ describe("sortForDisplay", () => {
 				lastMin: joinedMin,
 				displayName: name,
 				publicIp: ip,
+				privateIp: null,
 				isPresent: true,
 				lastEventType: "joined",
 			});

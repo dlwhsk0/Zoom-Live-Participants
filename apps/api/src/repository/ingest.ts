@@ -46,6 +46,7 @@ export async function insertParticipantEvent(
 		displayName: event.displayName,
 		userId: event.userId,
 		publicIp: event.publicIp,
+		privateIp: event.privateIp,
 		leaveReason: event.leaveReason,
 	});
 }
@@ -73,6 +74,7 @@ export async function upsertParticipant(
 			participantUuid: event.participantUuid,
 			displayName: event.displayName,
 			publicIp: event.publicIp,
+			privateIp: event.privateIp,
 			isPresent,
 			lastEventType: event.eventType,
 			lastOccurredAt: event.occurredAt,
@@ -85,6 +87,8 @@ export async function upsertParticipant(
 				meetingStartedAt: sql`coalesce(${participants.meetingStartedAt}, excluded.meeting_started_at)`,
 				displayName: sql`excluded.display_name`,
 				publicIp: sql`excluded.public_ip`,
+				// joined 에는 사설 IP 가 없다. 빈 값으로 덮어써 지우지 않는다.
+				privateIp: sql`coalesce(excluded.private_ip, ${participants.privateIp})`,
 				isPresent: sql`excluded.is_present`,
 				lastEventType: sql`excluded.last_event_type`,
 				lastOccurredAt: sql`excluded.last_occurred_at`,

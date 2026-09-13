@@ -54,6 +54,7 @@ describe("shouldAdvance", () => {
 		displayName: null,
 		userId: null,
 		publicIp: null,
+		privateIp: null,
 		leaveReason: null,
 	};
 
@@ -123,6 +124,7 @@ describe("실측 시나리오", () => {
 					participantUuid: event.participantUuid,
 					displayName: event.displayName,
 					publicIp: event.publicIp,
+					privateIp: null,
 					statusMessage: null,
 					statusUpdatedAt: null,
 					joinTimeUncertain: false,
@@ -232,6 +234,7 @@ describe("meeting.ended", () => {
 				displayName: "테스터",
 				userId: null,
 				publicIp: null,
+				privateIp: null,
 				leaveReason: null,
 			},
 		]);

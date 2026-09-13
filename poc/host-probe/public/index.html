@@ -121,7 +121,10 @@
 			<thead><tr><th>이름</th><th>userId</th><th>isHost</th><th>isManager</th><th></th></tr></thead>
 			<tbody id="people"><tr><td colspan="5" class="flag">—</td></tr></tbody>
 		</table>
-		<p class="hint"><button class="ghost" id="dump" style="padding:4px 10px;font-size:12px">원본 JSON 복사</button></p>
+		<p class="hint">
+			<button class="ghost" id="dump" style="padding:4px 10px;font-size:12px">원본 JSON 복사</button>
+			<button class="ghost" id="bo" style="padding:4px 10px;font-size:12px">소회의실 조회</button>
+		</p>
 	</section>
 
 	<section style="grid-column: 1 / -1">
@@ -431,6 +434,38 @@ async function leave() {
 $('join').onclick = join;
 $('leave').onclick = leave;
 $('toggle').onclick = () => $('sdkRoot').classList.toggle('show');
+/**
+ * 소회의실 목록을 캐본다.
+ *
+ * 확인하려는 것: 방 이름이 나오는가, 그 방에 **누가 있는지**까지 나오는가.
+ * 웹훅의 breakout_room_uuid 와 SDK 의 방 id 는 서로 다르다고 알려져 있어
+ * (Zoom 포럼 78978), 이을 고리는 사람 이름뿐이다.
+ */
+$('bo').onclick = async () => {
+	if (!client) return log('먼저 참가해라.', 'l-err');
+
+	for (const name of [
+		'getBreakoutRoomList',
+		'getCurrentBreakoutRoom',
+		'getBreakoutRoomStatus',
+		'getBreakoutRoomOptions',
+	]) {
+		if (typeof client[name] !== 'function') {
+			log(`[소회의실] ${name} 없음`, 'l-dim');
+			continue;
+		}
+		try {
+			const value = await client[name]();
+			let text;
+			try { text = JSON.stringify(value); } catch { text = String(value); }
+			log(`[소회의실] ${name} → ${text}`, 'l-ok');
+		} catch (e) {
+			log(`[소회의실] ${name} 실패: ${describe(e)}`, 'l-err');
+			console.error('[bo]', name, e);
+		}
+	}
+};
+
 $('dump').onclick = async () => {
 	const t = JSON.stringify(window.__last ?? [], null, 2);
 	try { await navigator.clipboard.writeText(t); log('원본 JSON 복사됨', 'l-ok'); }

@@ -35,6 +35,12 @@ export interface ParticipantEvent {
 	userId: string | null;
 	/** 공인 IP. 재접속 판별에 쓴다. */
 	publicIp: string | null;
+	/**
+	 * 사설 IP. 기기를 가르는 값이다.
+	 *
+	 * `left` 이벤트에만 담겨 온다 — 들어와서 아직 안 나간 사람은 null 이다.
+	 */
+	privateIp: string | null;
 	leaveReason: string | null;
 }
 
@@ -55,6 +61,8 @@ export interface ParticipantState {
 	participantUuid: string;
 	displayName: string | null;
 	publicIp: string | null;
+	/** 사설 IP. 기기를 가른다. left 이벤트에만 오므로 null 일 수 있다. */
+	privateIp: string | null;
 	statusMessage: string | null;
 	statusUpdatedAt: Date | null;
 	/**
@@ -139,6 +147,7 @@ export function applyEvent(
 		participantUuid: incoming.participantUuid,
 		displayName: incoming.displayName,
 		publicIp: incoming.publicIp,
+		privateIp: incoming.privateIp,
 		// 상태 메시지는 웹훅으로 오지 않는다. 별도 API 로만 바뀐다.
 		statusMessage: current?.statusMessage ?? null,
 		statusUpdatedAt: current?.statusUpdatedAt ?? null,
@@ -244,6 +253,8 @@ export interface MergedParticipant {
 	displayName: string | null;
 	/** 내부용. API 응답에는 넣지 않는다. */
 	publicIp: string | null;
+	/** 내부용. 기기를 가르는 값. 아직 안 나간 사람은 null 이다. */
+	privateIp: string | null;
 	isPresent: boolean;
 	/** 가장 이른 입장 시각. 재접속해도 경과 시간이 이어진다. */
 	firstJoinedAt: Date | null;
@@ -270,6 +281,7 @@ function toMerged(state: ParticipantState): MergedParticipant {
 		meetingUuid: state.meetingUuid,
 		displayName: state.displayName,
 		publicIp: state.publicIp,
+		privateIp: state.privateIp,
 		isPresent: state.isPresent,
 		firstJoinedAt: state.firstJoinedAt,
 		lastOccurredAt: state.lastOccurredAt,
@@ -337,7 +349,9 @@ function absorb(
 		meetingId: next.meetingId,
 		meetingUuid: next.meetingUuid,
 		displayName: next.displayName,
+		// 사설 IP 는 left 에만 오므로, 새 접속에 없으면 이전 값을 잇는다
 		publicIp: next.publicIp,
+		privateIp: next.privateIp ?? previous.privateIp,
 		// 한 쪽이라도 접속 중이면 접속 중이다.
 		//
 		// 예전에는 뒤 행의 값을 그대로 썼다. 노트북과 폰으로 동시에 들어와

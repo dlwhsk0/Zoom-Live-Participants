@@ -178,6 +178,7 @@ export async function getPresenceSnapshot(
 			participantUuid: participants.participantUuid,
 			displayName: participants.displayName,
 			publicIp: participants.publicIp,
+			privateIp: participants.privateIp,
 			statusMessage: participants.statusMessage,
 			statusUpdatedAt: participants.statusUpdatedAt,
 			firstJoinedAt: participants.firstJoinedAt,
@@ -220,12 +221,9 @@ export async function getPresenceSnapshot(
 	// 조회 시점에 합친다. 상세는 presence.ts 의 mergeReconnections 주석 참고.
 	const people = sortForDisplay(mergeReconnections(states), now);
 
-	// IP 가 정확히 한 명과 일치할 때만 "당신"으로 본다.
-	// 같은 네트워크를 여러 명이 쓰면 누구인지 특정할 수 없다.
-	const ipMatches = clientIp
-		? people.filter((p) => p.publicIp && p.publicIp === clientIp)
-		: [];
-	const youUuid = ipMatches.length === 1 ? ipMatches[0]?.participantUuid : null;
+	// 브라우저가 알려주는 것은 공인 IP 뿐이다. 그 IP 뒤에 **기기가 하나**일 때만
+	// "당신" 으로 본다. 상세는 resolveYou 주석.
+	const youUuid = resolveYou(people, clientIp);
 
 	const openedBy = resolveOpener(states, firstJoin, aliases);
 
@@ -253,6 +251,56 @@ export async function getPresenceSnapshot(
 		})),
 		host: resolveHost(lastHost, people, openedBy, aliases),
 	};
+}
+
+/**
+ * 화면을 보고 있는 사람이 참가자 중 누구인가.
+ *
+ * 브라우저가 서버에 알려주는 것은 **공인 IP 하나**다. 그래서 같은 와이파이를
+ * 여럿이 쓰면 원칙적으로 특정할 수 없다.
+ *
+ * 다만 **기기 단위**로 좁히면 얘기가 달라진다. 사설 IP(`private_ip`)는 공유기가
+ * 기기마다 다르게 주므로, 같은 공인 IP 라도 기기를 가른다.
+ *
+ * 지난 규칙("이름이 정확히 하나")은 **한 사람이 이름을 바꾸면 여러 명으로 세어
+ * 포기했다.** 실측에서 한 기기가 이름 셋을 쓴 경우가 있었다
+ * (`이용욱 / 이 용욱 / 이용욱-컴퓨터공학전공`). 기기로 묶으면 그런 가짜
+ * 모호함이 사라진다.
+ *
+ * 판정:
+ *   1. 공인 IP 가 같은 사람이 하나뿐이면 그 사람이다(지금까지와 같다).
+ *   2. 여럿이면 사설 IP 를 본다. 전부 같은 기기면 그중 가장 최근 사람이다.
+ *   3. 기기가 여럿이거나, 사설 IP 를 모르는 사람이 섞여 있으면 **포기한다.**
+ *      틀린 사람에게 "(나)" 를 붙이느니 아무에게도 안 붙이는 쪽이다.
+ */
+export function resolveYou(
+	people: readonly {
+		participantUuid: string;
+		publicIp: string | null;
+		privateIp: string | null;
+		lastOccurredAt: Date;
+	}[],
+	clientIp: string | null | undefined,
+): string | null {
+	if (!clientIp) return null;
+
+	const matches = people.filter((p) => p.publicIp && p.publicIp === clientIp);
+	if (matches.length === 0) return null;
+	if (matches.length === 1) return matches[0]?.participantUuid ?? null;
+
+	// 아직 한 번도 안 나간 사람은 사설 IP 가 없다. 그가 다른 기기일 수 있으므로
+	// 하나라도 섞여 있으면 판단하지 않는다.
+	if (matches.some((p) => !p.privateIp)) return null;
+
+	const devices = new Set(matches.map((p) => p.privateIp));
+	if (devices.size !== 1) return null;
+
+	// 같은 기기에서 이름만 바뀐 경우다. 가장 최근 기록을 그 사람으로 본다.
+	const latest = matches.reduce((a, b) =>
+		b.lastOccurredAt.getTime() > a.lastOccurredAt.getTime() ? b : a,
+	);
+
+	return latest.participantUuid;
 }
 
 /**
