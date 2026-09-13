@@ -327,18 +327,21 @@ export function resolveYou(
  * 떼어내기" 가 어드민의 분리 수단인데, 기기 통일이 도로 덮으면 그 수단이
  * 사라진다.
  */
-async function findPinnedNames(
+export async function findPinnedNames(
 	db: Db,
-	meetingUuid: string,
+	/** 비우면 모든 세션. 통계는 기간 전체를 보므로 범위를 두지 않는다. */
+	meetingUuid?: string,
 ): Promise<Set<string>> {
 	const rows = await db
 		.select({ detail: adminActions.detail })
 		.from(adminActions)
 		.where(
-			and(
-				eq(adminActions.meetingUuid, meetingUuid),
-				eq(adminActions.action, "rename"),
-			),
+			meetingUuid
+				? and(
+						eq(adminActions.meetingUuid, meetingUuid),
+						eq(adminActions.action, "rename"),
+					)
+				: eq(adminActions.action, "rename"),
 		);
 
 	const pinned = new Set<string>();

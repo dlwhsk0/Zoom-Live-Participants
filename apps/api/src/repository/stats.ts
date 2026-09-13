@@ -4,7 +4,7 @@ import type { getDb } from "../db/client.ts";
 import type { Interval } from "../domain/presence.ts";
 import { buildStats, type PersonIntervals, type Stats } from "../domain/stats.ts";
 import { findSnapshots, type SnapshotRow } from "./snapshot.ts";
-import { loadAliasMap } from "./query.ts";
+import { findPinnedNames, loadAliasMap } from "./query.ts";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -58,11 +58,17 @@ export async function findIntervalsInRange(
 	const rows = await db.execute<{
 		display_name: string | null;
 		meeting_uuid: string;
+		public_ip: string | null;
+		private_ip: string | null;
+		participant_uuid: string;
 		started_at: string | Date;
 		ended_at: string | Date | null;
 	}>(sql`
 		select
 			p.display_name,
+			p.public_ip,
+			p.private_ip,
+			t.participant_uuid,
 			t.meeting_uuid,
 			t.started_at,
 			t.ended_at
@@ -92,15 +98,34 @@ export async function findIntervalsInRange(
 			and (t.next_type is null or t.next_type = 'left')
 	`);
 
-	const [aliases, sessionEnds] = await Promise.all([
+	const [aliases, sessionEnds, pinned] = await Promise.all([
 		loadAliasMap(db),
 		findSessionEnds(db),
+		findPinnedNames(db),
 	]);
+
+	// 같은 기기의 행은 이름이 달라도 한 사람이다. 스냅샷 조회와 같은 규칙을
+	// 쓴다 — 목록에서 한 사람인데 통계에서만 둘로 갈리면 안 된다.
+	// 상세는 domain/presence.ts 의 unifyNamesByDevice 주석.
+	const deviceName = new Map<string, { name: string; at: number }>();
+	for (const row of rows) {
+		if (!row.display_name || !row.public_ip || !row.private_ip) continue;
+		if (pinned.has(row.participant_uuid)) continue;
+
+		const key = `${row.meeting_uuid}|${row.public_ip}|${row.private_ip}`;
+		const at = new Date(row.started_at).getTime();
+		const current = deviceName.get(key);
+		if (!current || at > current.at) deviceName.set(key, { name: row.display_name, at });
+	}
 
 	const byName = new Map<string, Interval[]>();
 
 	for (const row of rows) {
-		const raw = row.display_name;
+		const device =
+			row.public_ip && row.private_ip && !pinned.has(row.participant_uuid)
+				? deviceName.get(`${row.meeting_uuid}|${row.public_ip}|${row.private_ip}`)
+				: undefined;
+		const raw = device?.name ?? row.display_name;
 		const name = raw ? (aliases.get(raw) ?? raw) : "이름 없음";
 		const list = byName.get(name) ?? [];
 
