@@ -169,8 +169,8 @@ Tailscale 도 아니다.**
 
 - **CORS 는 브라우저에게 주는 지시**다. 남의 사이트가 방문자 브라우저를 시켜
   읽는 것은 막지만, `curl` 로 부르면 서버는 그대로 200 에 전체 JSON 을 준다
-- **Tailscale 은 DB 만 가린다.** API 도메인은 공인 IP(`157.151.206.201`)로,
-  참가자들이 각자 집에서 접속해야 하므로 당연히 공개다
+- **Tailscale 은 DB 만 가린다.** API 는 참가자들이 각자 집에서 접속해야
+  하므로 당연히 공개다
 
 서버가 검사할 수 있는 것은 비밀값뿐이다. `ACCESS_TOKEN` 을 설정하면
 `x-access-token` 헤더를 요구한다(`Authorization: Bearer` 도 받는다).
@@ -187,10 +187,6 @@ Tailscale 도 아니다.**
 
 **그런데 그 문(basic auth)을 켜지 않기로 했다.** 번들을 누구나 받을 수 있으므로
 토큰도 누구나 꺼낼 수 있다.
-
-```bash
-curl -s https://techeer-up.vercel.app/assets/index-*.js | grep -o '[0-9a-f]\{48\}'
-```
 
 **그래서 지금 이 게이트는 자물쇠가 아니라 과속방지턱이다.** 자동 스캐너와
 무심한 호출은 막지만, 조금이라도 들여다보는 사람은 그대로 통과한다.
@@ -214,12 +210,7 @@ curl -s https://techeer-up.vercel.app/assets/index-*.js | grep -o '[0-9a-f]\{48\
 
 ### 남은 것
 
-| # | 무엇 | 위치 | 영향 |
-|---|---|---|---|
-| 1 | 상태 메시지 쓰기에 인증이 없다 | `PUT /api/participants/:uuid/status` | **막지 않기로 했다.** 로그인을 붙이면 "링크 하나로 바로 쓴다" 는 성질이 사라진다. 대신 누가(IP) 무엇을 바꿨는지 `admin_actions` 에 남기고, 어드민 화면에서 되돌릴 수 있게 했다 |
-| 2 | 레이트리밋이 없다 | `http/server.ts` | 로그인에만 걸었다. 상태 메시지 쓰기에는 아직 없다 — 스팸이 실제로 생기면 그때 붙인다 |
-| 3 | `LOGS_TOKEN` 이 아직 살아 있다 | `http/server.ts` `checkToken` | 화면은 세션 로그인으로 옮겼고 `?key=` 를 더 이상 쓰지 않는다. 서버는 아직 토큰도 받는다 — 계정으로 완전히 옮긴 뒤 걷어낸다 |
-| 4 | IP 를 권한 판단에 쓸 수 없다 | `http/client-ip.ts` | `X-Forwarded-For` 의 **맨 앞** 값을 읽는다. Traefik 은 뒤에 덧붙이므로 클라이언트가 앞을 위조할 수 있다. 지금은 힌트(`isYou`)로만 쓰니 피해가 없지만, **IP 를 권한으로 승격하려면 반드시 먼저 고쳐야 한다** |
+남은 약점과 그 위치는 공개 레포에 적지 않는다. 레포 밖 비공개 문서에서 관리한다.
 
 ### 해결된 것
 
@@ -263,15 +254,12 @@ Zoom 앱은 살아 있지만 **현재 코드가 REST API 를 쓰지 않는다** 
 # 검색 차단이 살아 있는지
 curl -s https://techeer-up.vercel.app/robots.txt
 curl -sI https://techeer-up.vercel.app | grep -i x-robots-tag
-curl -s https://techeerzoom.techeer.cloud-yaho.cloud/robots.txt
-curl -sI https://techeerzoom.techeer.cloud-yaho.cloud/health | grep -i x-robots-tag
-
-# 조회 API 가 무엇을 내주는지 (실명이 나온다)
-curl -s https://techeerzoom.techeer.cloud-yaho.cloud/api/participants | head -c 300
+curl -s https://<api>/robots.txt
+curl -sI https://<api>/health | grep -i x-robots-tag
 
 # CORS 가 잠겨 있는지 — 허용 목록 밖 오리진엔 allow-origin 이 없어야 한다
 curl -sI -H "Origin: https://example.com" \
-  https://techeerzoom.techeer.cloud-yaho.cloud/api/participants | grep -i access-control
+  https://<api>/api/participants | grep -i access-control
 ```
 
 ```bash
