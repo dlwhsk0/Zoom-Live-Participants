@@ -1006,7 +1006,7 @@ Prometheus 는 도커 네트워크 안에서 `http://<서비스>:9091/metrics` �
 밖에서 직접 찍어볼 수 있다.
 
 ```
-curl https://techeerzoom.techeer.cloud-yaho.cloud/health
+curl https://<api>/health
 {"ok":true,"version":"1c7d468e0360","startedAt":"2026-08-30T18:10:17.053Z"}
 ```
 
