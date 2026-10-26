@@ -1088,6 +1088,21 @@ body {
 	color: var(--warn-fg);
 }
 
+/*
+ * 회의가 끝난 뒤 Report API 로 채운 보정값.
+ * 웹훅으로 받은 것과 섞여 있어도 한눈에 갈리게 왼쪽 점선과 태그를 단다.
+ * 경고색은 쓰지 않는다 — 틀린 값이 아니라 늦게 채운 값이다.
+ */
+.log--backfill {
+	padding-left: 10px;
+	border-left: 2px dashed color-mix(in srgb, var(--accent) 55%, transparent);
+}
+
+.log__tag--backfill {
+	background: color-mix(in srgb, var(--accent) 14%, var(--field));
+	color: var(--accent);
+}
+
 .log__meta {
 	display: flex;
 	flex-wrap: wrap;

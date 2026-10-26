@@ -1,4 +1,5 @@
 import type { getDb } from "../db/client.ts";
+import { scheduleSessionBackfill } from "../jobs/backfill.ts";
 import {
 	participantEventsApplied,
 	roomMoves,
@@ -72,7 +73,7 @@ async function isRoomMove(
  *   3. 원본 저장. dedupe_key 충돌이면 이미 처리한 이벤트이므로 조용히 종료
  *   4. participant_events 기록
  *   5. participants upsert
- *   6. meeting.ended 면 세션 정리
+ *   6. meeting.ended 면 세션 정리, 몇 분 뒤 Report API 로 빠진 입퇴장 메꾸기
  *
  * 응답은 항상 빠르게 준다. Zoom 은 응답이 늦으면 재전송한다.
  */
@@ -153,6 +154,18 @@ export async function handleWebhook(
 			// 회의가 끝났으니 그날 기록을 굳혀 둔다. 실패해도 응답은 막지 않는다 —
 			// 던지면 Zoom 이 같은 웹훅을 계속 다시 보낸다.
 			await snapshotAround(db, now);
+
+			// 웹훅을 놓친 입퇴장이 있으면 Report API 로 메꾼다. 몇 분 뒤에 돈다 —
+			// Report API 는 회의가 끝나자마자 채워지지 않는다.
+			const object = body.payload.object;
+			const startTime = object?.start_time ? new Date(object.start_time) : null;
+			if (object?.id !== undefined && startTime && !Number.isNaN(startTime.getTime())) {
+				scheduleSessionBackfill({
+					meetingId: String(object.id),
+					meetingUuid,
+					startTime,
+				});
+			}
 
 			return { status: 200, body: { ok: true, sessionEnded: true, cleared } };
 		}

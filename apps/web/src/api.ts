@@ -210,6 +210,11 @@ export interface LogEntry {
 	userId: string | null;
 	publicIp: string | null;
 	leaveReason: string | null;
+	/**
+	 * `webhook` 은 Zoom 이 그때그때 보낸 것, `report` 는 웹훅을 놓쳐 회의가
+	 * 끝난 뒤 채운 보정값이다. 이전 백엔드는 보내지 않으므로 없으면 webhook.
+	 */
+	source?: "webhook" | "report";
 	/** 같은 참가자·같은 발생 시각에 반대 이벤트가 있으면 소회의실 이동이다. */
 	isRoomMove: boolean;
 	/** 이 시각에 같은 사람의 다른 접속이 살아 있었는가. 노트북 + 폰 같은 경우다. */

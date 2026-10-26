@@ -67,9 +67,10 @@ function shortReason(reason: string | null): string {
 function Row({ entry, showRaw }: { entry: LogEntry; showRaw: boolean }) {
 	const [open, setOpen] = useState(false);
 	const joined = entry.eventType === "joined";
+	const backfilled = entry.source === "report";
 
 	return (
-		<li className="log">
+		<li className={backfilled ? "log log--backfill" : "log"}>
 			<button
 				type="button"
 				className="log__head"
@@ -82,6 +83,14 @@ function Row({ entry, showRaw }: { entry: LogEntry; showRaw: boolean }) {
 				</span>
 				<span className="log__name">{entry.displayName ?? "이름 없음"}</span>
 				<span className="log__tags">
+					{backfilled && (
+						<span
+							className="log__tag log__tag--backfill"
+							title="웹훅을 놓쳐서 회의가 끝난 뒤 Zoom 보고서로 채운 기록입니다"
+						>
+							보정
+						</span>
+					)}
 					{entry.isRoomMove && <span className="log__tag">방 이동</span>}
 					{entry.isConcurrent && (
 						<span
@@ -99,7 +108,10 @@ function Row({ entry, showRaw }: { entry: LogEntry; showRaw: boolean }) {
 					<span className="log__reason">{shortReason(entry.leaveReason)}</span>
 				)}
 				<span className="log__mono">uid={entry.userId ?? "-"}</span>
-				<span className="log__mono">{entry.publicIp ?? "-"}</span>
+				{/* 보정값은 IP 를 모른다. "-" 로 두면 빠진 값처럼 보인다 */}
+				<span className="log__mono">
+					{entry.publicIp ?? (backfilled ? "보고서 · IP 없음" : "-")}
+				</span>
 			</div>
 
 			{showRaw && open && (
@@ -213,9 +225,10 @@ function summarize(payload: unknown): string {
 function WebhookRow({ entry }: { entry: WebhookLogEntry }) {
 	const [open, setOpen] = useState(false);
 	const summary = summarize(entry.payload);
+	const backfilled = entry.event?.startsWith("backfill.") ?? false;
 
 	return (
-		<li className="log">
+		<li className={backfilled ? "log log--backfill" : "log"}>
 			<button
 				type="button"
 				className="log__head"

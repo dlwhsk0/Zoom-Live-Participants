@@ -139,6 +139,52 @@ ZOOM_MEETING_ID = 83877926942        회의방 번호 (고정)
 앞 레코드의 `leave_time` 과 다음 레코드의 `join_time` 이 같았다.
 웹훅에서 발견한 것과 같은 패턴이므로 **같은 합치기 규칙을 적용해야 한다.**
 
+### 구현 — 회의가 끝나면 백필
+
+Report API 구간을 입퇴장으로 펼친 뒤 **이미 받은 웹훅에 없는 것만** 넣는다.
+이미 메꾼 세션을 다시 돌려도 바뀌는 것이 없으므로 언제 몇 번 돌려도 된다.
+
+| 언제 | 무엇을 |
+|---|---|
+| `meeting.ended` 를 받고 **5분 · 30분 · 2시간 뒤** | 그 세션. Report API 는 끝나자마자 채워지지 않아 여러 번 부른다 |
+| 매일 **04:30 KST** | 최근 7일 안에 시작한 끝난 세션 전부 |
+
+새벽 배치는 안전망이다. **서버가 끊긴 동안 회의가 끝나면 `meeting.ended` 자체를 못 받는다.**
+예약 타이머는 메모리에만 있어 그 사이 재배포되면 사라지는데, 그 세션도 새벽에 주워진다.
+
+| 파일 | 하는 일 |
+|---|---|
+| `src/domain/backfill.ts` | 맞추는 규칙 (DB 를 모른다, 테스트는 `test/backfill.test.ts`) |
+| `src/zoom/report-api.ts` | 토큰 발급, instances · report 조회 |
+| `src/repository/backfill.ts` | 웹훅과 같은 길(원본 → 정규화 → 목록)로 넣는다 |
+| `src/jobs/backfill.ts` | 세션마다 계획 → 넣기 → 세션 종료 처리 → 그 날짜 스냅샷 다시 만들기. 종료 웹훅 예약과 새벽 배치 |
+| `scripts/backfill-report.ts` | 손으로 돌리기. 기본은 미리보기 |
+
+**Report API 에는 participant_uuid 가 없다.** 아무 값이나 붙이면 공백 전에 들어와
+공백 중에 나간 사람의 `left` 가 다른 행으로 가서 원래 행이 영원히 "접속 중" 으로 남는다.
+그래서 이렇게 붙인다.
+
+1. 구간의 `user_id` 가 웹훅에서 본 `user_id` 와 같으면 그 uuid (구간마다 새로 붙고, 같은 구간의 joined/left 에 같은 값이 온다)
+2. 아니면 소회의실 이동으로 이어진 구간(같은 이름, 앞 퇴장 = 다음 입장)을 묶고 그 묶음 어디서든 찾은 uuid
+3. 그래도 없으면 묶음마다 결정적인 가짜 uuid (`report-…`)
+
+**안전장치:** 서버가 웹훅을 받고 있던 시각(앞뒤 2분 안에 수신이 있던 시각)의 이벤트는
+대부분 이미 있어야 한다. 그 비율이 80% 아래면 빠진 게 아니라 맞추는 규칙이 어긋난 것으로
+보고 그 세션은 넣지 않는다. 그대로 넣으면 세션 전체가 두 겹이 된다.
+
+넣은 원본은 `webhook_events.payload.event` 가 `backfill.participant_joined|left` 라
+로그 화면에서 웹훅과 갈린다. Report API 가 주는 `user_email` 은 저장하지 않는다.
+
+```
+cd apps/api
+pnpm backfill:report                          # 최근 7일, 미리보기
+pnpm backfill:report -- --since 2026-10-22    # 이 날짜(KST) 이후 시작한 세션
+pnpm backfill:report -- --yes                 # 실제로 넣는다
+```
+
+메트릭: `zlp_backfill_events_total`(메꾼 수), `zlp_backfill_sessions_total{result}`,
+`zlp_backfill_last_success_timestamp_seconds` — 하루 넘게 안 바뀌면 배치가 죽은 것이다.
+
 ## 개선안
 
 **운영 중에 실효가 있는 것부터.** 오늘 생긴 공백 3건은 전부 배포 중 서버가 내려가서 생겼다.

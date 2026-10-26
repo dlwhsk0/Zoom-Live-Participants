@@ -90,6 +90,15 @@ const schema = z.object({
 	 * 로그인을 막는 쪽이 낫다. 바꾸면 발급된 세션이 전부 끊긴다.
 	 */
 	SESSION_SECRET: z.string().default(""),
+	/**
+	 * Zoom REST API (Server-to-Server OAuth).
+	 *
+	 * 웹훅을 놓친 구간을 Report API 로 메꾸는 배치가 쓴다. 셋 중 하나라도
+	 * 비면 배치가 꺼진다 — 서버는 웹훅만으로도 돌아가야 한다.
+	 */
+	ZOOM_ACCOUNT_ID: z.string().default(""),
+	ZOOM_CLIENT_ID: z.string().default(""),
+	ZOOM_CLIENT_SECRET: z.string().default(""),
 	CORS_ALLOWED_ORIGINS: z
 		.string()
 		.default("")

@@ -60,6 +60,27 @@ export const statusUpdates = counter(
 	["action"],
 );
 
+/** Report API 로 메꾼 입퇴장. 0 이 아니면 그날 웹훅을 놓친 구간이 있었다. */
+export const backfillEvents = counter(
+	"zlp_backfill_events_total",
+	"Report API 로 메꾼 입퇴장 수",
+	["event_type"],
+);
+
+/** 세션 단위 결과. skipped 는 맞추는 규칙이 어긋나 넣지 않은 세션이다. */
+export const backfillSessions = counter(
+	"zlp_backfill_sessions_total",
+	"백필이 살펴본 세션 수",
+	["result"],
+);
+
+/** 마지막으로 끝까지 돈 시각. 하루 넘게 안 바뀌면 배치가 죽은 것이다. */
+export const backfillLastSuccess = new client.Gauge({
+	name: "zlp_backfill_last_success_timestamp_seconds",
+	help: "백필 배치가 마지막으로 성공한 시각 (unix 초)",
+	registers: [register],
+});
+
 export const httpRequests = counter(
 	"zlp_http_requests_total",
 	"처리한 HTTP 요청 수",

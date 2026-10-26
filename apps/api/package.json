@@ -19,7 +19,8 @@
 		"fingerprint": "node scripts/print-fingerprint.mjs",
 		"user:create": "node --env-file=../../.env --experimental-strip-types scripts/create-user.ts",
 		"user:password": "node --env-file=../../.env --experimental-strip-types scripts/set-password.ts",
-		"snapshot:rebuild": "node --env-file=../../.env --experimental-strip-types scripts/rebuild-snapshots.ts"
+		"snapshot:rebuild": "node --env-file=../../.env --experimental-strip-types scripts/rebuild-snapshots.ts",
+		"backfill:report": "node --env-file=../../.env --experimental-strip-types scripts/backfill-report.ts"
 	},
 	"dependencies": {
 		"drizzle-orm": "^0.36.4",

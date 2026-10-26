@@ -545,6 +545,14 @@ export interface LogEntry {
 	userId: string | null;
 	publicIp: string | null;
 	leaveReason: string | null;
+	/**
+	 * 어디서 온 이벤트인가.
+	 *
+	 * `webhook` 은 Zoom 이 그때그때 보낸 것, `report` 는 웹훅을 놓쳐서 회의가
+	 * 끝난 뒤 Report API 로 채운 보정값이다(jobs/backfill.ts). 보정값은
+	 * 시각이 초 단위로 맞지만 IP 가 없고, 나중에 들어왔다.
+	 */
+	source: "webhook" | "report";
 	/** 같은 참가자·같은 발생 시각에 반대 이벤트가 있으면 소회의실 이동이다. */
 	isRoomMove: boolean;
 	/**
@@ -708,6 +716,9 @@ export async function getLogs(
 			userId: participantEvents.userId,
 			publicIp: participantEvents.publicIp,
 			leaveReason: participantEvents.leaveReason,
+			// 백필한 원본은 event 가 backfill. 로 시작한다. 컬럼을 따로 두지 않는다 —
+			// 원본이 이미 출처를 말하고 있다.
+			source: sql<"webhook" | "report">`case when ${webhookEvents.payload}->>'event' like 'backfill.%' then 'report' else 'webhook' end`,
 			payload: webhookEvents.payload,
 		})
 		.from(participantEvents)
@@ -752,6 +763,7 @@ export async function getLogs(
 			userId: r.userId,
 			publicIp: r.publicIp,
 			leaveReason: r.leaveReason,
+			source: r.source,
 			isRoomMove: pairKeys.has(
 				`${r.participantUuid}|${r.occurredAt.getTime()}|${opposite}`,
 			),
